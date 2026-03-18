@@ -720,7 +720,6 @@ const _fbApp = initializeApp(firebaseConfig);
 const _fbDb  = getDatabase(_fbApp);
 const _fbRef = ref(_fbDb, 'gantt_portfolio');
 
-// Expose les fonctions Firebase au scope global (utilisé par les scripts non-module)
 window._fbSet     = (data) => set(_fbRef, data);
 window._fbOnValue = (cb)   => onValue(_fbRef, snap => cb(snap.val()));
 </script>
@@ -749,7 +748,7 @@ window._fbOnValue = (cb)   => onValue(_fbRef, snap => cb(snap.val()));
     <input type="file" id="fileInput" accept=".xlsx,.xls,.csv">
     <button class="btn-ghost" onclick="exportData()">↓ Excel</button>
     <button class="btn-ghost" onclick="exportHTML()" title="Télécharger une copie locale">💾 Local</button>
-    <span id="fbStatus" style="font-size:11px;font-weight:700;padding:3px 10px;border-radius:12px;background:var(--surface2);color:var(--muted);display:inline-flex;align-items:center;gap:5px;cursor:default" title="Statut Firebase">⏳ Firebase...</span>
+    <span id="fbStatus" style="font-size:11px;font-weight:700;padding:3px 10px;border-radius:12px;background:var(--surface2);color:var(--muted);display:inline-flex;align-items:center;gap:5px;cursor:default">⏳ Firebase...</span>
     <button class="btn-ghost" onclick="exportPPTX()" style="color: var(--accent); border-color: var(--accent); --darkreader-inline-border: var(--darkreader-border--accent); --darkreader-inline-color: var(--darkreader-text--accent, var(--darkreader-text-000000, #e8e6e3));" data-darkreader-inline-border="" data-darkreader-inline-color="">📌 PPTX</button>
     <button class="btn-danger" onclick="clearAll()">🗑</button>
     <button class="btn-theme" id="btnTheme" onclick="toggleTheme()">🌙 Sombre</button>
@@ -2521,8 +2520,8 @@ function savePortfolio(){
   const data = portfolio.map(p=>({
     id:p.id, name:p.name, client:p.client||'',
     rows: p.rows.map(r=>({...r, debut:r.debut?r.debut.toISOString():null, fin:r.fin?r.fin.toISOString():null})),
-    projectColors: p.projectColors,
-    collapsed: p.collapsed
+    projectColors: p.projectColors||{},
+    collapsed: p.collapsed||{}
   }));
   try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); }catch(e){}
   scheduleFirebaseSave(data);
@@ -2981,9 +2980,24 @@ let _fbInitLoaded = false;
 function setFbStatus(text, color){
   const el = document.getElementById('fbStatus');
   if(!el) return;
-  el.textContent = text;
-  el.style.color      = color || 'var(--muted)';
+  el.textContent  = text;
+  el.style.color  = color || 'var(--muted)';
   el.style.background = color ? color + '18' : 'var(--surface2)';
+}
+
+// Nettoie récursivement undefined/null pour Firebase
+function cleanForFirebase(obj){
+  if(Array.isArray(obj)) return obj.map(cleanForFirebase);
+  if(obj !== null && typeof obj === 'object'){
+    const out = {};
+    for(const [k,v] of Object.entries(obj)){
+      if(v === undefined) continue;       // supprime les undefined
+      if(v === null){ out[k] = null; continue; } // null OK pour Firebase
+      out[k] = cleanForFirebase(v);
+    }
+    return out;
+  }
+  return obj;
 }
 
 function scheduleFirebaseSave(data){
@@ -2998,7 +3012,8 @@ async function doFirebaseSave(data){
   if(typeof window._fbSet !== 'function'){ setFbStatus('⚠ SDK non prêt', '#e17055'); return; }
   _fbSaving = true;
   try {
-    await window._fbSet(data);
+    const clean = cleanForFirebase(data);
+    await window._fbSet(clean);
     const t   = new Date();
     const hms = [t.getHours(),t.getMinutes(),t.getSeconds()].map(n=>String(n).padStart(2,'0')).join(':');
     setFbStatus('☁ ' + hms, '#2e7d32');
@@ -3008,24 +3023,30 @@ async function doFirebaseSave(data){
   } finally { _fbSaving = false; }
 }
 
-// Chargement initial depuis Firebase (prioritaire sur localStorage)
+// Chargement initial depuis Firebase
 (function waitForFbAndLoad(){
   let attempts = 0;
-  const interval = setInterval(()=>{
+  const iv = setInterval(()=>{
     attempts++;
     if(typeof window._fbOnValue === 'function'){
-      clearInterval(interval);
+      clearInterval(iv);
       setFbStatus('⏳ Chargement...', '#f7971e');
       window._fbOnValue(function(val){
-        if(_fbInitLoaded) return; // Ne réagir qu'au premier chargement
+        if(_fbInitLoaded) return;
         _fbInitLoaded = true;
         if(val && Array.isArray(val) && val.length){
-          // Données Firebase trouvées : on les charge
           portfolio = val.map(p=>({
             ...p, client: p.client||'',
-            rows: p.rows.map(r=>({...r,
-              debut: r.debut ? new Date(r.debut) : null,
-              fin:   r.fin   ? new Date(r.fin)   : null
+            projectColors: p.projectColors||{},
+            collapsed: p.collapsed||{},
+            rows: (p.rows||[]).map(r=>({
+              _type:  r._type  || 'tache',
+              projet: r.projet || '',
+              groupe: r.groupe || null,
+              tache:  r.tache  || null,
+              debut:  r.debut  ? new Date(r.debut) : null,
+              fin:    r.fin    ? new Date(r.fin)   : null,
+              charge: r.charge != null ? r.charge : null
             }))
           }));
           try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(val)); }catch(e){}
@@ -3033,15 +3054,19 @@ async function doFirebaseSave(data){
           if(portfolio.length) switchToProject(portfolio[0].id);
           setFbStatus('☁ Connecté', '#2e7d32');
         } else {
-          // Pas de données sur Firebase → on garde ce qui est déjà chargé
+          // Firebase vide : pousser les données locales
           setFbStatus('☁ Connecté', '#2e7d32');
-          // Pousser les données locales vers Firebase si elles existent
           const local = localStorage.getItem(STORAGE_KEY);
-          if(local){ try{ window._fbSet(JSON.parse(local)); }catch(e){} }
+          if(local){
+            try{
+              const parsed = cleanForFirebase(JSON.parse(local));
+              window._fbSet(parsed);
+            }catch(e){}
+          }
         }
       });
-    } else if(attempts > 50){
-      clearInterval(interval);
+    } else if(attempts > 60){
+      clearInterval(iv);
       setFbStatus('⚠ Firebase indisponible', '#e17055');
     }
   }, 100);
