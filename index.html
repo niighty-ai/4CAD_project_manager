@@ -1528,8 +1528,9 @@ document.getElementById('fileInput').addEventListener('change',e=>{
       }
       const hdrs=data[hr].map(c=>String(c||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,''));
       const ci={
+        type:   hdrs.findIndex(h=>h==='type'||h.includes('type')),
         projet: hdrs.findIndex(h=>h.includes('projet')),
-        tache:  hdrs.findIndex(h=>h.includes('tach')),
+        tache:  hdrs.findIndex(h=>h.includes('tach')||h.includes('nom')),
         debut:  hdrs.findIndex(h=>h.includes('debut')||h.includes('but')||h==='debut'),
         fin:    hdrs.findIndex(h=>h==='fin'||h.includes('fin')),
         charge: hdrs.findIndex(h=>h.includes('charge')),
@@ -1542,6 +1543,17 @@ document.getElementById('fileInput').addEventListener('change',e=>{
       rows=[];
       for(let i=hr+1;i<data.length;i++){
         const r=data[i];if(!r||!r[ci.projet])continue;
+        // Détecter si c'est un jalon
+        const typeVal = ci.type>=0&&r[ci.type] ? String(r[ci.type]).toLowerCase().trim() : '';
+        const isJalon = typeVal==='jalon'||typeVal==='milestone'||typeVal==='j';
+        const nomVal = ci.tache>=0&&r[ci.tache] ? String(r[ci.tache]).trim() : null;
+        if(isJalon){
+          // Pour un jalon : seuls Projet, Nom et Debut (= date du jalon) sont utilisés
+          const d=ci.debut>=0?parseDate(r[ci.debut]):null;
+          if(!d||isNaN(d)) continue;
+          rows.push({_type:'jalon',projet:String(r[ci.projet]).trim(),nom:nomVal||'',date:d});
+          continue;
+        }
         const d=ci.debut>=0?parseDate(r[ci.debut]):null;
         const f=ci.fin>=0?parseDate(r[ci.fin]):null;
         if(!d||!f||isNaN(d)||isNaN(f))continue;
@@ -1552,8 +1564,7 @@ document.getElementById('fileInput').addEventListener('change',e=>{
           if(idx>=0&&r[idx]&&String(r[idx]).trim()) niveaux.push(String(r[idx]).trim());
           else break;
         }
-        const tache=ci.tache>=0&&r[ci.tache]?String(r[ci.tache]).trim():null;
-        rows.push({_type:'tache',projet:String(r[ci.projet]).trim(),niveaux,tache,debut:d,fin:f,charge:ch});
+        rows.push({_type:'tache',projet:String(r[ci.projet]).trim(),niveaux,tache:nomVal,debut:d,fin:f,charge:ch});
       }
       projectColors={};collapsed={};sortRows();renderAll();
     }catch(err){alert('Erreur : '+err.message);}
