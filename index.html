@@ -426,12 +426,15 @@ embed[type="application/pdf"] { filter: invert(100%) contrast(90%); }</style>
   .gantt-month-cell{display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:9px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:#fff;border-right:1px solid rgba(255,255,255,.15);height:26px;}
   [data-theme="dark"] .gantt-month-cell{color:var(--muted);border-right-color:var(--border);}
   .gantt-sub-cell{display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:8px;font-family:'Courier New',monospace;color:rgba(255,255,255,.75);border-right:1px solid rgba(255,255,255,.1);height:26px;}
-  .gantt-sub-cell.weekend{color:rgba(255,255,255,.3);}
+  .gantt-sub-cell.weekend{color:rgba(255,255,255,.3);background:rgba(0,0,0,.10);}
   .gantt-sub-cell.today-col{color:var(--accent);font-weight:700;}
   [data-theme="dark"] .gantt-sub-cell{color:var(--muted);border-right-color:rgba(42,61,82,.5);}
 
   .gantt-row{position:relative;height:var(--row-h);border-bottom:1px solid var(--border);overflow:hidden;}
   .gantt-row.is-projet{background:rgba(40,64,83,.04);}
+  .gantt-row.is-jalon{background:transparent;height:16px!important;}
+  .gantt-left-row.is-jalon{font-style:italic;gap:5px;height:16px!important;min-height:unset;}
+  .jalon-diamond{display:inline-block;width:9px;height:9px;transform:rotate(45deg);flex-shrink:0;}
   .gantt-row.is-groupe{background:rgba(114,182,236,.04);}
   [data-theme="dark"] .gantt-row.is-projet{background:rgba(114,182,236,.04);}
   [data-theme="dark"] .gantt-row.is-groupe{background:rgba(114,182,236,.02);}
@@ -655,6 +658,7 @@ embed[type="application/pdf"] { filter: invert(100%) contrast(90%); }</style>
   .ep-input:focus{border-color:var(--accent);}
   .ep-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
   .edit-panel-footer{padding:12px 16px;border-top:1px solid var(--border);display:flex;gap:8px;flex-shrink:0;}
+  select.ep-input{background:var(--surface2);color:var(--text);cursor:pointer;}
   .ep-btn-save{flex:1;background:var(--accent);color:#fff;border:none;border-radius:4px;padding:9px;font-size:12px;font-weight:700;cursor:pointer;font-family:Arial,sans-serif;transition:background .14s;}
   .ep-btn-save:hover{background:var(--accent-dark);}
   .ep-btn-delete{background:rgba(192,57,43,.1);color:#c0392b;border:1px solid rgba(192,57,43,.25);border-radius:4px;padding:9px 14px;font-size:12px;font-weight:700;cursor:pointer;font-family:Arial,sans-serif;transition:all .14s;}
@@ -800,6 +804,34 @@ window._fbOnValue = (cb)   => onValue(_fbRef, snap => cb(snap.val()));
   </div>
 </div>
 
+
+<!-- JALON PANEL -->
+<div class="edit-panel" id="jalonPanel">
+  <div class="edit-panel-header">
+    <span class="edit-panel-title" id="jpTitle">◆ Nouveau jalon</span>
+    <button class="edit-panel-close" onclick="closeJalonPanel()">✕</button>
+  </div>
+  <div class="edit-panel-body">
+    <div class="ep-group">
+      <label class="ep-label">Projet</label>
+      <input class="ep-input" id="jpProjet" type="text" list="jpProjetList" placeholder="Nom du projet">
+      <datalist id="jpProjetList"></datalist>
+    </div>
+    <div class="ep-group">
+      <label class="ep-label">Nom du jalon</label>
+      <input class="ep-input" id="jpNom" type="text" placeholder="ex: Mise en production">
+    </div>
+    <div class="ep-group">
+      <label class="ep-label">Date</label>
+      <input class="ep-input" id="jpDate" type="date">
+    </div>
+  </div>
+  <div class="edit-panel-footer">
+    <button class="ep-btn-delete" id="jpDeleteBtn" onclick="deleteJalon()" style="display:none">🗑 Supprimer</button>
+    <button class="ep-btn-cancel" onclick="closeJalonPanel()">Annuler</button>
+    <button class="ep-btn-save" onclick="saveJalonPanel()">✓ Enregistrer</button>
+  </div>
+</div>
 
 <!-- PPTX Warning Modal -->
 <div id="pptxModal" style="display: none; position: fixed; inset: 0px; z-index: 10000; background: rgba(0, 0, 0, 0.45); backdrop-filter: blur(3px); align-items: center; justify-content: center; --darkreader-inline-bgcolor: var(--darkreader-background-00000073, rgba(0, 0, 0, 0.45)); --darkreader-inline-bgimage: none;" data-darkreader-inline-bgcolor="" data-darkreader-inline-bgimage="">
@@ -1039,6 +1071,9 @@ window._fbOnValue = (cb)   => onValue(_fbRef, snap => cb(snap.val()));
     <div class="gantt-add-row" onclick="openEditPanel(null)">
       <span class="add-plus">+</span> Ajouter une tâche
     </div>
+    <div class="gantt-add-row" onclick="openJalonPanel()" style="opacity:.8">
+      <span class="add-plus" style="color:var(--accent)">◆</span> Ajouter un jalon
+    </div>
     <div class="resize-handle" id="resizeHandle"></div>
   </div><div class="gantt-right" id="ganttRight" style="cursor: grab;">
     <div class="gantt-right-inner">
@@ -1198,8 +1233,13 @@ function buildGanttLeftWithEdit(visible, showDates, labelW){
       <button class="toggle-dates-btn${showDates?'':' hidden-dates'}" id="toggleDatesBtn" onclick="toggleDates()">${showDates?'Masquer dates':'Afficher dates'}</button>
     </div>
     ${rows_html}
-    <div class="gantt-add-row" onclick="openEditPanel(null)">
-      <span class="add-plus">+</span> Ajouter une tâche
+    <div style="display:flex;border-top:1px solid var(--border)">
+      <div class="gantt-add-row" onclick="openEditPanel(null)" style="flex:1;border-top:none">
+        <span class="add-plus">+</span> Ajouter une tâche
+      </div>
+      <div class="gantt-add-row" onclick="openJalonPanel()" style="flex:1;border-top:none;border-left:1px solid var(--border)">
+        <span class="add-plus" style="color:var(--accent)">◆</span> Jalon
+      </div>
     </div>
     <div class="resize-handle" id="resizeHandle"></div>
   </div>`;
@@ -1220,6 +1260,33 @@ let labelW=400; // px — resizable
 
 const PALETTE=['#6c63ff','#ff6584','#43e97b','#f7971e','#38b2f8','#ff9a3c','#a29bfe','#fd79a8','#00b894','#fdcb6e','#e17055','#74b9ff','#55efc4','#d63031','#6ab04c','#e84393','#0984e3','#b8e994','#f19066','#786fa6'];
 const MOIS=['Jan','Fév','Mar','Avr','Mai','Jun','Jul','Aoû','Sep','Oct','Nov','Déc'];
+
+// ====== JOURS FÉRIÉS FRANÇAIS ======
+function getJoursFeries(year){
+  const a=year%19,b=Math.floor(year/100),c=year%100;
+  const d=Math.floor(b/4),e=b%4,f=Math.floor((b+8)/25);
+  const g=Math.floor((b-f+1)/3),h=(19*a+b-d-g+15)%30;
+  const i=Math.floor(c/4),k=c%4,l=(32+2*e+2*i-h-k)%7;
+  const m=Math.floor((a+11*h+22*l)/451);
+  const mo=Math.floor((h+l-7*m+114)/31)-1;
+  const day=((h+l-7*m+114)%31)+1;
+  const paques=new Date(year,mo,day);
+  function add(d,n){const r=new Date(d);r.setDate(r.getDate()+n);return r;}
+  function key(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
+  return new Set([
+    new Date(year,0,1), new Date(year,4,1), new Date(year,4,8),
+    new Date(year,6,14), new Date(year,7,15), new Date(year,10,1),
+    new Date(year,10,11), new Date(year,11,25),
+    add(paques,1), add(paques,39), add(paques,50)
+  ].map(key));
+}
+function isJourFerie(date){
+  const y=date.getFullYear();
+  const cache=isJourFerie._c||(isJourFerie._c={});
+  if(!cache[y]) cache[y]=getJoursFeries(y);
+  const key=y+'-'+String(date.getMonth()+1).padStart(2,'0')+'-'+String(date.getDate()).padStart(2,'0');
+  return cache[y].has(key);
+}
 
 // ====== UTILS ======
 function parseDate(s){
@@ -1261,6 +1328,8 @@ function sortRows(){
     if(r._type==='tache' && !r.niveaux) r.niveaux=[];
   });
 
+  // Conserver les jalons séparément — ils ne participent pas au tri des tâches
+  const jalons=rows.filter(r=>r._type==='jalon');
   const tasks=rows.filter(r=>r._type==='tache');
   const sorted=[];
 
@@ -1304,7 +1373,21 @@ function sortRows(){
   projOrder.forEach(p=>{
     sortLevel(tasks.filter(r=>r.projet===p), p, [], 0);
   });
-  rows=sorted;
+  // Intercaler les jalons parmi les tâches triées selon leur date
+  const final=[];
+  let ji=0;
+  const jalonsSorted=[...jalons].sort((a,b)=>(a.date||0)-(b.date||0));
+  for(const r of sorted){
+    // Insérer les jalons dont la date est avant la date de début de cette ligne
+    const lineDate = r.debut || null;
+    while(ji < jalonsSorted.length && lineDate && jalonsSorted[ji].date <= lineDate){
+      final.push(jalonsSorted[ji++]);
+    }
+    final.push(r);
+  }
+  // Jalons restants (après toutes les tâches)
+  while(ji < jalonsSorted.length) final.push(jalonsSorted[ji++]);
+  rows=final;
 }
 
 // ====== VIEW / ZOOM ======
@@ -1383,7 +1466,11 @@ function openColorPicker(e,p){
   document.getElementById('colorGrid').innerHTML=PALETTE.map(c=>`<div class="color-opt${c===cur?' selected':''}" style="background:${c}" onclick="pickColor('${p.replace(/'/g,"\\'")}','${c}')"></div>`).join('');
   const pop=document.getElementById('colorPopup');pop.style.display='block';
   const rc=e.target.getBoundingClientRect();
-  pop.style.left=Math.min(rc.left,window.innerWidth-214)+'px';pop.style.top=(rc.bottom+4)+'px';
+  const popH=pop.offsetHeight||220;
+  const spaceBelow=window.innerHeight-rc.bottom;
+  const top=spaceBelow<popH+8 ? rc.top-popH-4 : rc.bottom+4;
+  pop.style.left=Math.min(rc.left,window.innerWidth-214)+'px';
+  pop.style.top=Math.max(4,top)+'px';
 }
 function pickColor(p,c){projectColors[p]=c;document.getElementById('colorPopup').style.display='none';renderAll();}
 document.getElementById('cpCustom').addEventListener('input',e=>{if(!cpTarget)return;projectColors[cpTarget]=e.target.value;document.getElementById('colorGrid').querySelectorAll('.color-opt').forEach(el=>el.classList.remove('selected'));renderAll();});
@@ -1585,7 +1672,11 @@ function openColorPicker(e,p){
   document.getElementById('colorGrid').innerHTML=PALETTE.map(c=>`<div class="color-opt${c===cur?' selected':''}" style="background:${c}" onclick="pickColor('${p.replace(/'/g,"\\'")}','${c}')"></div>`).join('');
   const pop=document.getElementById('colorPopup');pop.style.display='block';
   const rc=e.target.getBoundingClientRect();
-  pop.style.left=Math.min(rc.left,window.innerWidth-214)+'px';pop.style.top=(rc.bottom+4)+'px';
+  const popH=pop.offsetHeight||220;
+  const spaceBelow=window.innerHeight-rc.bottom;
+  const top=spaceBelow<popH+8 ? rc.top-popH-4 : rc.bottom+4;
+  pop.style.left=Math.min(rc.left,window.innerWidth-214)+'px';
+  pop.style.top=Math.max(4,top)+'px';
 }
 function pickColor(p,c){projectColors[p]=c;document.getElementById('colorPopup').style.display='none';renderAll();}
 document.getElementById('cpCustom').addEventListener('input',e=>{if(!cpTarget)return;projectColors[cpTarget]=e.target.value;document.getElementById('colorGrid').querySelectorAll('.color-opt').forEach(el=>el.classList.remove('selected'));renderAll();});
@@ -1746,8 +1837,12 @@ function renderGantt(){
     legend.innerHTML='';return;
   }
   const visible=rows.filter(r=>isVisible(r));
-  const minD=allTasks.reduce((m,r)=>r.debut<m?r.debut:m,allTasks[0].debut);
-  const maxD=allTasks.reduce((m,r)=>r.fin>m?r.fin:m,allTasks[0].fin);
+  let minD=allTasks.reduce((m,r)=>r.debut<m?r.debut:m,allTasks[0].debut);
+  let maxD=allTasks.reduce((m,r)=>r.fin>m?r.fin:m,allTasks[0].fin);
+  rows.filter(r=>r._type==='jalon'&&r.date).forEach(j=>{
+    if(j.date<minD) minD=new Date(j.date);
+    if(j.date>maxD) maxD=new Date(j.date);
+  });
   const today=new Date();today.setHours(0,0,0,0);
 
   // -- LEFT PANEL --
@@ -1797,6 +1892,18 @@ function renderGantt(){
         <button class="row-del-btn" onclick="event.stopPropagation();deleteGanttGroupe(event,this.dataset.proj,'${niveauxJson}')" data-proj="${escH(r.projet)}" title="Supprimer ce groupe">&#128465;</button>
       </div>`;
     }
+    // Jalon
+    if(r._type==='jalon'){
+      const jColor=getColor(r.projet||rows.find(x=>x._type==='projet')?.projet||'')||'var(--accent)';
+      return`<div class="gantt-left-row is-jalon" onclick="openJalonPanel(${realIdx})">
+        <span class="jalon-diamond" style="background:${jColor}"></span>
+        <span class="row-label" style="color:${jColor}">${escH(r.nom||'—')}</span>
+        <span class="row-dates${showDates?'':' hidden'}" style="margin-left:auto">
+          <span>${fmtShort(r.date)}</span>
+        </span>
+        <button class="row-del-btn" onclick="event.stopPropagation();deleteJalonDirect(${realIdx})" title="Supprimer ce jalon">&#128465;</button>
+      </div>`;
+    }
     // Tâche
     const depth=niv.length;
     const indent=depth>0?(depth*14+6):6;
@@ -1818,8 +1925,13 @@ function renderGantt(){
       <button class="toggle-dates-btn${showDates?'':' hidden-dates'}" id="toggleDatesBtn" onclick="toggleDates()">${showDates?'Masquer dates':'Afficher dates'}</button>
     </div>
     ${leftRows}
-    <div class="gantt-add-row" onclick="openEditPanel(null)">
-      <span class="add-plus">+</span> Ajouter une tâche
+    <div style="display:flex;border-top:1px solid var(--border)">
+      <div class="gantt-add-row" onclick="openEditPanel(null)" style="flex:1;border-top:none">
+        <span class="add-plus">+</span> Ajouter une tâche
+      </div>
+      <div class="gantt-add-row" onclick="openJalonPanel()" style="flex:1;border-top:none;border-left:1px solid var(--border)">
+        <span class="add-plus" style="color:var(--accent)">◆</span> Jalon
+      </div>
     </div>
     <div class="resize-handle" id="resizeHandle"></div>
   </div>`;
@@ -1895,7 +2007,8 @@ function renderChart(layout,legend,visible,minD0,maxD0,today,leftHTML,mode){
     }else{
       let dc=new Date(minD);while(dc<=maxD){
         const wd=dc.getDay();const isWE=wd===0||wd===6;const isToday=diff(today,dc)===0;
-        subCells+=`<div class="gantt-sub-cell${isWE?' weekend':''}${isToday?' today-col':''}" style="width:${dayWidth}px">${String(dc.getDate()).padStart(2,'0')}</div>`;
+        const isFerie=isJourFerie(dc);
+        subCells+=`<div class="gantt-sub-cell${isWE||isFerie?' weekend':''}${isToday?' today-col':''}" style="width:${dayWidth}px">${String(dc.getDate()).padStart(2,'0')}</div>`;
         dc.setDate(dc.getDate()+1);
       }
     }
@@ -1919,7 +2032,8 @@ function renderChart(layout,legend,visible,minD0,maxD0,today,leftHTML,mode){
       }else{
         let d2=new Date(minD);while(d2<=maxD){
           const x=xOf(d2);const isWE=d2.getDay()===0||d2.getDay()===6;
-          if(isWE)h+=`<div style="position:absolute;top:0;bottom:0;left:${x}px;width:${dayWidth}px;background:rgba(255,255,255,.015);pointer-events:none"></div>`;
+          const isFerieCol=isJourFerie(d2);
+          if(isWE||isFerieCol)h+=`<div style="position:absolute;top:0;bottom:0;left:${x}px;width:${dayWidth}px;background:rgba(0,0,0,.07);pointer-events:none"></div>`;
           h+=`<div class="gantt-col-line" style="left:${x}px;opacity:.12"></div>`;
           d2.setDate(d2.getDate()+1);
         }
@@ -2011,6 +2125,28 @@ function renderChart(layout,legend,visible,minD0,maxD0,today,leftHTML,mode){
           class="bracket-lbl">${charge}</text>`:''}
       </svg>`;
 
+    } else if(r._type==='jalon'){
+      // -- JALON -- losange SVG centré sur la date --
+      const JALON_H=16;
+      const jColor=getColor(r.projet||rows.find(x=>x._type==='projet')?.projet||'')||'var(--accent)';
+      const jx=xOf(r.date);
+      const s=6; // demi-taille du losange (adapté à la hauteur fine)
+      const cy=JALON_H/2;
+      const jTip=`${JSON.stringify(r.nom||'')},${JSON.stringify(fmtD(r.date))}`;
+      barHtml=`<svg style="position:absolute;top:0;left:0;width:${totalW}px;height:${JALON_H}px;overflow:visible;pointer-events:none;z-index:3">
+        <line x1="${jx}" y1="0" x2="${jx}" y2="${JALON_H}" stroke="${jColor}" stroke-width="1" stroke-dasharray="3,2" opacity="0.5"/>
+        <polygon points="${jx},${cy-s} ${jx+s},${cy} ${jx},${cy+s} ${jx-s},${cy}"
+          fill="${jColor}" opacity="0.9" style="cursor:pointer;pointer-events:all"
+          onclick="openJalonPanel(${realIdx})"
+          onmouseenter="showTipJalon(event,${jTip})" onmousemove="moveTip(event)" onmouseleave="hideTip()"/>
+        <text x="${jx+s+4}" y="${cy}" dominant-baseline="middle"
+          font-family="Arial,sans-serif" font-size="10" font-weight="600" fill="${jColor}"
+          style="pointer-events:none;user-select:none">${escH(r.nom||'')}</text>
+      </svg>`;
+      return`<div class="gantt-row is-jalon" style="width:${totalW}px;height:16px">
+        ${colsBase}${tl}${barHtml}
+      </div>`;
+
     } else {
       // -- TÂCHE -- normal rounded bar --
       const labelText=r.charge!==null?`${r.charge}j`:'';
@@ -2061,6 +2197,12 @@ function showTip(e,projet,groupe,tache,debut,fin,charge){
 }
 function moveTip(e){tip.style.left=(e.clientX+12)+'px';tip.style.top=(e.clientY-9)+'px';}
 function hideTip(){tip.style.display='none';}
+function showTipJalon(e,nom,date){
+  const tip=document.getElementById('tooltip');
+  tip.innerHTML=`<strong>◆ ${escH(nom)}</strong><br>${date}`;
+  tip.style.display='block';
+  moveTip(e);
+}
 
 // ====== EXPORT ======
 function exportData(){
@@ -2555,7 +2697,10 @@ function navColor(idx){ return NAV_COLORS[idx % NAV_COLORS.length]; }
 function savePortfolio(){
   const data = portfolio.map(p=>({
     id:p.id, name:p.name, client:p.client||'',
-    rows: p.rows.map(r=>({...r, debut:r.debut?r.debut.toISOString():null, fin:r.fin?r.fin.toISOString():null})),
+    rows: p.rows.map(r=> r._type==='jalon'
+      ? {...r, date: r.date?r.date.toISOString():null}
+      : {...r, debut:r.debut?r.debut.toISOString():null, fin:r.fin?r.fin.toISOString():null}
+    ),
     projectColors: p.projectColors||{},
     collapsed: p.collapsed||{}
   }));
@@ -2571,7 +2716,10 @@ function loadPortfolio(){
     portfolio = data.map(p=>({
       ...p,
       client: p.client||'',
-      rows: p.rows.map(r=>({...r, debut:r.debut?new Date(r.debut):null, fin:r.fin?new Date(r.fin):null}))
+      rows: p.rows.map(r=> r._type==='jalon'
+        ? {...r, date: r.date?new Date(r.date):null}
+        : {...r, debut:r.debut?new Date(r.debut):null, fin:r.fin?new Date(r.fin):null}
+      )
     }));
     return portfolio.length > 0;
   }catch(e){ return false; }
@@ -2820,32 +2968,52 @@ let epEditingIdx = null;
 let epMode = 'new';
 const MAX_NIVEAUX = 5;
 
-function renderEpNiveaux(niveaux){
+function renderEpNiveaux(niveaux, isGroupe){
   const container = document.getElementById('epNiveauxContainer');
   if(!container) return;
   const taskRows = rows.filter(r=>r._type==='tache');
+  const projet = document.getElementById('epProjet')?.value.trim() || '';
   let html = '';
   for(let i=0; i<MAX_NIVEAUX; i++){
-    const isFirst = i===0;
-    const label = isFirst ? 'Niveau 1 (optionnel)' : `Niveau ${i+1} (optionnel)`;
     const val = (niveaux&&niveaux[i]) ? niveaux[i] : '';
-    const existing = [...new Set(taskRows.map(r=>(r.niveaux||[])[i]||null).filter(Boolean))];
+    // Construire les options existantes pour ce niveau, filtrées par projet et niveaux parents
+    const parentMatch = taskRows.filter(r=>{
+      if(projet && r.projet !== projet) return false;
+      for(let j=0;j<i;j++){
+        const parentVal = (niveaux&&niveaux[j])||'';
+        if(parentVal && (r.niveaux||[])[j] !== parentVal) return false;
+      }
+      return true;
+    });
+    const existing = [...new Set(parentMatch.map(r=>(r.niveaux||[])[i]||null).filter(Boolean))];
+    const label = i===0 ? 'Niveau 1' : `Niveau ${i+1}`;
+    const isOpt = !isGroupe || i>0; // Pour un groupe : niveau 1 optionnel aussi
     html+=`<div class="ep-group" id="epNivGroup_${i}">
       <label class="ep-label" style="display:flex;align-items:center;justify-content:space-between">
-        <span>${label}</span>
+        <span>${label}${isOpt?' <span style="font-weight:400;opacity:.6">(optionnel)</span>':''}</span>
         ${i>0?`<span style="font-size:10px;color:var(--muted);cursor:pointer;padding:2px 4px" onclick="clearEpNiveauFrom(${i})">✕ effacer</span>`:''}
       </label>
-      <input class="ep-input" id="epNiveau_${i}" type="text"
-        list="epNiveauList_${i}"
-        placeholder="${isFirst?'ex: Phase 1':''}"
-        value="${escH(val)}"
-        oninput="onEpNiveauChange(${i})">
-      <datalist id="epNiveauList_${i}">
-        ${existing.map(v=>`<option value="${escH(v)}">`).join('')}
-      </datalist>
+      <select class="ep-input" id="epNiveau_${i}" onchange="onEpNiveauChange(${i})" style="appearance:auto">
+        <option value="">— aucun —</option>
+        ${existing.map(v=>`<option value="${escH(v)}"${v===val?' selected':''}>${escH(v)}</option>`).join('')}
+        ${val && !existing.includes(val) ? `<option value="${escH(val)}" selected>${escH(val)}</option>` : ''}
+      </select>
+      <input class="ep-input" id="epNiveauCustom_${i}" type="text"
+        placeholder="Ou saisir un nouveau nom…"
+        value="${val && !existing.includes(val) ? escH(val) : ''}"
+        style="margin-top:4px;font-size:11px"
+        oninput="onEpNiveauCustomChange(${i})">
     </div>`;
   }
   container.innerHTML = html;
+}
+
+function onEpNiveauCustomChange(idx){
+  // Si l'utilisateur tape dans le champ libre, désélectionner la liste
+  const sel = document.getElementById(`epNiveau_${idx}`);
+  const custom = document.getElementById(`epNiveauCustom_${idx}`);
+  if(custom && custom.value.trim()) sel.value = '';
+  onEpNiveauChange(idx);
 }
 
 function onEpNiveauChange(idx){
@@ -2857,15 +3025,20 @@ function onEpNiveauChange(idx){
 
 function clearEpNiveauFrom(idx){
   for(let i=idx;i<MAX_NIVEAUX;i++){
-    const el=document.getElementById(`epNiveau_${i}`);
-    if(el) el.value='';
+    const sel=document.getElementById(`epNiveau_${i}`);
+    const custom=document.getElementById(`epNiveauCustom_${i}`);
+    if(sel) sel.value='';
+    if(custom) custom.value='';
   }
 }
 
 function getEpNiveaux(){
   const niv=[];
   for(let i=0;i<MAX_NIVEAUX;i++){
-    const v=(document.getElementById(`epNiveau_${i}`)?.value||'').trim();
+    const sel=document.getElementById(`epNiveau_${i}`);
+    const custom=document.getElementById(`epNiveauCustom_${i}`);
+    // Priorité au champ libre s'il est rempli, sinon au select
+    const v=(custom?.value||'').trim() || (sel?.value||'').trim();
     if(v) niv.push(v); else break;
   }
   return niv;
@@ -2915,30 +3088,56 @@ function openEditPanel(rowIdx){
   const panel = document.getElementById('editPanel');
   const title = document.getElementById('epTitle');
   const taskRows = rows.filter(r=>r._type==='tache');
-  document.getElementById('epProjetList').innerHTML = [...new Set(taskRows.map(r=>r.projet))].map(p=>`<option value="${escH(p)}">`).join('');
+
+  // Construire les selects Projet et Niveaux
+  _epRefreshProjetSelect(taskRows);
+
   if(epMode==='edit'){
     const r = rows[rowIdx];
-    title.textContent = '✏ Modifier';
+    const isGroupe = r._type==='groupe';
+    title.textContent = isGroupe ? '✏ Modifier le groupe' : '✏ Modifier la tâche';
     document.getElementById('epProjet').value = r.projet||'';
-    renderEpNiveaux(r.niveaux||[]);
-    document.getElementById('epTache').value = r.tache||'';
+    // Pour un groupe : les niveaux s'arrêtent au parent (sans le dernier = nom du groupe)
+    const niveauxParent = isGroupe ? (r.niveaux||[]).slice(0,-1) : (r.niveaux||[]);
+    renderEpNiveaux(niveauxParent, isGroupe);
+    // Le champ "Tâche" sert à éditer le nom du groupe
+    const nomGroupe = isGroupe ? ((r.niveaux||[]).slice(-1)[0]||'') : (r.tache||'');
+    document.getElementById('epTache').value = nomGroupe;
     document.getElementById('epDebut').value = toInput(r.debut);
     document.getElementById('epFin').value = toInput(r.fin);
     document.getElementById('epCharge').value = r.charge!==null?r.charge:'';
     document.getElementById('epDeleteBtn').style.display='block';
+    _epSetTacheRequired(true, isGroupe);
   } else {
     title.textContent = '+ Nouvelle tâche';
     const last = taskRows[taskRows.length-1];
     document.getElementById('epProjet').value = last?last.projet:'';
-    renderEpNiveaux(last?(last.niveaux||[]):[]);
+    renderEpNiveaux(last?(last.niveaux||[]):[], false);
     document.getElementById('epTache').value = '';
     document.getElementById('epDebut').value = '';
     document.getElementById('epFin').value = '';
     document.getElementById('epCharge').value = '';
     document.getElementById('epDeleteBtn').style.display='none';
+    _epSetTacheRequired(true);
   }
   panel.classList.add('open');
   setTimeout(()=>document.getElementById('epTache').focus(), 230);
+}
+
+function _epSetTacheRequired(required, isGroupe){
+  const el = document.getElementById('epTache');
+  const lbl = el?.closest('.ep-group')?.querySelector('.ep-label');
+  if(el){
+    el.placeholder = isGroupe ? 'Nom du groupe' : 'Description de la tâche';
+    el.dataset.required = required ? '1' : '0';
+    el.dataset.isgroupe = isGroupe ? '1' : '0';
+  }
+  if(lbl) lbl.textContent = isGroupe ? 'Nom du groupe' : 'Tâche';
+}
+
+function _epRefreshProjetSelect(taskRows){
+  const projets = [...new Set((taskRows||rows.filter(r=>r._type==='tache')).map(r=>r.projet))];
+  document.getElementById('epProjetList').innerHTML = projets.map(p=>`<option value="${escH(p)}">`).join('');
 }
 
 function closeEditPanel(){
@@ -2959,9 +3158,12 @@ function saveEditPanel(){
   const d=document.getElementById('epDebut').value;
   const f=document.getElementById('epFin').value;
   const c=document.getElementById('epCharge').value;
-  // Validation visuelle des champs obligatoires
+  // Validation visuelle — tâche optionnelle si groupe
+  const tacheEl = document.getElementById('epTache');
+  const tacheRequired = tacheEl?.dataset.required !== '0';
+  const requiredFields = tacheRequired ? ['epProjet','epTache','epDebut','epFin'] : ['epProjet','epDebut','epFin'];
   let hasError = false;
-  ['epProjet','epTache','epDebut','epFin'].forEach(id => {
+  requiredFields.forEach(id => {
     const el = document.getElementById(id);
     if(el && !el.value.trim()){
       el.style.borderColor = '#e17055';
@@ -2973,12 +3175,38 @@ function saveEditPanel(){
       hasError = true;
     }
   });
-  if(!p)       { document.getElementById('epProjet').focus(); }
-  else if(!t)  { document.getElementById('epTache').focus(); }
-  else if(!d)  { document.getElementById('epDebut').focus(); }
-  else if(!f)  { document.getElementById('epFin').focus(); }
+  if(!p)            { document.getElementById('epProjet').focus(); }
+  else if(!t && tacheRequired) { document.getElementById('epTache').focus(); }
+  else if(!d)       { document.getElementById('epDebut').focus(); }
+  else if(!f)       { document.getElementById('epFin').focus(); }
   if(hasError) return;
-  const newRow={_type:'tache',projet:p,niveaux,tache:t||null,debut:parseDate(d),fin:parseDate(f),charge:c!==''?parseFloat(c.replace(',','.')):null};
+  const tacheEl2 = document.getElementById('epTache');
+  const isGroupeEdit = tacheEl2?.dataset.isgroupe === '1';
+  let newRow;
+  if(isGroupeEdit){
+    // Pour un groupe : le champ tache contient le nouveau nom du groupe (dernier niveau)
+    const nouveauNom = t;
+    if(!nouveauNom){ document.getElementById('epTache').focus(); return; }
+    const newNiveaux = [...niveaux, nouveauNom];
+    // Retrouver les tâches enfants de l'ancien groupe et les rebaser
+    const r = epEditingIdx !== null ? rows[epEditingIdx] : null;
+    const oldNiveaux = r?.niveaux||[];
+    // Mettre à jour toutes les tâches enfants
+    rows = rows.map(row=>{
+      if(row._type!=='tache' || row.projet!==p) return row;
+      const rn = row.niveaux||[];
+      if(rn.length>=oldNiveaux.length && oldNiveaux.every((n,i)=>rn[i]===n)){
+        return {...row, niveaux:[...newNiveaux,...rn.slice(oldNiveaux.length)]};
+      }
+      return row;
+    });
+    sortRows(); renderAll(); saveCurrentProject();
+    window._promotedBackup = null;
+    closeEditPanel();
+    return;
+  } else {
+    newRow={_type:'tache',projet:p,niveaux,tache:t||null,debut:parseDate(d),fin:parseDate(f),charge:c!==''?parseFloat(c.replace(',','.')):null};
+  }
   if(epMode==='edit'&&epEditingIdx!==null) rows[epEditingIdx]=newRow;
   else rows.push(newRow);
   window._promotedBackup = null; // Promotion confirmée, pas de restauration
@@ -3255,6 +3483,89 @@ function migrateFirebaseData(data){
     }
   }, 100);
 })();
+
+// ====== JALONS ======
+let jpEditingIdx = null;
+
+function openJalonPanel(idx){
+  jpEditingIdx = (idx !== undefined && idx !== null) ? idx : null;
+  const panel = document.getElementById('jalonPanel');
+  const title = document.getElementById('jpTitle');
+  const delBtn = document.getElementById('jpDeleteBtn');
+  // Remplir datalist projets
+  const projets = [...new Set(rows.filter(r=>r._type==='tache').map(r=>r.projet))];
+  document.getElementById('jpProjetList').innerHTML = projets.map(p=>`<option value="${escH(p)}">`).join('');
+  if(jpEditingIdx !== null){
+    const r = rows[jpEditingIdx];
+    title.textContent = '◆ Modifier le jalon';
+    document.getElementById('jpProjet').value = r.projet||'';
+    document.getElementById('jpNom').value = r.nom||'';
+    document.getElementById('jpDate').value = toInput(r.date);
+    delBtn.style.display = 'block';
+  } else {
+    title.textContent = '◆ Nouveau jalon';
+    // Pré-remplir avec le projet actif
+    const lastProjet = rows.filter(r=>r._type==='projet')[0]?.projet||'';
+    document.getElementById('jpProjet').value = lastProjet;
+    document.getElementById('jpNom').value = '';
+    document.getElementById('jpDate').value = '';
+    delBtn.style.display = 'none';
+  }
+  document.getElementById('editPanel').classList.remove('open');
+  panel.classList.add('open');
+  setTimeout(()=>document.getElementById('jpNom').focus(), 230);
+}
+
+function closeJalonPanel(){
+  document.getElementById('jalonPanel').classList.remove('open');
+  jpEditingIdx = null;
+}
+
+function saveJalonPanel(){
+  const projet = document.getElementById('jpProjet').value.trim();
+  const nom = document.getElementById('jpNom').value.trim();
+  const dateVal = document.getElementById('jpDate').value;
+  let hasError = false;
+  ['jpProjet','jpNom','jpDate'].forEach(id=>{
+    const el = document.getElementById(id);
+    if(!el.value.trim()){
+      el.style.borderColor='#e17055'; el.style.background='#e1705510';
+      el.addEventListener('input',()=>{el.style.borderColor='';el.style.background='';},{once:true});
+      hasError=true;
+    }
+  });
+  if(hasError){
+    if(!projet) document.getElementById('jpProjet').focus();
+    else if(!nom) document.getElementById('jpNom').focus();
+    else document.getElementById('jpDate').focus();
+    return;
+  }
+  const jalon = {_type:'jalon', projet, nom, date: parseDate(dateVal)};
+  if(jpEditingIdx !== null) rows[jpEditingIdx] = jalon;
+  else rows.push(jalon);
+  closeJalonPanel();
+  sortRows(); renderAll(); saveCurrentProject();
+}
+
+function deleteJalon(){
+  if(jpEditingIdx === null) return;
+  if(!confirm(`Supprimer le jalon "${rows[jpEditingIdx]?.nom}" ?`)) return;
+  rows.splice(jpEditingIdx, 1);
+  closeJalonPanel();
+  sortRows(); renderAll(); saveCurrentProject();
+}
+
+function deleteJalonDirect(idx){
+  const r = rows[idx];
+  if(!r || r._type !== 'jalon') return;
+  if(!confirm(`Supprimer le jalon "${r.nom}" ?`)) return;
+  rows.splice(idx, 1);
+  sortRows(); renderAll(); saveCurrentProject();
+}
+
+document.addEventListener('keydown', e=>{
+  if(e.key==='Escape') closeJalonPanel();
+});
 
 </script>
 
