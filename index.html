@@ -779,7 +779,7 @@ window._fbOnValue = (cb)   => onValue(_fbRef, snap => cb(snap.val()));
       <!-- Les niveaux sont générés dynamiquement par JS -->
     </div>
     <div class="ep-group" style="margin-top:2px">
-      <label class="ep-label">Tâche</label>
+      <label class="ep-label" id="epTacheLabel">Tâche</label>
       <input class="ep-input" id="epTache" type="text" placeholder="Description de la tâche">
     </div>
     <div class="ep-group ep-row">
@@ -3126,7 +3126,7 @@ function openEditPanel(rowIdx){
 
 function _epSetTacheRequired(required, isGroupe){
   const el = document.getElementById('epTache');
-  const lbl = el?.closest('.ep-group')?.querySelector('.ep-label');
+  const lbl = document.getElementById('epTacheLabel');
   if(el){
     el.placeholder = isGroupe ? 'Nom du groupe' : 'Description de la tâche';
     el.dataset.required = required ? '1' : '0';
