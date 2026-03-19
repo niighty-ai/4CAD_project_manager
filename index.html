@@ -785,11 +785,11 @@ window._fbOnValue = (cb)   => onValue(_fbRef, snap => cb(snap.val()));
     <div class="ep-group ep-row">
       <div>
         <label class="ep-label">Début</label>
-        <input class="ep-input" id="epDebut" type="date">
+        <input class="ep-input" id="epDebut" type="date" onchange="onEpDebutChange()">
       </div>
       <div>
         <label class="ep-label">Fin</label>
-        <input class="ep-input" id="epFin" type="date">
+        <input class="ep-input" id="epFin" type="date" onchange="onEpFinChange()">
       </div>
     </div>
     <div class="ep-group">
@@ -1920,17 +1920,20 @@ function renderGantt(){
 
     if(r._type==='projet'){
       const key=collapseKey(r.projet,[]);
-      return`<div class="gantt-left-row is-projet" ${clickAttr}>
-        <span class="toggle-btn" onclick="event.stopPropagation();toggleCollapse('${key}')">${!collapsed[key]?'▾':'▸'}</span>
+      return`<div class="gantt-left-row is-projet"
+        onclick="event.stopPropagation();toggleCollapse('${key}')"
+        ondblclick="event.stopPropagation();openEditPanel(${realIdx>=0?realIdx:'null'})"
+        title="Cliquer pour réduire / Double-cliquer pour éditer">
+        <span class="toggle-btn">${!collapsed[key]?'▾':'▸'}</span>
         <span style="color:${c};font-size:9px;flex-shrink:0">■</span>
         <span class="row-label" style="color:${c}">${escH(r.projet)}</span>
         ${chargeHtml}${datesHtml}
-        <button class="row-add-btn" onclick="openAddAfter(${realIdx>=0?realIdx:'null'},event)" title="Ajouter une tâche dans ce projet">+</button>
+        <button class="row-add-btn" onclick="event.stopPropagation();openAddAfter(${realIdx>=0?realIdx:'null'},event)" title="Ajouter une tâche dans ce projet">+</button>
         <button class="row-del-btn" onclick="event.stopPropagation();deleteGanttProjet(event,this.dataset.proj)" data-proj="${escH(r.projet)}" title="Supprimer ce projet">&#128465;</button>
       </div>`;
     }
     if(r._type==='groupe'){
-      const depth=niv.length; // 1=niveau1, 2=niveau2, ...
+      const depth=niv.length;
       const key=collapseKey(r.projet,niv);
       const indent=(depth-1)*14;
       const lightPct=Math.min(depth*10,40);
@@ -1939,13 +1942,17 @@ function renderGantt(){
       const icons=['◆','◇','▸','·','–'];
       const icon=icons[Math.min(depth-1,icons.length-1)];
       const niveauxJson=JSON.stringify(niv).replace(/"/g,'&quot;');
-      return`<div class="gantt-left-row is-groupe is-groupe-depth-${depth}" ${clickAttr}>
+      // Clic simple = toggle collapse / Double-clic = édition
+      return`<div class="gantt-left-row is-groupe is-groupe-depth-${depth}"
+        onclick="event.stopPropagation();toggleCollapse('${key}')"
+        ondblclick="event.stopPropagation();openEditPanel(${realIdx>=0?realIdx:'null'})"
+        title="Cliquer pour réduire / Double-cliquer pour éditer">
         <span style="width:${indent}px;flex-shrink:0"></span>
-        <span class="toggle-btn" onclick="event.stopPropagation();toggleCollapse('${key}')">${!collapsed[key]?'▾':'▸'}</span>
+        <span class="toggle-btn">${!collapsed[key]?'▾':'▸'}</span>
         <span style="color:${col};font-size:${9-depth}px;flex-shrink:0">${icon}</span>
         <span class="row-label" style="color:${col};font-weight:${depth===1?700:600}">${escH(nomGroupe)}</span>
         ${chargeHtml}${datesHtml}
-        <button class="row-add-btn" onclick="openAddAfter(${realIdx>=0?realIdx:'null'},event)" title="Ajouter ici">+</button>
+        <button class="row-add-btn" onclick="event.stopPropagation();openAddAfter(${realIdx>=0?realIdx:'null'},event)" title="Ajouter ici">+</button>
         <button class="row-del-btn" onclick="event.stopPropagation();deleteGanttGroupe(event,this.dataset.proj,'${niveauxJson}')" data-proj="${escH(r.projet)}" title="Supprimer ce groupe">&#128465;</button>
       </div>`;
     }
@@ -3715,6 +3722,25 @@ function downloadModele(){
   const a = document.createElement('a');
   a.href = url; a.download = 'modele_import_gantt.xlsx'; a.click();
   URL.revokeObjectURL(url);
+}
+
+// ====== VALIDATION DATES EDIT PANEL ======
+function onEpDebutChange(){
+  const debut = document.getElementById('epDebut');
+  const fin   = document.getElementById('epFin');
+  if(!debut.value) return;
+  // Si fin vide ou inférieure au début : initialiser fin = début
+  if(!fin.value || fin.value < debut.value){
+    fin.value = debut.value;
+  }
+  fin.min = debut.value;
+}
+function onEpFinChange(){
+  const debut = document.getElementById('epDebut');
+  const fin   = document.getElementById('epFin');
+  if(debut.value && fin.value && fin.value < debut.value){
+    fin.value = debut.value;
+  }
 }
 
 </script>
