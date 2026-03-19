@@ -705,7 +705,6 @@ embed[type="application/pdf"] { filter: invert(100%) contrast(90%); }</style>
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 import { getDatabase, ref, set, onValue } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
-
 const firebaseConfig = {
   apiKey: "AIzaSyDLpk2xBs-R9gM-tvKZ5abG-EaGNqKUGLk",
   authDomain: "cad-project-manager.firebaseapp.com",
@@ -715,11 +714,9 @@ const firebaseConfig = {
   messagingSenderId: "1005597262191",
   appId: "1:1005597262191:web:86901f88aecbd9ed30689a"
 };
-
 const _fbApp = initializeApp(firebaseConfig);
 const _fbDb  = getDatabase(_fbApp);
 const _fbRef = ref(_fbDb, 'gantt_portfolio');
-
 window._fbSet     = (data) => set(_fbRef, data);
 window._fbOnValue = (cb)   => onValue(_fbRef, snap => cb(snap.val()));
 </script>
@@ -774,12 +771,10 @@ window._fbOnValue = (cb)   => onValue(_fbRef, snap => cb(snap.val()));
       <input class="ep-input" id="epProjet" type="text" list="epProjetList" placeholder="Nom du projet">
       <datalist id="epProjetList"></datalist>
     </div>
-    <div class="ep-group">
-      <label class="ep-label">Groupe (optionnel)</label>
-      <input class="ep-input" id="epGroupe" type="text" list="epGroupeList" placeholder="Nom du groupe">
-      <datalist id="epGroupeList"></datalist>
+    <div id="epNiveauxContainer">
+      <!-- Les niveaux sont générés dynamiquement par JS -->
     </div>
-    <div class="ep-group">
+    <div class="ep-group" style="margin-top:2px">
       <label class="ep-label">Tâche</label>
       <input class="ep-input" id="epTache" type="text" placeholder="Description de la tâche">
     </div>
@@ -1257,32 +1252,57 @@ function lighten(hex,pct=30){
 
 // ====== SORT ======
 function sortRows(){
+  // Migration: convertir ancien format groupe->string vers niveaux->array
+  rows.forEach(r=>{
+    if(r._type==='tache' && r.groupe !== undefined && !r.niveaux){
+      r.niveaux = r.groupe ? [r.groupe] : [];
+      delete r.groupe;
+    }
+    if(r._type==='tache' && !r.niveaux) r.niveaux=[];
+  });
+
   const tasks=rows.filter(r=>r._type==='tache');
+  const sorted=[];
+
+  // Tri récursif par niveaux
+  function sortLevel(taskList, projet, niveauxPath, depth){
+    if(depth===0){
+      // Niveau projet
+      const pMin=new Date(Math.min(...taskList.map(r=>r.debut.getTime())));
+      const pMax=new Date(Math.max(...taskList.map(r=>r.fin.getTime())));
+      const pCharge=taskList.reduce((s,r)=>s+(r.charge||0),0);
+      sorted.push({_type:'projet',projet,niveaux:[],tache:null,debut:pMin,fin:pMax,charge:pCharge});
+    }
+    // Grouper par niveau suivant
+    const nextNiveaux=[...new Set(taskList.map(r=>r.niveaux[depth]||''))];
+    // Séparer tâches sans sous-niveau et celles avec
+    const noMore=taskList.filter(r=>!r.niveaux[depth]);
+    const withMore=taskList.filter(r=>r.niveaux[depth]);
+    // Trier les groupes par date min
+    const groups=[...new Set(withMore.map(r=>r.niveaux[depth]))].sort((a,b)=>{
+      return Math.min(...withMore.filter(r=>r.niveaux[depth]===a).map(r=>r.debut.getTime()))
+            -Math.min(...withMore.filter(r=>r.niveaux[depth]===b).map(r=>r.debut.getTime()));
+    });
+    // D'abord les tâches directes (sans sous-groupe)
+    noMore.sort((a,b)=>a.debut-b.debut).forEach(r=>sorted.push({...r,_type:'tache'}));
+    // Puis les sous-groupes
+    groups.forEach(g=>{
+      const gT=withMore.filter(r=>r.niveaux[depth]===g);
+      const gMin=new Date(Math.min(...gT.map(r=>r.debut.getTime())));
+      const gMax=new Date(Math.max(...gT.map(r=>r.fin.getTime())));
+      const gCharge=gT.reduce((s,r)=>s+(r.charge||0),0);
+      const nPath=[...niveauxPath,g];
+      sorted.push({_type:'groupe',projet,niveaux:nPath,tache:null,debut:gMin,fin:gMax,charge:gCharge,_depth:depth+1});
+      sortLevel(gT, projet, nPath, depth+1);
+    });
+  }
+
   const projOrder=[...new Set(tasks.map(r=>r.projet))].sort((a,b)=>{
     return Math.min(...tasks.filter(r=>r.projet===a).map(r=>r.debut.getTime()))
           -Math.min(...tasks.filter(r=>r.projet===b).map(r=>r.debut.getTime()));
   });
-  const sorted=[];
   projOrder.forEach(p=>{
-    const pT=tasks.filter(r=>r.projet===p);
-    const groups=[...new Set(pT.map(r=>r.groupe||''))].sort((a,b)=>{
-      return Math.min(...pT.filter(r=>(r.groupe||'')===a).map(r=>r.debut.getTime()))
-            -Math.min(...pT.filter(r=>(r.groupe||'')===b).map(r=>r.debut.getTime()));
-    });
-    const pMin=new Date(Math.min(...pT.map(r=>r.debut.getTime())));
-    const pMax=new Date(Math.max(...pT.map(r=>r.fin.getTime())));
-    const pCharge=pT.reduce((s,r)=>s+(r.charge||0),0);
-    sorted.push({_type:'projet',projet:p,groupe:null,tache:null,debut:pMin,fin:pMax,charge:pCharge});
-    groups.forEach(g=>{
-      const gT=pT.filter(r=>(r.groupe||'')===g).sort((a,b)=>a.debut-b.debut);
-      if(g){
-        const gMin=new Date(Math.min(...gT.map(r=>r.debut.getTime())));
-        const gMax=new Date(Math.max(...gT.map(r=>r.fin.getTime())));
-        const gCharge=gT.reduce((s,r)=>s+(r.charge||0),0);
-        sorted.push({_type:'groupe',projet:p,groupe:g,tache:null,debut:gMin,fin:gMax,charge:gCharge});
-      }
-      gT.forEach(r=>sorted.push({...r,_type:'tache'}));
-    });
+    sortLevel(tasks.filter(r=>r.projet===p), p, [], 0);
   });
   rows=sorted;
 }
@@ -1336,12 +1356,20 @@ function initResize(){
 
 // ====== COLLAPSE ======
 function toggleCollapse(key){collapsed[key]=!collapsed[key];renderGantt();}
-function collapseKey(type,projet,groupe){return type==='projet'?`P:${projet}`:`G:${projet}::${groupe}`;}
+function collapseKey(projet,niveaux){
+  if(!niveaux||!niveaux.length) return 'P:'+projet;
+  return 'G:'+projet+'|'+niveaux.join('|');
+}
 function isVisible(r){
-  if(r._type==='projet')return true;
-  if(collapsed[`P:${r.projet}`])return false;
-  if(r._type==='groupe')return true;
-  if(r.groupe&&collapsed[`G:${r.projet}::${r.groupe}`])return false;
+  if(r._type==='projet') return true;
+  if(collapsed[collapseKey(r.projet,[])]) return false;
+  if(r._type==='groupe'||r._type==='tache'){
+    const niv=r.niveaux||[];
+    // Vérifier si un ancêtre est replié
+    for(let i=1;i<=niv.length;i++){
+      if(collapsed[collapseKey(r.projet,niv.slice(0,i))]) return false;
+    }
+  }
   return true;
 }
 
@@ -1736,39 +1764,47 @@ function renderGantt(){
     const chargeHtml=r.charge!==null?`<span class="row-charge">${r.charge}j</span>`:'';
     const realIdx=rows.indexOf(r);
     const clickAttr=`onclick="openEditPanel(${realIdx>=0?realIdx:'null'})"`;
+    const niv=r.niveaux||[];
 
     if(r._type==='projet'){
-      const key=collapseKey('projet',r.projet,null);
+      const key=collapseKey(r.projet,[]);
       return`<div class="gantt-left-row is-projet" ${clickAttr}>
         <span class="toggle-btn" onclick="event.stopPropagation();toggleCollapse('${key}')">${!collapsed[key]?'▾':'▸'}</span>
         <span style="color:${c};font-size:9px;flex-shrink:0">■</span>
         <span class="row-label" style="color:${c}">${escH(r.projet)}</span>
-        ${chargeHtml}
-        ${datesHtml}
+        ${chargeHtml}${datesHtml}
         <button class="row-add-btn" onclick="openAddAfter(${realIdx>=0?realIdx:'null'},event)" title="Ajouter une tâche dans ce projet">+</button>
         <button class="row-del-btn" onclick="event.stopPropagation();deleteGanttProjet(event,this.dataset.proj)" data-proj="${escH(r.projet)}" title="Supprimer ce projet">&#128465;</button>
       </div>`;
     }
     if(r._type==='groupe'){
-      const key=collapseKey('groupe',r.projet,r.groupe);
-      return`<div class="gantt-left-row is-groupe" ${clickAttr}>
-        <span style="width:7px;flex-shrink:0"></span>
+      const depth=niv.length; // 1=niveau1, 2=niveau2, ...
+      const key=collapseKey(r.projet,niv);
+      const indent=(depth-1)*14;
+      const lightPct=Math.min(depth*10,40);
+      const col=lighten(c,lightPct);
+      const nomGroupe=niv[niv.length-1]||'—';
+      const icons=['◆','◇','▸','·','–'];
+      const icon=icons[Math.min(depth-1,icons.length-1)];
+      const niveauxJson=JSON.stringify(niv).replace(/"/g,'&quot;');
+      return`<div class="gantt-left-row is-groupe is-groupe-depth-${depth}" ${clickAttr}>
+        <span style="width:${indent}px;flex-shrink:0"></span>
         <span class="toggle-btn" onclick="event.stopPropagation();toggleCollapse('${key}')">${!collapsed[key]?'▾':'▸'}</span>
-        <span style="color:${lighten(c,22)};font-size:8px;flex-shrink:0">◆</span>
-        <span class="row-label" style="color:${lighten(c,18)}">${escH(r.groupe)}</span>
-        ${chargeHtml}
-        ${datesHtml}
-        <button class="row-add-btn" onclick="openAddAfter(${realIdx>=0?realIdx:'null'},event)" title="Ajouter une tâche dans ce groupe">+</button>
-        <button class="row-del-btn" onclick="event.stopPropagation();deleteGanttGroupe(event,this.dataset.proj,this.dataset.grp)" data-proj="${escH(r.projet)}" data-grp="${escH(r.groupe)}" title="Supprimer ce groupe">&#128465;</button>
+        <span style="color:${col};font-size:${9-depth}px;flex-shrink:0">${icon}</span>
+        <span class="row-label" style="color:${col};font-weight:${depth===1?700:600}">${escH(nomGroupe)}</span>
+        ${chargeHtml}${datesHtml}
+        <button class="row-add-btn" onclick="openAddAfter(${realIdx>=0?realIdx:'null'},event)" title="Ajouter ici">+</button>
+        <button class="row-del-btn" onclick="event.stopPropagation();deleteGanttGroupe(event,this.dataset.proj,'${niveauxJson}')" data-proj="${escH(r.projet)}" title="Supprimer ce groupe">&#128465;</button>
       </div>`;
     }
-    const indent=r.groupe?22:13;
+    // Tâche
+    const depth=niv.length;
+    const indent=depth>0?(depth*14+6):6;
     return`<div class="gantt-left-row is-tache" ${clickAttr}>
       <span style="width:${indent}px;flex-shrink:0"></span>
       <span style="color:var(--muted);font-size:8px;flex-shrink:0">↳</span>
       <span class="row-label">${escH(r.tache||'—')}</span>
-      ${chargeHtml}
-      ${datesHtml}
+      ${chargeHtml}${datesHtml}
       <button class="row-add-btn" onclick="openAddAfter(${realIdx>=0?realIdx:'null'},event)" title="Ajouter une tâche ici">+</button>
       <button class="row-del-btn" onclick="event.stopPropagation();deleteGanttTache(event,this.dataset.idx)" data-idx="${realIdx}" title="Supprimer cette tâche">&#128465;</button>
     </div>`;
@@ -2779,28 +2815,98 @@ function importToNewProject(parsedRows, fileName){
 })();
 
 
-// ====== EDIT PANEL ======
+// ====== EDIT PANEL — NIVEAUX MULTIPLES ======
 let epEditingIdx = null;
 let epMode = 'new';
+const MAX_NIVEAUX = 5;
 
-// Open panel in "new" mode pre-filled with projet/groupe from a reference row
+function renderEpNiveaux(niveaux){
+  const container = document.getElementById('epNiveauxContainer');
+  if(!container) return;
+  const taskRows = rows.filter(r=>r._type==='tache');
+  let html = '';
+  for(let i=0; i<MAX_NIVEAUX; i++){
+    const isFirst = i===0;
+    const label = isFirst ? 'Niveau 1 (optionnel)' : `Niveau ${i+1} (optionnel)`;
+    const val = (niveaux&&niveaux[i]) ? niveaux[i] : '';
+    const existing = [...new Set(taskRows.map(r=>(r.niveaux||[])[i]||null).filter(Boolean))];
+    html+=`<div class="ep-group" id="epNivGroup_${i}">
+      <label class="ep-label" style="display:flex;align-items:center;justify-content:space-between">
+        <span>${label}</span>
+        ${i>0?`<span style="font-size:10px;color:var(--muted);cursor:pointer;padding:2px 4px" onclick="clearEpNiveauFrom(${i})">✕ effacer</span>`:''}
+      </label>
+      <input class="ep-input" id="epNiveau_${i}" type="text"
+        list="epNiveauList_${i}"
+        placeholder="${isFirst?'ex: Phase 1':''}"
+        value="${escH(val)}"
+        oninput="onEpNiveauChange(${i})">
+      <datalist id="epNiveauList_${i}">
+        ${existing.map(v=>`<option value="${escH(v)}">`).join('')}
+      </datalist>
+    </div>`;
+  }
+  container.innerHTML = html;
+}
+
+function onEpNiveauChange(idx){
+  for(let i=idx+1;i<MAX_NIVEAUX;i++){
+    const el=document.getElementById(`epNiveau_${i}`);
+    if(el) el.value='';
+  }
+}
+
+function clearEpNiveauFrom(idx){
+  for(let i=idx;i<MAX_NIVEAUX;i++){
+    const el=document.getElementById(`epNiveau_${i}`);
+    if(el) el.value='';
+  }
+}
+
+function getEpNiveaux(){
+  const niv=[];
+  for(let i=0;i<MAX_NIVEAUX;i++){
+    const v=(document.getElementById(`epNiveau_${i}`)?.value||'').trim();
+    if(v) niv.push(v); else break;
+  }
+  return niv;
+}
+
 function openAddAfter(refRowIdx, e){
   if(e) e.stopPropagation();
   const ref = rows[refRowIdx];
-  openEditPanel(null); // opens in new mode
-  // After open, override the pre-fill with the ref row's projet/groupe
-  if(ref){
-    setTimeout(()=>{
-      document.getElementById('epProjet').value = ref.projet||'';
-      document.getElementById('epGroupe').value = ref.groupe||'';
-      document.getElementById('epTache').value = '';
-      document.getElementById('epDebut').value = '';
-      document.getElementById('epFin').value = '';
-      document.getElementById('epCharge').value = '';
-      document.getElementById('epTitle').textContent = '+ Nouvelle tâche';
-      document.getElementById('epTache').focus();
-    }, 30);
-  }
+  openEditPanel(null);
+  if(!ref){ return; }
+
+  setTimeout(()=>{
+    document.getElementById('epProjet').value = ref.projet||'';
+    document.getElementById('epTache').value = '';
+    document.getElementById('epDebut').value = '';
+    document.getElementById('epFin').value = '';
+    document.getElementById('epCharge').value = '';
+    document.getElementById('epTitle').textContent = '+ Nouvelle tâche';
+
+    // Si c'est une tâche (pas un groupe/projet) : la promouvoir en groupe
+    // en ajoutant son nom comme niveau supplémentaire
+    if(ref._type === 'tache' && ref.tache){
+      const parentNiveaux = ref.niveaux||[];
+      if(parentNiveaux.length < MAX_NIVEAUX){
+        // La tâche est promue en groupe : on la supprime de rows.
+        // Le groupe sera créé automatiquement par sortRows() dès qu'une
+        // tâche enfant existera. On garde une copie pour restaurer si annulation.
+        window._promotedBackup = {original: ref};
+        rows.splice(refRowIdx, 1);
+        const newNiveaux = [...parentNiveaux, ref.tache];
+        renderEpNiveaux(newNiveaux);
+        sortRows(); renderAll();
+      } else {
+        renderEpNiveaux(ref.niveaux||[]);
+      }
+    } else {
+      renderEpNiveaux(ref.niveaux||[]);
+    }
+
+    document.getElementById('epTache').focus();
+  }, 30);
 }
 
 function openEditPanel(rowIdx){
@@ -2810,12 +2916,11 @@ function openEditPanel(rowIdx){
   const title = document.getElementById('epTitle');
   const taskRows = rows.filter(r=>r._type==='tache');
   document.getElementById('epProjetList').innerHTML = [...new Set(taskRows.map(r=>r.projet))].map(p=>`<option value="${escH(p)}">`).join('');
-  document.getElementById('epGroupeList').innerHTML = [...new Set(taskRows.filter(r=>r.groupe).map(r=>r.groupe))].map(g=>`<option value="${escH(g)}">`).join('');
   if(epMode==='edit'){
     const r = rows[rowIdx];
     title.textContent = '✏ Modifier';
     document.getElementById('epProjet').value = r.projet||'';
-    document.getElementById('epGroupe').value = r.groupe||'';
+    renderEpNiveaux(r.niveaux||[]);
     document.getElementById('epTache').value = r.tache||'';
     document.getElementById('epDebut').value = toInput(r.debut);
     document.getElementById('epFin').value = toInput(r.fin);
@@ -2825,7 +2930,7 @@ function openEditPanel(rowIdx){
     title.textContent = '+ Nouvelle tâche';
     const last = taskRows[taskRows.length-1];
     document.getElementById('epProjet').value = last?last.projet:'';
-    document.getElementById('epGroupe').value = last?(last.groupe||''):'';
+    renderEpNiveaux(last?(last.niveaux||[]):[]);
     document.getElementById('epTache').value = '';
     document.getElementById('epDebut').value = '';
     document.getElementById('epFin').value = '';
@@ -2839,19 +2944,44 @@ function openEditPanel(rowIdx){
 function closeEditPanel(){
   document.getElementById('editPanel').classList.remove('open');
   epEditingIdx=null;
+  // Si l'utilisateur annule après une promotion, restaurer la tâche originale
+  if(window._promotedBackup){
+    rows.push(window._promotedBackup.original);
+    window._promotedBackup = null;
+    sortRows(); renderAll();
+  }
 }
 
 function saveEditPanel(){
   const p=document.getElementById('epProjet').value.trim();
-  const g=document.getElementById('epGroupe').value.trim();
+  const niveaux=getEpNiveaux();
   const t=document.getElementById('epTache').value.trim();
   const d=document.getElementById('epDebut').value;
   const f=document.getElementById('epFin').value;
   const c=document.getElementById('epCharge').value;
-  if(!p||!d||!f){alert('Projet, Début et Fin sont requis.');return;}
-  const newRow={_type:'tache',projet:p,groupe:g||null,tache:t||null,debut:parseDate(d),fin:parseDate(f),charge:c!==''?parseFloat(c.replace(',','.')):null};
+  // Validation visuelle des champs obligatoires
+  let hasError = false;
+  ['epProjet','epTache','epDebut','epFin'].forEach(id => {
+    const el = document.getElementById(id);
+    if(el && !el.value.trim()){
+      el.style.borderColor = '#e17055';
+      el.style.background  = '#e1705510';
+      el.addEventListener('input', () => {
+        el.style.borderColor = '';
+        el.style.background  = '';
+      }, {once: true});
+      hasError = true;
+    }
+  });
+  if(!p)       { document.getElementById('epProjet').focus(); }
+  else if(!t)  { document.getElementById('epTache').focus(); }
+  else if(!d)  { document.getElementById('epDebut').focus(); }
+  else if(!f)  { document.getElementById('epFin').focus(); }
+  if(hasError) return;
+  const newRow={_type:'tache',projet:p,niveaux,tache:t||null,debut:parseDate(d),fin:parseDate(f),charge:c!==''?parseFloat(c.replace(',','.')):null};
   if(epMode==='edit'&&epEditingIdx!==null) rows[epEditingIdx]=newRow;
   else rows.push(newRow);
+  window._promotedBackup = null; // Promotion confirmée, pas de restauration
   closeEditPanel();
   sortRows();
   renderAll();
@@ -2916,11 +3046,61 @@ function deleteGanttTache(e, idx){
   rows = rows.filter(x => x._type === 'tache');
   sortRows(); renderAll(); saveCurrentProject();
 }
-function deleteGanttGroupe(e, projet, groupe){
+function deleteGanttGroupe(e, projet, niveauxJson){
   e.stopPropagation();
-  if(!confirm('Supprimer le groupe "' + groupe + '" et toutes ses tâches ?')) return;
-  rows = rows.filter(r => !(r._type === 'tache' && r.projet === projet && r.groupe === groupe));
-  sortRows(); renderAll(); saveCurrentProject();
+  let niveaux;
+  try { niveaux = JSON.parse(niveauxJson); } catch(ex){ niveaux=[niveauxJson]; }
+  const nomGroupe = niveaux[niveaux.length-1] || 'groupe';
+
+  // Modale personnalisée avec 3 choix
+  const modal = document.createElement('div');
+  modal.style.cssText = 'position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;font-family:Arial,sans-serif';
+  modal.innerHTML = `
+    <div style="background:var(--surface);border-top:4px solid #e17055;border-radius:8px;padding:24px 28px;max-width:420px;width:90%;box-shadow:0 12px 40px rgba(0,0,0,.35)">
+      <div style="font-size:15px;font-weight:700;color:var(--text);margin-bottom:6px">🗑 Supprimer "${escH(nomGroupe)}"</div>
+      <div style="font-size:12px;color:var(--muted);margin-bottom:20px">Que voulez-vous faire avec les tâches enfants ?</div>
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <button id="dgBtnAll" style="text-align:left;padding:10px 14px;border:1px solid #e17055;border-radius:6px;background:#e1705510;color:var(--text);font-size:12px;font-weight:600;cursor:pointer">
+          🗑 Supprimer le groupe <strong>et tous ses enfants</strong>
+        </button>
+        <button id="dgBtnUp" style="text-align:left;padding:10px 14px;border:1px solid var(--border);border-radius:6px;background:var(--surface2);color:var(--text);font-size:12px;font-weight:600;cursor:pointer">
+          ↑ Supprimer le groupe et <strong>remonter les enfants</strong> d'un niveau
+        </button>
+        <button id="dgBtnCancel" style="padding:8px 14px;border:1px solid var(--border);border-radius:6px;background:var(--surface2);color:var(--muted);font-size:12px;cursor:pointer">
+          Annuler
+        </button>
+      </div>
+    </div>`;
+  document.body.appendChild(modal);
+
+  // Vérifie si une tâche appartient à ce groupe ou à un sous-groupe
+  function isInGroup(r){
+    if(r._type !== 'tache' || r.projet !== projet) return false;
+    const rNiv = r.niveaux||[];
+    if(rNiv.length < niveaux.length) return false;
+    return niveaux.every((n,i) => rNiv[i] === n);
+  }
+
+  modal.querySelector('#dgBtnAll').onclick = () => {
+    modal.remove();
+    rows = rows.filter(r => !isInGroup(r));
+    sortRows(); renderAll(); saveCurrentProject();
+  };
+
+  modal.querySelector('#dgBtnUp').onclick = () => {
+    modal.remove();
+    rows = rows.map(r => {
+      if(!isInGroup(r)) return r;
+      // Remonter d'un niveau : retirer le dernier niveau du chemin du groupe
+      const rNiv = r.niveaux||[];
+      const newNiv = [...niveaux.slice(0,-1), ...rNiv.slice(niveaux.length)];
+      return {...r, niveaux: newNiv};
+    });
+    sortRows(); renderAll(); saveCurrentProject();
+  };
+
+  modal.querySelector('#dgBtnCancel').onclick = () => modal.remove();
+  modal.onclick = ev => { if(ev.target===modal) modal.remove(); };
 }
 function deleteGanttProjet(e, projet){
   e.stopPropagation();
@@ -2985,14 +3165,13 @@ function setFbStatus(text, color){
   el.style.background = color ? color + '18' : 'var(--surface2)';
 }
 
-// Nettoie récursivement undefined/null pour Firebase
 function cleanForFirebase(obj){
   if(Array.isArray(obj)) return obj.map(cleanForFirebase);
   if(obj !== null && typeof obj === 'object'){
     const out = {};
     for(const [k,v] of Object.entries(obj)){
-      if(v === undefined) continue;       // supprime les undefined
-      if(v === null){ out[k] = null; continue; } // null OK pour Firebase
+      if(v === undefined) continue;
+      if(v === null){ out[k] = null; continue; }
       out[k] = cleanForFirebase(v);
     }
     return out;
@@ -3023,7 +3202,29 @@ async function doFirebaseSave(data){
   } finally { _fbSaving = false; }
 }
 
-// Chargement initial depuis Firebase
+// Migration Firebase: convertir ancien format (groupe string) vers niveaux array
+function migrateFirebaseData(data){
+  return data.map(p=>({
+    ...p, client: p.client||'',
+    projectColors: p.projectColors||{},
+    collapsed: p.collapsed||{},
+    rows: (p.rows||[]).map(r=>{
+      const niveaux = r.niveaux
+        ? r.niveaux
+        : (r.groupe ? [r.groupe] : []);
+      return {
+        _type:  r._type  || 'tache',
+        projet: r.projet || '',
+        niveaux,
+        tache:  r.tache  || null,
+        debut:  r.debut  ? new Date(r.debut) : null,
+        fin:    r.fin    ? new Date(r.fin)   : null,
+        charge: r.charge != null ? r.charge : null
+      };
+    })
+  }));
+}
+
 (function waitForFbAndLoad(){
   let attempts = 0;
   const iv = setInterval(()=>{
@@ -3035,33 +3236,16 @@ async function doFirebaseSave(data){
         if(_fbInitLoaded) return;
         _fbInitLoaded = true;
         if(val && Array.isArray(val) && val.length){
-          portfolio = val.map(p=>({
-            ...p, client: p.client||'',
-            projectColors: p.projectColors||{},
-            collapsed: p.collapsed||{},
-            rows: (p.rows||[]).map(r=>({
-              _type:  r._type  || 'tache',
-              projet: r.projet || '',
-              groupe: r.groupe || null,
-              tache:  r.tache  || null,
-              debut:  r.debut  ? new Date(r.debut) : null,
-              fin:    r.fin    ? new Date(r.fin)   : null,
-              charge: r.charge != null ? r.charge : null
-            }))
-          }));
+          portfolio = migrateFirebaseData(val);
           try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(val)); }catch(e){}
           renderNavList();
           if(portfolio.length) switchToProject(portfolio[0].id);
           setFbStatus('☁ Connecté', '#2e7d32');
         } else {
-          // Firebase vide : pousser les données locales
           setFbStatus('☁ Connecté', '#2e7d32');
           const local = localStorage.getItem(STORAGE_KEY);
           if(local){
-            try{
-              const parsed = cleanForFirebase(JSON.parse(local));
-              window._fbSet(parsed);
-            }catch(e){}
+            try{ window._fbSet(cleanForFirebase(JSON.parse(local))); }catch(e){}
           }
         }
       });
