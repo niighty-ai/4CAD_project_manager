@@ -1921,10 +1921,8 @@ function renderGantt(){
     if(r._type==='projet'){
       const key=collapseKey(r.projet,[]);
       return`<div class="gantt-left-row is-projet"
-        onclick="event.stopPropagation();toggleCollapse('${key}')"
-        ondblclick="event.stopPropagation();openEditPanel(${realIdx>=0?realIdx:'null'})"
-        title="Cliquer pour réduire / Double-cliquer pour éditer">
-        <span class="toggle-btn">${!collapsed[key]?'▾':'▸'}</span>
+        onclick="openEditPanel(${realIdx>=0?realIdx:'null'})">
+        <span class="toggle-btn" onclick="event.stopPropagation();toggleCollapse('${key}')">${!collapsed[key]?'▾':'▸'}</span>
         <span style="color:${c};font-size:9px;flex-shrink:0">■</span>
         <span class="row-label" style="color:${c}">${escH(r.projet)}</span>
         ${chargeHtml}${datesHtml}
@@ -1944,11 +1942,9 @@ function renderGantt(){
       const niveauxJson=JSON.stringify(niv).replace(/"/g,'&quot;');
       // Clic simple = toggle collapse / Double-clic = édition
       return`<div class="gantt-left-row is-groupe is-groupe-depth-${depth}"
-        onclick="event.stopPropagation();toggleCollapse('${key}')"
-        ondblclick="event.stopPropagation();openEditPanel(${realIdx>=0?realIdx:'null'})"
-        title="Cliquer pour réduire / Double-cliquer pour éditer">
+        onclick="openEditPanel(${realIdx>=0?realIdx:'null'})">
         <span style="width:${indent}px;flex-shrink:0"></span>
-        <span class="toggle-btn">${!collapsed[key]?'▾':'▸'}</span>
+        <span class="toggle-btn" onclick="event.stopPropagation();toggleCollapse('${key}')">${!collapsed[key]?'▾':'▸'}</span>
         <span style="color:${col};font-size:${9-depth}px;flex-shrink:0">${icon}</span>
         <span class="row-label" style="color:${col};font-weight:${depth===1?700:600}">${escH(nomGroupe)}</span>
         ${chargeHtml}${datesHtml}
