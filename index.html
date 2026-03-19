@@ -2318,106 +2318,58 @@ function confirmPptxExport(){
 }
 
 function _runPptxExport(){
-  const tasks=rows.filter(r=>r._type==='tache');
-  if(!tasks.length)return;
-  // -- Palette & helpers --
-  const isDark=document.documentElement.getAttribute('data-theme')==='dark';
+  const allTasks=rows.filter(r=>r._type==='tache');
+  if(!allTasks.length) return;
+
+  // ── Palette ──────────────────────────────────────────────────────────
+  const isDark = document.documentElement.getAttribute('data-theme')==='dark';
   const BG      = isDark ? '0f1620' : 'f5f6f8';
   const SURFACE = isDark ? '162130' : 'ffffff';
   const NAVY    = isDark ? '1c2d3f' : '284053';
   const TEXT    = isDark ? 'e2eaf2' : '284053';
   const MUTED   = isDark ? '7a94a8' : '727F8E';
   const ACCENT  = 'EC7206';
-  const BLUE    = '72B6EC';
   const BORDER  = isDark ? '2a3d52' : 'dde1e8';
 
-  const SLIDE_W = 13.3, SLIDE_H = 7.5; // LAYOUT_WIDE inches
-
-  // Re-build date range and visible rows (respecting collapse state)
-  const allTasks=rows.filter(r=>r._type==='tache');
-  let minD=allTasks.reduce((m,r)=>r.debut<m?r.debut:m,allTasks[0].debut);
-  let maxD=allTasks.reduce((m,r)=>r.fin>m?r.fin:m,allTasks[0].fin);
-
-  // Extend to week boundaries (for semaine/jour) or month (for mois)
+  // ── Date range ───────────────────────────────────────────────────────
+  let minD = allTasks.reduce((m,r)=>r.debut<m?r.debut:m, allTasks[0].debut);
+  let maxD = allTasks.reduce((m,r)=>r.fin>m?r.fin:m, allTasks[0].fin);
+  // Étendre si des jalons dépassent
+  rows.filter(r=>r._type==='jalon'&&r.date).forEach(j=>{
+    if(j.date<minD) minD=new Date(j.date);
+    if(j.date>maxD) maxD=new Date(j.date);
+  });
   if(view!=='mois'){
-    const dow=minD.getDay(); minD=new Date(minD); minD.setDate(minD.getDate()-(dow===0?6:dow-1));
-    const dow2=maxD.getDay(); maxD=new Date(maxD); maxD.setDate(maxD.getDate()+(dow2===0?0:7-dow2));
+    const d1=minD.getDay(); minD=new Date(minD); minD.setDate(minD.getDate()-(d1===0?6:d1-1));
+    const d2=maxD.getDay(); maxD=new Date(maxD); maxD.setDate(maxD.getDate()+(d2===0?0:7-d2));
   } else {
     minD=new Date(minD.getFullYear(),minD.getMonth(),1);
     maxD=new Date(maxD.getFullYear(),maxD.getMonth()+1,0);
   }
+  const totalDays = diff(minD,maxD)||1;
+  const visible   = rows.filter(r=>isVisible(r));
 
-  const totalDays=diff(minD,maxD);
-  const visible=rows.filter(r=>isVisible(r));
+  // ── Slide layout ─────────────────────────────────────────────────────
+  const SLIDE_W   = 13.3;
+  const SLIDE_H   = 7.5;
+  const HEADER_H  = 0.55;
+  const AXIS_H    = 0.24;
+  const MARGIN_B  = 0.20;
+  const TOP_Y     = HEADER_H + 0.03;
 
-  // -- Layout constants --
-  const HEADER_H  = 0.62;  // inches — title bar at top
-  const AXIS_H    = 0.26;  // time axis height
-  const ROW_H_IN  = 0.21;  // row height inches
-  const TOP_Y     = HEADER_H + 0.04; // where rows start
-  const MARGIN_B  = 0.22;  // bottom margin for legend
-
-  // Left panel column widths
-  const LABEL_W   = 2.2;   // task/projet/groupe name
-  const DATE_W    = 1.05;  // début → fin dates (two dates side by side)
-  const CHARGE_W  = 0.38;  // charge badge
-  const LEFT_W    = LABEL_W + DATE_W + CHARGE_W; // total left panel
-  const CHART_X   = LEFT_W + 0.05;
-
-  // Auto-fit: chart fills remaining slide width so all time fits on 1 slide
-  const CHART_W   = SLIDE_W - CHART_X - 0.05;
-
-  // How many rows fit per slide (leave bottom margin for legend)
+  // Auto-fit row height so everything fits on ONE slide
   const AVAILABLE_H = SLIDE_H - TOP_Y - AXIS_H - MARGIN_B;
-  const ROWS_PER_SLIDE = Math.floor(AVAILABLE_H / ROW_H_IN);
+  const ROW_H_IN = Math.min(0.20, Math.max(0.10, AVAILABLE_H / Math.max(visible.length, 1)));
 
-  // -- X position helper --
-  function xOfDay(d){
-    if(view==='mois'){
-      const months=[];
-      let mc=new Date(minD.getFullYear(),minD.getMonth(),1);
-      while(mc<=maxD){
-        const start=new Date(mc);
-        const end=new Date(mc.getFullYear(),mc.getMonth()+1,0);
-        months.push({start,end});
-        mc.setMonth(mc.getMonth()+1);
-      }
-      const idx=months.findIndex(m=>d>=m.start&&d<=m.end);
-      if(idx<0)return d<months[0].start?0:1;
-      const m=months[idx];
-      const dim=diff(m.start,new Date(m.start.getFullYear(),m.start.getMonth()+1,1));
-      return (idx+diff(m.start,d)/dim)/months.length;
-    }
-    return diff(minD,d)/totalDays;
-  }
+  // Left panel columns
+  const LABEL_W  = 2.10;
+  const DATE_W   = 0.95;
+  const CHARGE_W = 0.34;
+  const LEFT_W   = LABEL_W + DATE_W + CHARGE_W;
+  const CHART_X  = LEFT_W + 0.04;
+  const CHART_W  = SLIDE_W - CHART_X - 0.04;
 
-  // Pixel to inches within chart area
-  function chartX(frac){ return CHART_X + frac*CHART_W; }
-  function barW(d1,d2){
-    const f=view==='mois'
-      ? Math.max(0.008, xOfDay(d2)-xOfDay(d1)+0.004)
-      : Math.max(0.008, diff(d1,d2)/totalDays + 1/totalDays);
-    return Math.max(0.06, f*CHART_W);
-  }
-
-  // -- Build months for axis --
-  function buildMonthsForAxis(){
-    const months=[];
-    let mc=new Date(minD.getFullYear(),minD.getMonth(),1);
-    while(mc<=maxD){
-      const start=new Date(mc);
-      const end=new Date(mc.getFullYear(),mc.getMonth()+1,0);
-      const sOff=view==='mois'? months.length/1 : Math.max(0,diff(minD,start))/totalDays;
-      const eOff=view==='mois'? (months.length+1)/1 : Math.min(1,(diff(minD,end)+1)/totalDays);
-      months.push({label:MOIS[mc.getMonth()]+' '+mc.getFullYear().toString().slice(2),start,end,sOff,eOff});
-      mc.setMonth(mc.getMonth()+1);
-    }
-    if(view==='mois') months.forEach((m,i)=>{m.sOff=i/months.length;m.eOff=(i+1)/months.length;});
-    return months;
-  }
-  const monthsAxis=buildMonthsForAxis();
-
-  // -- Color helpers --
+  // ── Helpers ───────────────────────────────────────────────────────────
   function hexNoHash(h){ return h.replace('#',''); }
   function projectHex(p){ return hexNoHash(getColor(p)); }
   function lightenHex(hex,pct){
@@ -2429,261 +2381,260 @@ function _runPptxExport(){
     return (r<<16|g<<8|b).toString(16).padStart(6,'0');
   }
 
-  // -- Create presentation --
-  const pres = new PptxGenJS();
-  pres.layout = 'LAYOUT_WIDE';
-  pres.author = '4CAD Group';
-  pres.title = 'Gantt — ' + new Date().toLocaleDateString('fr-FR');
-
-  // Split visible rows into pages
-  const pages = [];
-  for(let i=0; i<visible.length; i+=ROWS_PER_SLIDE){
-    pages.push(visible.slice(i, i+ROWS_PER_SLIDE));
+  // Mois pour l'axe
+  const monthsAxis=[];
+  let mc=new Date(minD.getFullYear(),minD.getMonth(),1);
+  while(mc<=maxD){
+    const start=new Date(mc);
+    const end=new Date(mc.getFullYear(),mc.getMonth()+1,0);
+    let sOff,eOff;
+    if(view==='mois'){
+      sOff=monthsAxis.length; eOff=monthsAxis.length+1;
+    } else {
+      sOff=Math.max(0,diff(minD,start))/totalDays;
+      eOff=Math.min(1,(diff(minD,end)+1)/totalDays);
+    }
+    monthsAxis.push({label:MOIS[mc.getMonth()]+' '+mc.getFullYear().toString().slice(2),sOff,eOff});
+    mc.setMonth(mc.getMonth()+1);
   }
-  if(pages.length===0) pages.push([]);
+  if(view==='mois'){
+    const n=monthsAxis.length;
+    monthsAxis.forEach((m,i)=>{m.sOff=i/n; m.eOff=(i+1)/n;});
+  }
 
-  // Today line position
+  function xOfDay(d){
+    if(view==='mois'){
+      const mIdx=monthsAxis.findIndex((_,i)=>{
+        const ms=new Date(minD.getFullYear(),minD.getMonth()+i,1);
+        const me=new Date(minD.getFullYear(),minD.getMonth()+i+1,0);
+        return d>=ms&&d<=me;
+      });
+      if(mIdx<0) return d<minD?0:1;
+      const ms=new Date(minD.getFullYear(),minD.getMonth()+mIdx,1);
+      const me=new Date(minD.getFullYear(),minD.getMonth()+mIdx+1,1);
+      const dim=diff(ms,me);
+      return (mIdx+diff(ms,d)/dim)/monthsAxis.length;
+    }
+    return diff(minD,d)/totalDays;
+  }
+  function chartX(frac){ return CHART_X + frac*CHART_W; }
+  function barW(d1,d2){
+    const f = view==='mois'
+      ? Math.max(0.008, xOfDay(d2)-xOfDay(d1)+0.004)
+      : Math.max(0.008, diff(d1,d2)/totalDays + 1/totalDays);
+    return Math.max(0.05, f*CHART_W);
+  }
+
+  // ── Build presentation ───────────────────────────────────────────────
+  const pres = new PptxGenJS();
+  pres.layout  = 'LAYOUT_WIDE';
+  pres.author  = '4CAD Group';
+  pres.title   = 'Gantt — ' + new Date().toLocaleDateString('fr-FR');
+
   const today=new Date(); today.setHours(0,0,0,0);
   const todayFrac=xOfDay(today);
   const todayInRange=today>=minD&&today<=maxD;
 
+  // Une seule slide (auto-fit) — si trop de lignes, on pagine quand même
+  const ROWS_PER_SLIDE = Math.max(visible.length, Math.floor(AVAILABLE_H/0.10));
+  const pages=[];
+  for(let i=0;i<visible.length;i+=Math.floor(AVAILABLE_H/ROW_H_IN)){
+    pages.push(visible.slice(i,i+Math.floor(AVAILABLE_H/ROW_H_IN)));
+  }
+  if(!pages.length) pages.push([]);
+
   pages.forEach((pageRows, pageIdx)=>{
-
     const slide = pres.addSlide();
-    slide.background = { color: BG };
+    slide.background = {color:BG};
 
-    // -- Header bar --
-    slide.addShape(pres.ShapeType.rect, {
-      x:0, y:0, w:SLIDE_W, h:HEADER_H,
-      fill:{color:NAVY}, line:{color:ACCENT, width:3, dashType:'solid'}
-    });
+    // Header bar
+    slide.addShape(pres.ShapeType.rect,{x:0,y:0,w:SLIDE_W,h:HEADER_H,fill:{color:NAVY},line:{color:ACCENT,width:3}});
+    slide.addText([{text:'GANTT',options:{bold:true,color:'FFFFFF'}},{text:'.',options:{bold:true,color:ACCENT}}],
+      {x:0.12,y:0,w:1.4,h:HEADER_H,fontSize:18,fontFace:'Arial',valign:'middle',margin:0});
+    const viewLabel=view==='semaine'?'Vue Semaine':view==='mois'?'Vue Mois':'Vue Jour';
+    slide.addText(`${viewLabel}  ·  ${new Date().toLocaleDateString('fr-FR')}  ·  ${pageIdx+1}/${pages.length}`,
+      {x:1.7,y:0,w:SLIDE_W-2,h:HEADER_H,fontSize:8.5,fontFace:'Arial',color:'FFFFFF',valign:'middle',margin:0});
 
-    // Logo text "GANTT." in header
-    slide.addText([
-      {text:'GANTT', options:{bold:true, color:'FFFFFF'}},
-      {text:'.', options:{bold:true, color:ACCENT}}
-    ],{x:0.15, y:0, w:1.5, h:HEADER_H, fontSize:20, fontFace:'Arial', valign:'middle', margin:0});
+    // Left panel axis header
+    slide.addShape(pres.ShapeType.rect,{x:0,y:HEADER_H,w:LEFT_W,h:AXIS_H,fill:{color:NAVY},line:{color:NAVY,width:1}});
+    slide.addText('Projet / Groupe / Tâche',{x:0.05,y:HEADER_H,w:LABEL_W-0.05,h:AXIS_H,
+      fontSize:7,fontFace:'Arial',color:'FFFFFF',bold:true,valign:'middle',margin:0});
+    slide.addShape(pres.ShapeType.line,{x:LABEL_W,y:HEADER_H,w:0,h:AXIS_H,line:{color:'FFFFFF',width:0.5,transparency:60}});
+    slide.addText('Début → Fin',{x:LABEL_W+0.02,y:HEADER_H,w:DATE_W-0.04,h:AXIS_H,
+      fontSize:6.5,fontFace:'Arial',color:'FFFFFF',bold:true,valign:'middle',align:'center',margin:0});
+    slide.addShape(pres.ShapeType.line,{x:LABEL_W+DATE_W,y:HEADER_H,w:0,h:AXIS_H,line:{color:'FFFFFF',width:0.5,transparency:60}});
+    slide.addText('Ch.',{x:LABEL_W+DATE_W+0.02,y:HEADER_H,w:CHARGE_W-0.04,h:AXIS_H,
+      fontSize:6.5,fontFace:'Arial',color:'FFFFFF',bold:true,valign:'middle',align:'center',margin:0});
 
-    // Title info
-    const today_str = new Date().toLocaleDateString('fr-FR');
-    const viewLabel = view==='semaine'?'Vue Semaine':view==='mois'?'Vue Mois':'Vue Jour';
-    slide.addText(`${viewLabel}  ·  Exporté le ${today_str}  ·  Page ${pageIdx+1}/${pages.length}`,{
-      x:1.8, y:0, w:SLIDE_W-2, h:HEADER_H,
-      fontSize:9, fontFace:'Arial', color:'FFFFFF', valign:'middle', align:'left', margin:0
-    });
-
-    // -- Left column header -- three sub-columns --
-    slide.addShape(pres.ShapeType.rect, {
-      x:0, y:HEADER_H, w:LEFT_W, h:AXIS_H,
-      fill:{color:NAVY}, line:{color:NAVY, width:1}
-    });
-    // Label sub-header
-    slide.addText('Projet / Groupe / Tâche',{
-      x:0.05, y:HEADER_H, w:LABEL_W-0.05, h:AXIS_H,
-      fontSize:7.5, fontFace:'Arial', color:'FFFFFF', bold:true, valign:'middle', margin:0
-    });
-    // Dates sub-header
-    slide.addShape(pres.ShapeType.line,{x:LABEL_W, y:HEADER_H, w:0, h:AXIS_H, line:{color:'FFFFFF', width:0.5, transparency:60}});
-    slide.addText('Début → Fin',{
-      x:LABEL_W+0.03, y:HEADER_H, w:DATE_W-0.04, h:AXIS_H,
-      fontSize:7, fontFace:'Arial', color:'FFFFFF', bold:true, valign:'middle', align:'center', margin:0
-    });
-    // Charge sub-header
-    slide.addShape(pres.ShapeType.line,{x:LABEL_W+DATE_W, y:HEADER_H, w:0, h:AXIS_H, line:{color:'FFFFFF', width:0.5, transparency:60}});
-    slide.addText('Ch.',{
-      x:LABEL_W+DATE_W+0.02, y:HEADER_H, w:CHARGE_W-0.04, h:AXIS_H,
-      fontSize:7, fontFace:'Arial', color:'FFFFFF', bold:true, valign:'middle', align:'center', margin:0
-    });
-
-    // -- Months axis header --
-    slide.addShape(pres.ShapeType.rect, {
-      x:CHART_X, y:HEADER_H, w:CHART_W, h:AXIS_H,
-      fill:{color:NAVY}, line:{color:NAVY, width:1}
-    });
-
+    // Months axis
+    slide.addShape(pres.ShapeType.rect,{x:CHART_X,y:HEADER_H,w:CHART_W,h:AXIS_H,fill:{color:NAVY},line:{color:NAVY,width:1}});
     monthsAxis.forEach(m=>{
-      const mx=chartX(m.sOff);
-      const mw=Math.max(0.01,(m.eOff-m.sOff)*CHART_W);
-      // Month separator line
-      slide.addShape(pres.ShapeType.line,{
-        x:mx, y:HEADER_H, w:0, h:AXIS_H,
-        line:{color:'FFFFFF', width:0.5, transparency:70}
-      });
-      // Month label
-      if(mw>0.15){
-        slide.addText(m.label,{
-          x:mx+0.02, y:HEADER_H, w:mw-0.02, h:AXIS_H,
-          fontSize:7, fontFace:'Arial', color:'FFFFFF', valign:'middle', margin:0
-        });
-      }
+      const mx=chartX(m.sOff), mw=Math.max(0.01,(m.eOff-m.sOff)*CHART_W);
+      slide.addShape(pres.ShapeType.line,{x:mx,y:HEADER_H,w:0,h:AXIS_H,line:{color:'FFFFFF',width:0.5,transparency:70}});
+      if(mw>0.12) slide.addText(m.label,{x:mx+0.02,y:HEADER_H,w:mw-0.02,h:AXIS_H,
+        fontSize:6.5,fontFace:'Arial',color:'FFFFFF',valign:'middle',margin:0});
     });
+    slide.addShape(pres.ShapeType.line,{x:0,y:HEADER_H+AXIS_H,w:SLIDE_W,h:0,line:{color:ACCENT,width:2}});
 
-    // Orange accent line under axis
-    slide.addShape(pres.ShapeType.line,{
-      x:0, y:HEADER_H+AXIS_H, w:SLIDE_W, h:0,
-      line:{color:ACCENT, width:2}
-    });
-
-    // -- Draw rows --
+    // ── Rows ────────────────────────────────────────────────────────────
     pageRows.forEach((r, rowIdx)=>{
       const ry = TOP_Y + AXIS_H + rowIdx * ROW_H_IN;
-      const isProj=r._type==='projet';
-      const isGrp=r._type==='groupe';
-      const barColor=isProj ? projectHex(r.projet) : isGrp ? lightenHex(projectHex(r.projet),25) : projectHex(r.projet);
+      const isProj  = r._type==='projet';
+      const isGrp   = r._type==='groupe';
+      const isJalon = r._type==='jalon';
+      const niv     = r.niveaux||[];
+      const depth   = isGrp ? niv.length : 0;
+      const barColor = isProj ? projectHex(r.projet)
+                     : isGrp  ? lightenHex(projectHex(r.projet), depth*10)
+                     : isJalon? hexNoHash(getColor(r.projet)||ACCENT)
+                     : projectHex(r.projet);
 
       // Row background
-      if(isProj){
-        slide.addShape(pres.ShapeType.rect,{
-          x:0, y:ry, w:SLIDE_W, h:ROW_H_IN,
-          fill:{color:isDark?'1c2d3f':'eef3f8', transparency:0},
-          line:{color:BORDER, width:0.5}
+      const rowFill = isProj  ? (isDark?'1c2d3f':'eef3f8')
+                    : isGrp   ? (isDark?'1a2c3a':'f5f8fb')
+                    : isJalon ? (isDark?'1e1800':'fff8f0')
+                    : SURFACE;
+      slide.addShape(pres.ShapeType.rect,{x:0,y:ry,w:SLIDE_W,h:ROW_H_IN,
+        fill:{color:rowFill},line:{color:BORDER,width:0.5}});
+
+      // ── Jalon ──────────────────────────────────────────────────────
+      if(isJalon){
+        // Label
+        slide.addText('◆ '+( r.nom||''), {
+          x:0.1,y:ry,w:LABEL_W-0.1,h:ROW_H_IN,
+          fontSize:Math.max(5,ROW_H_IN*28),fontFace:'Arial',
+          color:barColor,bold:true,italic:true,valign:'middle',margin:0
         });
-      } else if(isGrp){
-        slide.addShape(pres.ShapeType.rect,{
-          x:0, y:ry, w:SLIDE_W, h:ROW_H_IN,
-          fill:{color:isDark?'1a2c3a':'f5f8fb', transparency:0},
-          line:{color:BORDER, width:0.5}
+        slide.addShape(pres.ShapeType.line,{x:LABEL_W,y:ry,w:0,h:ROW_H_IN,line:{color:BORDER,width:0.5}});
+        // Date du jalon dans colonne date
+        slide.addText(fmtD(r.date),{
+          x:LABEL_W+0.02,y:ry,w:DATE_W-0.04,h:ROW_H_IN,
+          fontSize:Math.max(5,ROW_H_IN*26),fontFace:'Courier New',
+          color:barColor,bold:true,valign:'middle',align:'center',margin:0
         });
-      } else {
-        slide.addShape(pres.ShapeType.rect,{
-          x:0, y:ry, w:SLIDE_W, h:ROW_H_IN,
-          fill:{color:SURFACE, transparency:0},
-          line:{color:BORDER, width:0.5}
-        });
+        slide.addShape(pres.ShapeType.line,{x:LABEL_W+DATE_W,y:ry,w:0,h:ROW_H_IN,line:{color:BORDER,width:0.5}});
+        // Losange dans chart
+        if(r.date){
+          const jx = chartX(xOfDay(r.date));
+          const s = Math.min(ROW_H_IN*0.38, 0.08);
+          const cy = ry + ROW_H_IN/2;
+          // Ligne verticale pointillée
+          slide.addShape(pres.ShapeType.line,{x:jx,y:ry,w:0,h:ROW_H_IN,
+            line:{color:barColor,width:1,dashType:'dash',transparency:40}});
+          // Losange (approximation : petit carré tourné 45°)
+          slide.addShape(pres.ShapeType.rect,{
+            x:jx-s/2,y:cy-s/2,w:s,h:s,
+            fill:{color:barColor},line:{color:barColor,width:1},rotate:45
+          });
+        }
+        // Séparateurs mois
+        monthsAxis.forEach(m=>slide.addShape(pres.ShapeType.line,
+          {x:chartX(m.sOff),y:ry,w:0,h:ROW_H_IN,line:{color:BORDER,width:0.5}}));
+        if(todayInRange) slide.addShape(pres.ShapeType.line,
+          {x:chartX(todayFrac),y:ry,w:0,h:ROW_H_IN,line:{color:ACCENT,width:1.5}});
+        return;
       }
 
-      // Left panel -- label (truncated to LABEL_W)
-      const indent = isProj ? 0.1 : isGrp ? 0.20 : 0.34;
-      const labelColor = isProj ? barColor : isGrp ? barColor : TEXT;
-      const labelBold  = isProj || isGrp;
-      const labelText  = isProj ? r.projet : isGrp ? (r.groupe||'') : (r.tache||'—');
+      // ── Projet / Groupe / Tâche ─────────────────────────────────────
+      const baseIndent = isProj ? 0.08 : isGrp ? 0.12 + (depth-1)*0.12 : 0.28 + niv.length*0.10;
+      const fs = Math.max(5.5, ROW_H_IN * (isProj?30:isGrp?28:26));
+
+      // Icône niveau pour groupes
+      let labelPrefix = '';
+      if(isGrp){
+        const icons=['◆','◇','▸','·','–'];
+        labelPrefix = icons[Math.min(depth-1,icons.length-1)] + ' ';
+      }
+      const labelText = isProj ? r.projet
+                      : isGrp  ? labelPrefix + (niv[niv.length-1]||'')
+                      : (r.tache||'—');
+      const labelColor = (isProj||isGrp) ? barColor : TEXT;
+
       slide.addText(labelText,{
-        x:indent, y:ry, w:LABEL_W-indent-0.04, h:ROW_H_IN,
-        fontSize:isProj?8:isGrp?7.5:7, fontFace:'Arial',
-        color:labelColor, bold:labelBold, valign:'middle', margin:0
+        x:baseIndent,y:ry,w:LABEL_W-baseIndent-0.03,h:ROW_H_IN,
+        fontSize:fs,fontFace:'Arial',color:labelColor,
+        bold:isProj||isGrp,valign:'middle',margin:0
       });
 
-      // Vertical separator after label
-      slide.addShape(pres.ShapeType.line,{x:LABEL_W, y:ry, w:0, h:ROW_H_IN, line:{color:BORDER, width:0.5}});
+      slide.addShape(pres.ShapeType.line,{x:LABEL_W,y:ry,w:0,h:ROW_H_IN,line:{color:BORDER,width:0.5}});
 
-      // Date column -- début -> fin
-      const dateStr = `${fmtD(r.debut)}`;
-      const dateStr2 = `${fmtD(r.fin)}`;
+      // Dates côte à côte : début → fin
       slide.addText([
-        {text:dateStr, options:{color:TEXT, fontSize:6.5}},
-        {text:' → ', options:{color:ACCENT, fontSize:6, bold:true}},
-        {text:dateStr2, options:{color:TEXT, fontSize:6.5}}
-      ],{
-        x:LABEL_W+0.03, y:ry, w:DATE_W-0.06, h:ROW_H_IN,
-        fontFace:'Courier New', valign:'middle', align:'center', margin:0
-      });
+        {text:fmtD(r.debut), options:{color:TEXT,fontSize:Math.max(5,fs-1)}},
+        {text:'→',           options:{color:ACCENT,fontSize:Math.max(5,fs-1.5),bold:true}},
+        {text:fmtD(r.fin),   options:{color:TEXT,fontSize:Math.max(5,fs-1)}}
+      ],{x:LABEL_W+0.02,y:ry,w:DATE_W-0.04,h:ROW_H_IN,
+        fontFace:'Courier New',valign:'middle',align:'center',margin:0});
 
-      // Vertical separator after dates
-      slide.addShape(pres.ShapeType.line,{x:LABEL_W+DATE_W, y:ry, w:0, h:ROW_H_IN, line:{color:BORDER, width:0.5}});
+      slide.addShape(pres.ShapeType.line,{x:LABEL_W+DATE_W,y:ry,w:0,h:ROW_H_IN,line:{color:BORDER,width:0.5}});
 
-      // Charge column
-      if(r.charge!==null){
+      // Charge
+      if(r.charge!=null){
         slide.addText(`${r.charge}j`,{
-          x:LABEL_W+DATE_W+0.02, y:ry+0.03, w:CHARGE_W-0.04, h:ROW_H_IN-0.06,
-          fontSize:7, fontFace:'Courier New', color:ACCENT, bold:true,
-          align:'center', valign:'middle', margin:0,
-          fill:{color:isDark?'2a2000':'fff3e0'},
-          line:{color:ACCENT, width:0.5}
+          x:LABEL_W+DATE_W+0.02,y:ry+Math.max(0.01,ROW_H_IN*0.15),
+          w:CHARGE_W-0.04,h:ROW_H_IN*0.70,
+          fontSize:Math.max(5,fs-1.5),fontFace:'Courier New',color:ACCENT,bold:true,
+          align:'center',valign:'middle',margin:0,
+          fill:{color:isDark?'2a2000':'fff3e0'},line:{color:ACCENT,width:0.5}
         });
       }
 
-      // -- Gantt bar --
+      // ── Gantt bar ────────────────────────────────────────────────────
       const bx = chartX(xOfDay(r.debut));
       const bw = barW(r.debut, r.fin);
-      const BAR_H = isProj ? 0.05 : isGrp ? 0.09 : 0.14;
-      const bary  = ry + (ROW_H_IN - BAR_H) / 2;
+      const BAR_H = isProj ? Math.max(0.04, ROW_H_IN*0.25)
+                  : isGrp  ? Math.max(0.03, ROW_H_IN*0.20)
+                  : Math.max(0.05, ROW_H_IN*0.55);
+      const bary = ry + (ROW_H_IN - BAR_H) / 2;
 
       if(isProj){
-        // Bracket: spine + left hook + right hook + diamond caps
-        const spineY = bary + BAR_H/2 - 0.025;
-        slide.addShape(pres.ShapeType.rect,{x:bx,y:spineY,w:bw,h:0.05,fill:{color:barColor},line:{color:barColor,width:1}});
-        // Left hook
-        slide.addShape(pres.ShapeType.line,{x:bx,y:spineY,w:0,h:0.11,line:{color:barColor,width:2}});
-        slide.addShape(pres.ShapeType.line,{x:bx,y:spineY+0.11,w:0.06,h:0,line:{color:barColor,width:2}});
-        // Right hook
-        slide.addShape(pres.ShapeType.line,{x:bx+bw,y:spineY,w:0,h:0.11,line:{color:barColor,width:2}});
-        slide.addShape(pres.ShapeType.line,{x:bx+bw-0.06,y:spineY+0.11,w:0.06,h:0,line:{color:barColor,width:2}});
-
-      } else if(isGrp){
-        // Thinner bracket
         const spineY = bary + BAR_H/2 - 0.02;
-        slide.addShape(pres.ShapeType.rect,{x:bx,y:spineY,w:bw,h:0.035,fill:{color:barColor},line:{color:barColor,width:1}});
-        slide.addShape(pres.ShapeType.line,{x:bx,y:spineY,w:0,h:0.08,line:{color:barColor,width:1.5}});
-        slide.addShape(pres.ShapeType.line,{x:bx,y:spineY+0.08,w:0.04,h:0,line:{color:barColor,width:1.5}});
-        slide.addShape(pres.ShapeType.line,{x:bx+bw,y:spineY,w:0,h:0.08,line:{color:barColor,width:1.5}});
-        slide.addShape(pres.ShapeType.line,{x:bx+bw-0.04,y:spineY+0.08,w:0.04,h:0,line:{color:barColor,width:1.5}});
-
-        // Charge label inside group bar
-        if(r.charge!==null && bw > 0.2){
-          slide.addText(`${r.charge}j`,{
-            x:bx, y:spineY-0.01, w:bw, h:0.08,
-            fontSize:6, fontFace:'Courier New', color:isDark?'FFFFFF':TEXT, bold:true,
-            align:'center', valign:'middle', margin:0
-          });
-        }
+        const hookH  = Math.max(0.06, ROW_H_IN*0.45);
+        slide.addShape(pres.ShapeType.rect,{x:bx,y:spineY,w:bw,h:0.04,fill:{color:barColor},line:{color:barColor,width:1}});
+        slide.addShape(pres.ShapeType.line,{x:bx,y:spineY,w:0,h:hookH,line:{color:barColor,width:2}});
+        slide.addShape(pres.ShapeType.line,{x:bx,y:spineY+hookH,w:0.05,h:0,line:{color:barColor,width:2}});
+        slide.addShape(pres.ShapeType.line,{x:bx+bw,y:spineY,w:0,h:hookH,line:{color:barColor,width:2}});
+        slide.addShape(pres.ShapeType.line,{x:bx+bw-0.05,y:spineY+hookH,w:0.05,h:0,line:{color:barColor,width:2}});
+      } else if(isGrp){
+        const spineY = bary + BAR_H/2 - 0.015;
+        const hookH  = Math.max(0.04, ROW_H_IN*0.35);
+        slide.addShape(pres.ShapeType.rect,{x:bx,y:spineY,w:bw,h:0.025,fill:{color:barColor},line:{color:barColor,width:0.5}});
+        slide.addShape(pres.ShapeType.line,{x:bx,y:spineY,w:0,h:hookH,line:{color:barColor,width:1.5}});
+        slide.addShape(pres.ShapeType.line,{x:bx,y:spineY+hookH,w:0.04,h:0,line:{color:barColor,width:1.5}});
+        slide.addShape(pres.ShapeType.line,{x:bx+bw,y:spineY,w:0,h:hookH,line:{color:barColor,width:1.5}});
+        slide.addShape(pres.ShapeType.line,{x:bx+bw-0.04,y:spineY+hookH,w:0.04,h:0,line:{color:barColor,width:1.5}});
       } else {
-        // Normal task bar
-        slide.addShape(pres.ShapeType.rect,{
-          x:bx, y:bary, w:bw, h:BAR_H,
-          fill:{color:barColor},
-          line:{color:barColor,width:1},
-          shadow:{type:'outer', color:'000000', blur:3, offset:1, angle:135, opacity:0.2}
-        });
-        // Charge label
-        if(r.charge!==null){
-          slide.addText(`${r.charge}j`,{
-            x:bx, y:bary, w:Math.max(bw,0.25), h:BAR_H,
-            fontSize:6, fontFace:'Courier New', color:isDark?'FFFFFF':TEXT, bold:true,
-            align:'center', valign:'middle', margin:0
-          });
+        slide.addShape(pres.ShapeType.rect,{x:bx,y:bary,w:bw,h:BAR_H,
+          fill:{color:barColor},line:{color:barColor,width:1},
+          shadow:{type:'outer',color:'000000',blur:2,offset:1,angle:135,opacity:0.15}});
+        if(r.charge!=null && bw>0.18){
+          slide.addText(`${r.charge}j`,{x:bx,y:bary,w:bw,h:BAR_H,
+            fontSize:Math.max(5,fs-2),fontFace:'Courier New',color:'FFFFFF',bold:true,
+            align:'center',valign:'middle',margin:0});
         }
       }
 
-      // Column separators (month lines in chart area)
-      monthsAxis.forEach(m=>{
-        slide.addShape(pres.ShapeType.line,{
-          x:chartX(m.sOff), y:ry, w:0, h:ROW_H_IN,
-          line:{color:BORDER, width:0.5}
-        });
-      });
-
-      // Today line
-      if(todayInRange){
-        slide.addShape(pres.ShapeType.line,{
-          x:chartX(todayFrac), y:ry, w:0, h:ROW_H_IN,
-          line:{color:ACCENT, width:1.5}
-        });
-      }
+      // Mois + today
+      monthsAxis.forEach(m=>slide.addShape(pres.ShapeType.line,
+        {x:chartX(m.sOff),y:ry,w:0,h:ROW_H_IN,line:{color:BORDER,width:0.5}}));
+      if(todayInRange) slide.addShape(pres.ShapeType.line,
+        {x:chartX(todayFrac),y:ry,w:0,h:ROW_H_IN,line:{color:ACCENT,width:1.5}});
     });
 
-    // Left/chart divider
-    slide.addShape(pres.ShapeType.line,{
-      x:LEFT_W, y:HEADER_H, w:0, h:SLIDE_H-HEADER_H,
-      line:{color:BORDER, width:1}
-    });
+    // Séparateur gauche/chart
+    slide.addShape(pres.ShapeType.line,{x:LEFT_W,y:HEADER_H,w:0,h:SLIDE_H-HEADER_H,line:{color:BORDER,width:1}});
+    if(todayInRange) slide.addShape(pres.ShapeType.line,
+      {x:chartX(todayFrac),y:HEADER_H,w:0,h:AXIS_H,line:{color:ACCENT,width:2}});
 
-    // Today label at top of chart
-    if(todayInRange){
-      slide.addShape(pres.ShapeType.line,{
-        x:chartX(todayFrac), y:HEADER_H, w:0, h:AXIS_H,
-        line:{color:ACCENT, width:2}
-      });
-    }
-
-    // -- Legend (bottom) --
-    const projects=[...new Set(rows.map(r=>r.projet))];
-    const legendY = SLIDE_H - 0.18;
-    let lx = 0.12;
-    projects.forEach(p=>{
-      const ph = projectHex(p);
-      slide.addShape(pres.ShapeType.rect,{x:lx,y:legendY+0.02,w:0.1,h:0.1,fill:{color:ph},line:{color:ph,width:1}});
-      slide.addText(p,{x:lx+0.13,y:legendY,w:0.8,h:0.16,fontSize:7,fontFace:'Arial',color:TEXT,valign:'middle',margin:0});
-      lx+=0.95;
+    // Légende projets
+    const projs=[...new Set(rows.filter(r=>r._type==='tache').map(r=>r.projet))];
+    let lx=0.10;
+    const legendY=SLIDE_H-0.16;
+    projs.forEach(p=>{
+      const ph=projectHex(p);
+      slide.addShape(pres.ShapeType.rect,{x:lx,y:legendY+0.02,w:0.09,h:0.09,fill:{color:ph},line:{color:ph,width:1}});
+      slide.addText(p,{x:lx+0.11,y:legendY,w:0.9,h:0.16,fontSize:6.5,fontFace:'Arial',color:TEXT,valign:'middle',margin:0});
+      lx+=1.05;
     });
 
   }); // end pages
