@@ -2976,7 +2976,7 @@ function renderEpNiveaux(niveaux, isGroupe){
   let html = '';
   for(let i=0; i<MAX_NIVEAUX; i++){
     const val = (niveaux&&niveaux[i]) ? niveaux[i] : '';
-    // Construire les options existantes pour ce niveau, filtrées par projet et niveaux parents
+    // Tâches correspondant aux niveaux parents sélectionnés
     const parentMatch = taskRows.filter(r=>{
       if(projet && r.projet !== projet) return false;
       for(let j=0;j<i;j++){
@@ -2985,9 +2985,16 @@ function renderEpNiveaux(niveaux, isGroupe){
       }
       return true;
     });
-    const existing = [...new Set(parentMatch.map(r=>(r.niveaux||[])[i]||null).filter(Boolean))];
+    // Groupes existants à ce niveau (niveaux[i] non vide)
+    const existingGroupes = [...new Set(parentMatch
+      .filter(r=>(r.niveaux||[]).length > i+1 || (r.niveaux||[])[i])
+      .map(r=>(r.niveaux||[])[i]||null).filter(Boolean))];
+    // Tâches directes à ce niveau (niveaux.length === i, donc pas de niveaux[i])
+    const existingTaches = [...new Set(parentMatch
+      .filter(r=>(r.niveaux||[]).length === i && r.tache)
+      .map(r=>r.tache))];
     const label = i===0 ? 'Niveau 1' : `Niveau ${i+1}`;
-    const isOpt = !isGroupe || i>0; // Pour un groupe : niveau 1 optionnel aussi
+    const isOpt = !isGroupe || i>0;
     html+=`<div class="ep-group" id="epNivGroup_${i}">
       <label class="ep-label" style="display:flex;align-items:center;justify-content:space-between">
         <span>${label}${isOpt?' <span style="font-weight:400;opacity:.6">(optionnel)</span>':''}</span>
@@ -2995,12 +3002,18 @@ function renderEpNiveaux(niveaux, isGroupe){
       </label>
       <select class="ep-input" id="epNiveau_${i}" onchange="onEpNiveauChange(${i})" style="appearance:auto">
         <option value="">— aucun —</option>
-        ${existing.map(v=>`<option value="${escH(v)}"${v===val?' selected':''}>${escH(v)}</option>`).join('')}
-        ${val && !existing.includes(val) ? `<option value="${escH(val)}" selected>${escH(val)}</option>` : ''}
+        ${existingGroupes.length ? `<optgroup label="Groupes existants">
+          ${existingGroupes.map(v=>`<option value="${escH(v)}"${v===val?' selected':''}>${escH(v)}</option>`).join('')}
+        </optgroup>` : ''}
+        ${existingTaches.length ? `<optgroup label="Tâches (seront converties en groupe)">
+          ${existingTaches.map(v=>`<option value="__TACHE__${escH(v)}"${('__TACHE__'+v)===val?' selected':''}>${escH(v)} ↗</option>`).join('')}
+        </optgroup>` : ''}
+        ${val && !existingGroupes.includes(val) && !existingTaches.includes(val) && !val.startsWith('__TACHE__')
+          ? `<option value="${escH(val)}" selected>${escH(val)}</option>` : ''}
       </select>
       <input class="ep-input" id="epNiveauCustom_${i}" type="text"
         placeholder="Ou saisir un nouveau nom…"
-        value="${val && !existing.includes(val) ? escH(val) : ''}"
+        value="${val && !existingGroupes.includes(val) && !existingTaches.includes(val) ? escH(val) : ''}"
         style="margin-top:4px;font-size:11px"
         oninput="onEpNiveauCustomChange(${i})">
     </div>`;
@@ -3037,11 +3050,18 @@ function getEpNiveaux(){
   for(let i=0;i<MAX_NIVEAUX;i++){
     const sel=document.getElementById(`epNiveau_${i}`);
     const custom=document.getElementById(`epNiveauCustom_${i}`);
-    // Priorité au champ libre s'il est rempli, sinon au select
-    const v=(custom?.value||'').trim() || (sel?.value||'').trim();
+    let v=(custom?.value||'').trim() || (sel?.value||'').trim();
+    // Nettoyer le préfixe __TACHE__ (tâche sélectionnée pour conversion)
+    if(v.startsWith('__TACHE__')) v=v.slice(9);
     if(v) niv.push(v); else break;
   }
   return niv;
+}
+
+// Retourne true si le niveau i pointe vers une tâche à convertir
+function _epNiveauIsTacheConversion(i){
+  const sel=document.getElementById(`epNiveau_${i}`);
+  return sel?.value?.startsWith('__TACHE__') || false;
 }
 
 function openAddAfter(refRowIdx, e){
@@ -3155,6 +3175,22 @@ function saveEditPanel(){
   const p=document.getElementById('epProjet').value.trim();
   const niveaux=getEpNiveaux();
   const t=document.getElementById('epTache').value.trim();
+  // Promouvoir les tâches sélectionnées comme groupe avant de sauvegarder
+  for(let i=0;i<MAX_NIVEAUX;i++){
+    if(_epNiveauIsTacheConversion(i)){
+      const nomTache=niveaux[i]; // déjà nettoyé par getEpNiveaux
+      // Trouver la tâche correspondante et la promouvoir
+      const tacheIdx=rows.findIndex(r=>
+        r._type==='tache' && r.projet===p &&
+        (r.niveaux||[]).length===i && r.tache===nomTache
+      );
+      if(tacheIdx>=0){
+        const tache=rows[tacheIdx];
+        // Elle devient enfant du nouveau groupe (ses niveaux = [...niveaux parents, son nom])
+        rows[tacheIdx]={...tache, niveaux:[...niveaux.slice(0,i), nomTache]};
+      }
+    }
+  }
   const d=document.getElementById('epDebut').value;
   const f=document.getElementById('epFin').value;
   const c=document.getElementById('epCharge').value;
