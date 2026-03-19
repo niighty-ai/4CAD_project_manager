@@ -3500,6 +3500,15 @@ function migrateFirebaseData(data){
     projectColors: p.projectColors||{},
     collapsed: p.collapsed||{},
     rows: (p.rows||[]).map(r=>{
+      if(r._type === 'jalon'){
+        return {
+          _type:  'jalon',
+          nom:    r.nom   || '',
+          projet: r.projet|| '',
+          date:   r.date  ? new Date(r.date) : null,
+          couleur: r.couleur || null
+        };
+      }
       const niveaux = r.niveaux
         ? r.niveaux
         : (r.groupe ? [r.groupe] : []);
