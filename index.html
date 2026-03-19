@@ -1905,7 +1905,7 @@ function renderGantt(){
   // -- LEFT PANEL --
   function toggleBtn(key){
     const open=!collapsed[key];
-    return`<span class="toggle-btn" onclick="event.stopPropagation();toggleCollapse(${JSON.stringify(key)})">${open?'▾':'▸'}</span>`;
+    return`<span class="toggle-btn" data-ckey="${escH(key)}" onclick="event.stopPropagation();toggleCollapse(this.dataset.ckey)">${open?'▾':'▸'}</span>`;
   }
 
   const leftRows=visible.map(r=>{
@@ -1922,7 +1922,7 @@ function renderGantt(){
       const key=collapseKey(r.projet,[]);
       return`<div class="gantt-left-row is-projet"
         onclick="openEditPanel(${realIdx>=0?realIdx:'null'})">
-        <span class="toggle-btn" onclick="event.stopPropagation();toggleCollapse(${JSON.stringify(key)})">${!collapsed[key]?'▾':'▸'}</span>
+        <span class="toggle-btn" data-ckey="${escH(key)}" onclick="event.stopPropagation();toggleCollapse(this.dataset.ckey)">${!collapsed[key]?'▾':'▸'}</span>
         <span style="color:${c};font-size:9px;flex-shrink:0">■</span>
         <span class="row-label" style="color:${c}">${escH(r.projet)}</span>
         ${chargeHtml}${datesHtml}
@@ -1944,7 +1944,7 @@ function renderGantt(){
       return`<div class="gantt-left-row is-groupe is-groupe-depth-${depth}"
         onclick="openEditPanel(${realIdx>=0?realIdx:'null'})">
         <span style="width:${indent}px;flex-shrink:0"></span>
-        <span class="toggle-btn" onclick="event.stopPropagation();toggleCollapse(${JSON.stringify(key)})">${!collapsed[key]?'▾':'▸'}</span>
+        <span class="toggle-btn" data-ckey="${escH(key)}" onclick="event.stopPropagation();toggleCollapse(this.dataset.ckey)">${!collapsed[key]?'▾':'▸'}</span>
         <span style="color:${col};font-size:${9-depth}px;flex-shrink:0">${icon}</span>
         <span class="row-label" style="color:${col};font-weight:${depth===1?700:600}">${escH(nomGroupe)}</span>
         ${chargeHtml}${datesHtml}
