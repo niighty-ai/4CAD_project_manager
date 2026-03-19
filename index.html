@@ -2700,14 +2700,14 @@ function navColor(idx){ return NAV_COLORS[idx % NAV_COLORS.length]; }
 function savePortfolio(){
   const data = portfolio.map(p=>({
     id:p.id, name:p.name, client:p.client||'',
-    rows: p.rows.map(r=> r._type==='jalon'
-      ? {...r, date: r.date?r.date.toISOString():null}
-      : {...r, debut:r.debut?r.debut.toISOString():null, fin:r.fin?r.fin.toISOString():null}
-    ),
+    rows: p.rows
+      .filter(r=>r._type!=='jalon') // jalons stockés séparément
+      .map(r=>({...r, debut:r.debut?r.debut.toISOString():null, fin:r.fin?r.fin.toISOString():null})),
+    jalons: (p.jalons||[]).map(j=>({...j, date:j.date?j.date.toISOString():null})),
     projectColors: p.projectColors||{},
     collapsed: p.collapsed||{}
   }));
-  scheduleFirebaseSave(data); // Firebase est la source de vérité
+  scheduleFirebaseSave(data);
 }
 
 function loadPortfolio(){
@@ -2718,10 +2718,8 @@ function loadPortfolio(){
     portfolio = data.map(p=>({
       ...p,
       client: p.client||'',
-      rows: p.rows.map(r=> r._type==='jalon'
-        ? {...r, date: r.date?new Date(r.date):null}
-        : {...r, debut:r.debut?new Date(r.debut):null, fin:r.fin?new Date(r.fin):null}
-      )
+      rows: (p.rows||[]).filter(r=>r._type!=='jalon').map(r=>({...r, debut:r.debut?new Date(r.debut):null, fin:r.fin?new Date(r.fin):null})),
+      jalons: (p.jalons||[]).map(j=>({...j, date:j.date?new Date(j.date):null}))
     }));
     return portfolio.length > 0;
   }catch(e){ return false; }
@@ -2766,7 +2764,8 @@ function switchToProject(id){
   if(activeProjectId){
     const cur = portfolio.find(p=>p.id===activeProjectId);
     if(cur){
-      cur.rows = rows.filter(r=>r._type==='tache'||r._type==='jalon').map(r=>({...r}));
+      cur.rows   = rows.filter(r=>r._type==='tache').map(r=>({...r}));
+      cur.jalons = rows.filter(r=>r._type==='jalon').map(r=>({...r}));
       cur.projectColors={...projectColors};
       cur.collapsed={...collapsed};
     }
@@ -2775,10 +2774,11 @@ function switchToProject(id){
   activeProjectId = id;
   const proj = portfolio.find(p=>p.id===id);
   if(!proj) return;
-  // Load into global state — garder uniquement les tâches et jalons (pas les lignes synthétiques)
-  rows = proj.rows
-    .map(r=>({...r}))
-    .filter(r=>r._type==='tache'||r._type==='jalon');
+  // Load into global state — tâches depuis proj.rows, jalons depuis proj.jalons
+  rows = [
+    ...proj.rows.filter(r=>r._type==='tache').map(r=>({...r})),
+    ...(proj.jalons||[]).map(r=>({...r}))
+  ];
   projectColors = {...proj.projectColors};
   collapsed = {...proj.collapsed};
   // Trier avant affichage
@@ -2948,7 +2948,8 @@ function saveCurrentProject(){
   const proj = portfolio.find(p=>p.id===activeProjectId);
   if(proj){
     // Ne sauvegarder que les données brutes (tâches + jalons), pas les lignes synthétiques
-    proj.rows = rows.filter(r=>r._type==='tache'||r._type==='jalon').map(r=>({...r}));
+    proj.rows   = rows.filter(r=>r._type==='tache').map(r=>({...r}));
+    proj.jalons = rows.filter(r=>r._type==='jalon').map(r=>({...r}));
     proj.projectColors={...projectColors};
     proj.collapsed={...collapsed};
     savePortfolio();
@@ -3517,19 +3518,15 @@ function migrateFirebaseData(data){
     ...p, client: p.client||'',
     projectColors: p.projectColors||{},
     collapsed: p.collapsed||{},
-    rows: (p.rows||[]).map(r=>{
-      if(r._type === 'jalon'){
-        return {
-          _type:  'jalon',
-          nom:    r.nom   || '',
-          projet: r.projet|| '',
-          date:   r.date  ? new Date(r.date) : null,
-          couleur: r.couleur || null
-        };
-      }
-      const niveaux = r.niveaux
-        ? r.niveaux
-        : (r.groupe ? [r.groupe] : []);
+    jalons: (p.jalons||[
+      // compat ancien format : jalons dans rows
+      ...(p.rows||[]).filter(r=>r._type==='jalon')
+    ]).map(j=>({
+      _type:'jalon', nom:j.nom||'', projet:j.projet||'',
+      date: j.date ? new Date(j.date) : null, couleur:j.couleur||null
+    })),
+    rows: (p.rows||[]).filter(r=>r._type!=='jalon').map(r=>{
+      const niveaux = r.niveaux ? r.niveaux : (r.groupe ? [r.groupe] : []);
       return {
         _type:  r._type  || 'tache',
         projet: r.projet || '',
