@@ -295,7 +295,7 @@ embed[type="application/pdf"] { filter: invert(100%) contrast(90%); }</style>
     --accent:#EC7206;--accent-dark:#c45f00;
     --accent2:#284053;--navy:#284053;--blue:#72B6EC;--green:#2e7d32;
     --shadow:rgba(40,64,83,.10);
-    --row-h:30px;--header-h:52px;--label-w:400px;
+    --row-h:22px;--header-h:52px;--label-w:400px;
   }
   [data-theme="dark"]{
     --bg:#0f1620;--surface:#162130;--surface2:#1c2d3f;--border:#2a3d52;
@@ -303,7 +303,7 @@ embed[type="application/pdf"] { filter: invert(100%) contrast(90%); }</style>
     --accent:#EC7206;--accent-dark:#f08c2a;
     --accent2:#72B6EC;--navy:#1c2d3f;--blue:#72B6EC;--green:#43e97b;
     --shadow:rgba(0,0,0,.35);
-    --row-h:30px;--header-h:52px;--label-w:400px;
+    --row-h:22px;--header-h:52px;--label-w:400px;
   }
 
   *{box-sizing:border-box;margin:0;padding:0;}
@@ -2107,7 +2107,7 @@ function renderChart(layout,legend,visible,minD0,maxD0,today,leftHTML,mode){
   const todayOk=today>=minD&&today<=maxD;
 
   // -- Rows --
-  const ROW_H=30; // matches --row-h
+  const ROW_H=22; // matches --row-h
 
   const rowsHTML=visible.map(r=>{
     const c=getColor(r.projet);
