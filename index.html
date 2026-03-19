@@ -1342,27 +1342,36 @@ function sortRows(){
       const pCharge=taskList.reduce((s,r)=>s+(r.charge||0),0);
       sorted.push({_type:'projet',projet,niveaux:[],tache:null,debut:pMin,fin:pMax,charge:pCharge});
     }
-    // Grouper par niveau suivant
-    const nextNiveaux=[...new Set(taskList.map(r=>r.niveaux[depth]||''))];
-    // Séparer tâches sans sous-niveau et celles avec
+    // Tâches directes à ce niveau (sans sous-niveau)
     const noMore=taskList.filter(r=>!r.niveaux[depth]);
     const withMore=taskList.filter(r=>r.niveaux[depth]);
-    // Trier les groupes par date min
-    const groups=[...new Set(withMore.map(r=>r.niveaux[depth]))].sort((a,b)=>{
-      return Math.min(...withMore.filter(r=>r.niveaux[depth]===a).map(r=>r.debut.getTime()))
-            -Math.min(...withMore.filter(r=>r.niveaux[depth]===b).map(r=>r.debut.getTime()));
-    });
-    // D'abord les tâches directes (sans sous-groupe)
-    noMore.sort((a,b)=>a.debut-b.debut).forEach(r=>sorted.push({...r,_type:'tache'}));
-    // Puis les sous-groupes
-    groups.forEach(g=>{
+
+    // Groupes : calculer leur date min pour le tri
+    const groupNames=[...new Set(withMore.map(r=>r.niveaux[depth]))];
+    const groupMeta=groupNames.map(g=>{
       const gT=withMore.filter(r=>r.niveaux[depth]===g);
       const gMin=new Date(Math.min(...gT.map(r=>r.debut.getTime())));
       const gMax=new Date(Math.max(...gT.map(r=>r.fin.getTime())));
       const gCharge=gT.reduce((s,r)=>s+(r.charge||0),0);
-      const nPath=[...niveauxPath,g];
-      sorted.push({_type:'groupe',projet,niveaux:nPath,tache:null,debut:gMin,fin:gMax,charge:gCharge,_depth:depth+1});
-      sortLevel(gT, projet, nPath, depth+1);
+      return {g, gT, gMin, gMax, gCharge};
+    });
+
+    // Construire une liste mixte [tâches directes + en-têtes de groupes] triée par date
+    const items=[
+      ...noMore.map(r=>({type:'tache', date:r.debut, r})),
+      ...groupMeta.map(m=>({type:'groupe', date:m.gMin, m}))
+    ].sort((a,b)=>a.date-b.date);
+
+    // Émettre dans l'ordre
+    items.forEach(item=>{
+      if(item.type==='tache'){
+        sorted.push({...item.r, _type:'tache'});
+      } else {
+        const {g, gT, gMin, gMax, gCharge} = item.m;
+        const nPath=[...niveauxPath,g];
+        sorted.push({_type:'groupe',projet,niveaux:nPath,tache:null,debut:gMin,fin:gMax,charge:gCharge,_depth:depth+1});
+        sortLevel(gT, projet, nPath, depth+1);
+      }
     });
   }
 
@@ -1373,20 +1382,45 @@ function sortRows(){
   projOrder.forEach(p=>{
     sortLevel(tasks.filter(r=>r.projet===p), p, [], 0);
   });
-  // Intercaler les jalons parmi les tâches triées selon leur date
+
+  // Intercaler les jalons DANS leur projet, triés par date
   const final=[];
-  let ji=0;
-  const jalonsSorted=[...jalons].sort((a,b)=>(a.date||0)-(b.date||0));
-  for(const r of sorted){
-    // Insérer les jalons dont la date est avant la date de début de cette ligne
-    const lineDate = r.debut || null;
-    while(ji < jalonsSorted.length && lineDate && jalonsSorted[ji].date <= lineDate){
-      final.push(jalonsSorted[ji++]);
+  // Regrouper sorted par blocs de projet
+  let i=0;
+  while(i < sorted.length){
+    const r = sorted[i];
+    if(r._type === 'projet'){
+      const projet = r.projet;
+      // Collecter toutes les lignes de ce projet
+      const bloc = [];
+      while(i < sorted.length && (sorted[i]._type==='projet' ? sorted[i].projet===projet : sorted[i].projet===projet)){
+        bloc.push(sorted[i++]);
+      }
+      // Jalons de ce projet triés par date
+      const jProjet = jalons
+        .filter(j=>j.projet===projet)
+        .sort((a,b)=>(a.date||0)-(b.date||0));
+      // Intercaler les jalons dans le bloc par date
+      let ji=0;
+      for(const row of bloc){
+        const lineDate = row.debut || null;
+        while(ji < jProjet.length && lineDate && jProjet[ji].date <= lineDate){
+          final.push(jProjet[ji++]);
+        }
+        final.push(row);
+      }
+      // Jalons restants du projet (après toutes ses tâches)
+      while(ji < jProjet.length) final.push(jProjet[ji++]);
+    } else {
+      final.push(sorted[i++]);
     }
-    final.push(r);
   }
-  // Jalons restants (après toutes les tâches)
-  while(ji < jalonsSorted.length) final.push(jalonsSorted[ji++]);
+  // Jalons sans projet correspondant → à la fin
+  const projetsExistants = new Set(tasks.map(r=>r.projet));
+  jalons.filter(j=>!projetsExistants.has(j.projet))
+        .sort((a,b)=>(a.date||0)-(b.date||0))
+        .forEach(j=>final.push(j));
+
   rows=final;
 }
 
