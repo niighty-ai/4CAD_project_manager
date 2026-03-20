@@ -1,0 +1,65 @@
+<!-- ═══════════════════════════════════════
+     COMPONENT: sidebar
+     Injecté dans index.html via #include
+     ═══════════════════════════════════════ -->
+  <div class="nav-sidebar" id="navSidebar">
+    <div class="nav-header">
+      <span class="nav-header-title">📁 Portefeuille</span>
+      <span class="nav-toggle" id="navToggle" onclick="toggleNav()" title="Réduire">‹</span>
+    </div>
+    <button class="nav-new-btn" onclick="createNewProjectPrompt()">
+      <span>+</span><span class="nav-btn-text">Nouveau client</span>
+    </button>
+    <div class="nav-list" id="navList"><div class="nav-client">
+        <div class="nav-client-header" onclick="toggleNavClient('ABERDEEN')">
+          <span class="nav-client-chevron open">►</span>
+          <span class="nav-client-name" title="ABERDEEN">ABERDEEN</span>
+          <div class="nav-client-actions">
+            <button class="nav-action-btn" onclick="renameClient('ABERDEEN',event)" title="Renommer le client">✎</button>
+            <button class="nav-action-btn" onclick="addProjectToClient('ABERDEEN',event)" title="Nouveau projet">+</button>
+          </div>
+        </div>
+        <div class="nav-client-children"><div class="nav-item active" id="navItem_p_1773846774089_sr6s" onclick="switchToProject('p_1773846774089_sr6s')">
+        <div class="nav-item-dot" style="background: rgb(236, 114, 6); border-color: rgba(236, 114, 6, 0.25);"></div>
+        <div style="flex:1;min-width:0;overflow:hidden">
+          <div class="nav-item-name" title="ABERDEEN &amp; 4CAD">ABERDEEN &amp; 4CAD</div>
+          <div class="nav-item-meta">19 tâches</div>
+        </div>
+        <div class="nav-item-actions">
+          <button class="nav-action-btn" onclick="startRename('p_1773846774089_sr6s',event)" title="Renommer">✎</button>
+          <button class="nav-action-btn" onclick="duplicateProject('p_1773846774089_sr6s',event)" title="Dupliquer">❏</button>
+          <button class="nav-action-btn danger" onclick="deleteProject('p_1773846774089_sr6s',event)" title="Supprimer">🗑</button>
+        </div>
+      </div><div class="nav-item" id="navItem_p_1773846800922_etx1" onclick="switchToProject('p_1773846800922_etx1')">
+        <div class="nav-item-dot" style="background: rgb(114, 182, 236); border-color: rgba(114, 182, 236, 0.25);"></div>
+        <div style="flex:1;min-width:0;overflow:hidden">
+          <div class="nav-item-name" title="TST 1">TST 1</div>
+          <div class="nav-item-meta">10 tâches</div>
+        </div>
+        <div class="nav-item-actions">
+          <button class="nav-action-btn" onclick="startRename('p_1773846800922_etx1',event)" title="Renommer">✎</button>
+          <button class="nav-action-btn" onclick="duplicateProject('p_1773846800922_etx1',event)" title="Dupliquer">❏</button>
+          <button class="nav-action-btn danger" onclick="deleteProject('p_1773846800922_etx1',event)" title="Supprimer">🗑</button>
+        </div>
+      </div></div></div><div class="nav-client">
+        <div class="nav-client-header" onclick="toggleNavClient('AIR SUPPORT')">
+          <span class="nav-client-chevron open">►</span>
+          <span class="nav-client-name" title="AIR SUPPORT">AIR SUPPORT</span>
+          <div class="nav-client-actions">
+            <button class="nav-action-btn" onclick="renameClient('AIR SUPPORT',event)" title="Renommer le client">✎</button>
+            <button class="nav-action-btn" onclick="addProjectToClient('AIR SUPPORT',event)" title="Nouveau projet">+</button>
+          </div>
+        </div>
+        <div class="nav-client-children"><div class="nav-item" id="navItem_p_1773846788083_b629" onclick="switchToProject('p_1773846788083_b629')">
+        <div class="nav-item-dot" style="background: rgb(40, 64, 83); border-color: rgba(40, 64, 83, 0.25);"></div>
+        <div style="flex:1;min-width:0;overflow:hidden">
+          <div class="nav-item-name" title="TEST">TEST</div>
+          <div class="nav-item-meta">20 tâches</div>
+        </div>
+        <div class="nav-item-actions">
+          <button class="nav-action-btn" onclick="startRename('p_1773846788083_b629',event)" title="Renommer">✎</button>
+          <button class="nav-action-btn" onclick="duplicateProject('p_1773846788083_b629',event)" title="Dupliquer">❏</button>
+          <button class="nav-action-btn danger" onclick="deleteProject('p_1773846788083_b629',event)" title="Supprimer">🗑</button>
+        </div>
+      </div></div></div></div>
+  </div>
