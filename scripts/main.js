@@ -621,7 +621,21 @@ function renderGantt(){
   const legend=document.getElementById('legend');
   const allTasks=rows.filter(r=>r._type==='tache');
   if(!allTasks.length){
-    layout.innerHTML=`<div class="empty" style="width:100%"><div class="icon">📊</div><p>Aucune donnée.</p></div>`;
+    const projName = portfolio.find(p=>p.id===activeProjectId)?.name || 'ce projet';
+    layout.innerHTML=`<div class="gantt-empty">
+      <div class="gantt-empty-icon">📐</div>
+      <div class="gantt-empty-title">Aucune tâche pour le moment</div>
+      <div class="gantt-empty-desc">Commencez à construire le planning de <strong>${escH(projName)}</strong> en ajoutant votre première tâche.</div>
+      <div class="gantt-empty-actions">
+        <button class="gantt-empty-btn" onclick="openEditPanel(null)">
+          <span class="gantt-empty-btn-icon">+</span> Créer une tâche
+        </button>
+        <button class="gantt-empty-btn secondary" onclick="openJalonPanel()">
+          <span class="gantt-empty-btn-icon">◆</span> Ajouter un jalon
+        </button>
+      </div>
+      <div class="gantt-empty-hint">ou importez un fichier Excel via le bouton <strong>📂 Importer</strong> dans la barre d'outils</div>
+    </div>`;
     legend.innerHTML='';return;
   }
   const visible=rows.filter(r=>isVisible(r));
@@ -1682,11 +1696,19 @@ function openEditPanel(rowIdx){
   } else {
     title.textContent = '+ Nouvelle tâche';
     const last = taskRows[taskRows.length-1];
-    document.getElementById('epProjet').value = last?last.projet:'';
+    const activeProj = portfolio.find(p=>p.id===activeProjectId);
+    document.getElementById('epProjet').value = last?last.projet:(activeProj?activeProj.name:'');
     renderEpNiveaux(last?(last.niveaux||[]):[], false);
     document.getElementById('epTache').value = '';
-    document.getElementById('epDebut').value = '';
-    document.getElementById('epFin').value = '';
+    if(!last){
+      const _today = new Date(); _today.setHours(0,0,0,0);
+      const _in2w = new Date(_today); _in2w.setDate(_in2w.getDate()+14);
+      document.getElementById('epDebut').value = toInput(_today);
+      document.getElementById('epFin').value = toInput(_in2w);
+    } else {
+      document.getElementById('epDebut').value = '';
+      document.getElementById('epFin').value = '';
+    }
     document.getElementById('epCharge').value = '';
     document.getElementById('epDeleteBtn').style.display='none';
     _epSetTacheRequired(true);

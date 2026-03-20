@@ -598,3 +598,102 @@
   background:rgba(236,114,6,.05)
 }
 
+/* ── État vide du Gantt ── */
+
+.gantt-empty {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 30px;
+  text-align: center;
+  min-height: 280px;
+}
+
+.gantt-empty-icon {
+  font-size: 48px;
+  margin-bottom: 16px;
+  opacity: 0.8;
+}
+
+.gantt-empty-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 8px;
+  letter-spacing: 0.3px;
+}
+
+.gantt-empty-desc {
+  font-size: 13px;
+  color: var(--muted);
+  max-width: 380px;
+  line-height: 1.5;
+  margin-bottom: 24px;
+}
+
+.gantt-empty-desc strong {
+  color: var(--accent);
+}
+
+.gantt-empty-actions {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
+.gantt-empty-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 22px;
+  font-size: 13px;
+  font-weight: 700;
+  font-family: Arial, sans-serif;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s;
+  background: var(--accent);
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(236, 114, 6, 0.25);
+}
+
+.gantt-empty-btn:hover {
+  background: var(--accent-dark);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 14px rgba(236, 114, 6, 0.35);
+}
+
+.gantt-empty-btn.secondary {
+  background: var(--surface2);
+  color: var(--text);
+  border: 1px solid var(--border);
+  box-shadow: none;
+}
+
+.gantt-empty-btn.secondary:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: rgba(236, 114, 6, 0.06);
+  box-shadow: none;
+}
+
+.gantt-empty-btn-icon {
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.gantt-empty-hint {
+  font-size: 11px;
+  color: var(--muted);
+  opacity: 0.7;
+}
+
+.gantt-empty-hint strong {
+  opacity: 1;
+  color: var(--muted);
+}
+
