@@ -1534,7 +1534,7 @@ let epMode = 'new';
 const MAX_NIVEAUX = 5;
 function _buildNiveauOptions(i, currentVal){
   const taskRows = rows.filter(r=>r._type==='tache');
-  const projet = document.getElementById('epProjet')?.value.trim() || '';
+  const projet = getEpProjet();
   const parentVals = [];
   for(let j=0;j<i;j++){
     const v = _getEpNiveauVal(j);
@@ -1582,10 +1582,11 @@ function renderEpNiveaux(niveaux, isGroupe){
   let html = '';
   for(let i=0; i<MAX_NIVEAUX; i++){
     const val = (niveaux&&niveaux[i]) ? niveaux[i] : '';
-    const label = i===0 ? 'Niveau 1' : `Niveau ${i+1}`;
+    const label = i===0 ? 'Niveau 1 (groupe)' : `Niveau ${i+1} (sous-groupe)`;
     const isOpt = !isGroupe || i>0;
     const opts = _buildNiveauOptions(i, val);
-    html+=`<div class="ep-group" id="epNivGroup_${i}">
+    const hidden = (i > 0 && !val) ? ' style="display:none"' : '';
+    html+=`<div class="ep-group ep-niveau-group" id="epNivGroup_${i}"${hidden}>
       <label class="ep-label" style="display:flex;align-items:center;justify-content:space-between">
         <span>${label}${isOpt?' <span style="font-weight:400;opacity:.6">(optionnel)</span>':''}</span>
         ${i>0?`<span style="font-size:10px;color:var(--muted);cursor:pointer;padding:2px 4px" onclick="clearEpNiveauFrom(${i})">✕ effacer</span>`:''}
@@ -1601,17 +1602,37 @@ function renderEpNiveaux(niveaux, isGroupe){
     </div>`;
   }
   container.innerHTML = html;
+  _updateNiveauxVisibility();
+}
+function _updateNiveauxVisibility(){
+  for(let i=1;i<MAX_NIVEAUX;i++){
+    const prevVal = _getEpNiveauVal(i-1);
+    const group = document.getElementById(`epNivGroup_${i}`);
+    if(!group) continue;
+    if(prevVal){
+      group.style.display = '';
+    } else {
+      group.style.display = 'none';
+      /* Reset les niveaux cachés */
+      const sel = document.getElementById(`epNiveau_${i}`);
+      const custom = document.getElementById(`epNiveauCustom_${i}`);
+      if(sel) sel.value = '';
+      if(custom) custom.value = '';
+    }
+  }
 }
 function onEpNiveauCustomChange(idx){
   const sel = document.getElementById(`epNiveau_${idx}`);
   const custom = document.getElementById(`epNiveauCustom_${idx}`);
   if(custom && custom.value.trim()) sel.value = '';
   _refreshNiveauxFrom(idx+1);
+  _updateNiveauxVisibility();
 }
 function onEpNiveauChange(idx){
   const custom = document.getElementById(`epNiveauCustom_${idx}`);
   if(custom) custom.value = '';
   _refreshNiveauxFrom(idx+1);
+  _updateNiveauxVisibility();
 }
 function _refreshNiveauxFrom(fromIdx){
   for(let i=fromIdx;i<MAX_NIVEAUX;i++){
@@ -1630,6 +1651,7 @@ function clearEpNiveauFrom(idx){
     if(sel) sel.value='';
     if(custom) custom.value='';
   }
+  _updateNiveauxVisibility();
 }
 function getEpNiveaux(){
   const niv=[];
@@ -1649,7 +1671,8 @@ function openAddAfter(refRowIdx, e){
   openEditPanel(null);
   if(!ref){ return; }
   setTimeout(()=>{
-    document.getElementById('epProjet').value = ref.projet||'';
+    document.getElementById('epProjetCustom').style.display='none';
+    setEpProjet(ref.projet||'');
     document.getElementById('epTache').value = '';
     document.getElementById('epDebut').value = '';
     document.getElementById('epFin').value = '';
@@ -1683,7 +1706,7 @@ function openEditPanel(rowIdx){
     const r = rows[rowIdx];
     const isGroupe = r._type==='groupe';
     title.textContent = isGroupe ? '✏ Modifier le groupe' : '✏ Modifier la tâche';
-    document.getElementById('epProjet').value = r.projet||'';
+    setEpProjet(r.projet||'');
     const niveauxParent = isGroupe ? (r.niveaux||[]).slice(0,-1) : (r.niveaux||[]);
     renderEpNiveaux(niveauxParent, isGroupe);
     const nomGroupe = isGroupe ? ((r.niveaux||[]).slice(-1)[0]||'') : (r.tache||'');
@@ -1697,7 +1720,7 @@ function openEditPanel(rowIdx){
     title.textContent = '+ Nouvelle tâche';
     const last = taskRows[taskRows.length-1];
     const activeProj = portfolio.find(p=>p.id===activeProjectId);
-    document.getElementById('epProjet').value = last?last.projet:(activeProj?activeProj.name:'');
+    setEpProjet(last?last.projet:(activeProj?activeProj.name:''));
     renderEpNiveaux(last?(last.niveaux||[]):[], false);
     document.getElementById('epTache').value = '';
     if(!last){
@@ -1728,7 +1751,87 @@ function _epSetTacheRequired(required, isGroupe){
 }
 function _epRefreshProjetSelect(taskRows){
   const projets = [...new Set((taskRows||rows.filter(r=>r._type==='tache')).map(r=>r.projet))];
-  document.getElementById('epProjetList').innerHTML = projets.map(p=>`<option value="${escH(p)}">`).join('');
+  const sel = document.getElementById('epProjetSelect');
+  if(!sel) return;
+  sel.innerHTML = projets.map(p=>`<option value="${escH(p)}">${escH(p)}</option>`).join('')
+    + `<option value="__NEW__">＋ Nouveau projet…</option>`;
+}
+function getEpProjet(){
+  const sel = document.getElementById('epProjetSelect');
+  const custom = document.getElementById('epProjetCustom');
+  if(sel && sel.value === '__NEW__') return (custom?.value||'').trim();
+  return (sel?.value||'').trim();
+}
+function setEpProjet(val){
+  const sel = document.getElementById('epProjetSelect');
+  const custom = document.getElementById('epProjetCustom');
+  if(!sel) return;
+  const opt = [...sel.options].find(o=>o.value===val);
+  if(opt){
+    sel.value = val;
+    if(custom) custom.style.display='none';
+  } else if(val){
+    sel.value = '__NEW__';
+    if(custom){ custom.style.display='block'; custom.value=val; }
+  } else {
+    sel.selectedIndex = 0;
+    if(custom) custom.style.display='none';
+  }
+}
+function onEpProjetSelectChange(){
+  const sel = document.getElementById('epProjetSelect');
+  const custom = document.getElementById('epProjetCustom');
+  if(sel && sel.value==='__NEW__'){
+    custom.style.display='block';
+    custom.value='';
+    custom.focus();
+  } else {
+    custom.style.display='none';
+    custom.value='';
+  }
+  renderEpNiveaux([], false);
+  _updateNiveauxVisibility();
+}
+function _jpRefreshProjetSelect(){
+  const projets = [...new Set(rows.filter(r=>r._type==='tache').map(r=>r.projet))];
+  const sel = document.getElementById('jpProjetSelect');
+  if(!sel) return;
+  sel.innerHTML = projets.map(p=>`<option value="${escH(p)}">${escH(p)}</option>`).join('')
+    + `<option value="__NEW__">＋ Nouveau projet…</option>`;
+}
+function getJpProjet(){
+  const sel = document.getElementById('jpProjetSelect');
+  const custom = document.getElementById('jpProjetCustom');
+  if(sel && sel.value === '__NEW__') return (custom?.value||'').trim();
+  return (sel?.value||'').trim();
+}
+function setJpProjet(val){
+  const sel = document.getElementById('jpProjetSelect');
+  const custom = document.getElementById('jpProjetCustom');
+  if(!sel) return;
+  const opt = [...sel.options].find(o=>o.value===val);
+  if(opt){
+    sel.value = val;
+    if(custom) custom.style.display='none';
+  } else if(val){
+    sel.value = '__NEW__';
+    if(custom){ custom.style.display='block'; custom.value=val; }
+  } else {
+    sel.selectedIndex = 0;
+    if(custom) custom.style.display='none';
+  }
+}
+function onJpProjetSelectChange(){
+  const sel = document.getElementById('jpProjetSelect');
+  const custom = document.getElementById('jpProjetCustom');
+  if(sel && sel.value==='__NEW__'){
+    custom.style.display='block';
+    custom.value='';
+    custom.focus();
+  } else {
+    custom.style.display='none';
+    custom.value='';
+  }
 }
 function closeEditPanel(){
   document.getElementById('editPanel').classList.remove('open');
@@ -1740,7 +1843,7 @@ function closeEditPanel(){
   }
 }
 function saveEditPanel(){
-  const p=document.getElementById('epProjet').value.trim();
+  const p=getEpProjet();
   const niveaux=getEpNiveaux();
   const t=document.getElementById('epTache').value.trim();
   for(let i=0;i<MAX_NIVEAUX;i++){
@@ -1761,8 +1864,15 @@ function saveEditPanel(){
   const c=document.getElementById('epCharge').value;
   const tacheEl = document.getElementById('epTache');
   const tacheRequired = tacheEl?.dataset.required !== '0';
-  const requiredFields = tacheRequired ? ['epProjet','epTache','epDebut','epFin'] : ['epProjet','epDebut','epFin'];
+  const requiredFields = tacheRequired ? ['epTache','epDebut','epFin'] : ['epDebut','epFin'];
   let hasError = false;
+  if(!p){
+    const sel = document.getElementById('epProjetSelect');
+    const custom = document.getElementById('epProjetCustom');
+    const target = (sel && sel.value==='__NEW__') ? custom : sel;
+    if(target){ target.style.borderColor='#e17055'; target.style.background='#e1705510'; target.addEventListener('input',()=>{target.style.borderColor='';target.style.background='';},{once:true}); target.addEventListener('change',()=>{target.style.borderColor='';target.style.background='';},{once:true}); }
+    hasError = true;
+  }
   requiredFields.forEach(id => {
     const el = document.getElementById(id);
     if(el && !el.value.trim()){
@@ -1775,7 +1885,7 @@ function saveEditPanel(){
       hasError = true;
     }
   });
-  if(!p)            { document.getElementById('epProjet').focus(); }
+  if(!p)            { (document.getElementById('epProjetSelect').value==='__NEW__'?document.getElementById('epProjetCustom'):document.getElementById('epProjetSelect')).focus(); }
   else if(!t && tacheRequired) { document.getElementById('epTache').focus(); }
   else if(!d)       { document.getElementById('epDebut').focus(); }
   else if(!f)       { document.getElementById('epFin').focus(); }
@@ -2055,19 +2165,18 @@ function openJalonPanel(idx){
   const panel = document.getElementById('jalonPanel');
   const title = document.getElementById('jpTitle');
   const delBtn = document.getElementById('jpDeleteBtn');
-  const projets = [...new Set(rows.filter(r=>r._type==='tache').map(r=>r.projet))];
-  document.getElementById('jpProjetList').innerHTML = projets.map(p=>`<option value="${escH(p)}">`).join('');
+  _jpRefreshProjetSelect();
   if(jpEditingIdx !== null){
     const r = rows[jpEditingIdx];
     title.textContent = '◆ Modifier le jalon';
-    document.getElementById('jpProjet').value = r.projet||'';
+    setJpProjet(r.projet||'');
     document.getElementById('jpNom').value = r.nom||'';
     document.getElementById('jpDate').value = toInput(r.date);
     delBtn.style.display = 'block';
   } else {
     title.textContent = '◆ Nouveau jalon';
     const lastProjet = rows.filter(r=>r._type==='projet')[0]?.projet||'';
-    document.getElementById('jpProjet').value = lastProjet;
+    setJpProjet(lastProjet);
     document.getElementById('jpNom').value = '';
     document.getElementById('jpDate').value = '';
     delBtn.style.display = 'none';
@@ -2081,11 +2190,18 @@ function closeJalonPanel(){
   jpEditingIdx = null;
 }
 function saveJalonPanel(){
-  const projet = document.getElementById('jpProjet').value.trim();
+  const projet = getJpProjet();
   const nom = document.getElementById('jpNom').value.trim();
   const dateVal = document.getElementById('jpDate').value;
   let hasError = false;
-  ['jpProjet','jpNom','jpDate'].forEach(id=>{
+  if(!projet){
+    const sel = document.getElementById('jpProjetSelect');
+    const custom = document.getElementById('jpProjetCustom');
+    const target = (sel && sel.value==='__NEW__') ? custom : sel;
+    if(target){ target.style.borderColor='#e17055'; target.style.background='#e1705510'; target.addEventListener('input',()=>{target.style.borderColor='';target.style.background='';},{once:true}); target.addEventListener('change',()=>{target.style.borderColor='';target.style.background='';},{once:true}); }
+    hasError=true;
+  }
+  ['jpNom','jpDate'].forEach(id=>{
     const el = document.getElementById(id);
     if(!el.value.trim()){
       el.style.borderColor='#e17055'; el.style.background='#e1705510';
@@ -2094,7 +2210,7 @@ function saveJalonPanel(){
     }
   });
   if(hasError){
-    if(!projet) document.getElementById('jpProjet').focus();
+    if(!projet) (document.getElementById('jpProjetSelect').value==='__NEW__'?document.getElementById('jpProjetCustom'):document.getElementById('jpProjetSelect')).focus();
     else if(!nom) document.getElementById('jpNom').focus();
     else document.getElementById('jpDate').focus();
     return;

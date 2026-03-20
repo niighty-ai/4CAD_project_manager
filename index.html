@@ -70,8 +70,8 @@ window._fbOnValue = (cb)   => onValue(_fbRef, snap => cb(snap.val()));</script>
   <div class="edit-panel-body">
     <div class="ep-group">
       <label class="ep-label">Projet</label>
-      <input class="ep-input" id="epProjet" type="text" list="epProjetList" placeholder="Nom du projet">
-      <datalist id="epProjetList"></datalist>
+      <select class="ep-input" id="epProjetSelect" onchange="onEpProjetSelectChange()" style="appearance:auto"></select>
+      <input class="ep-input" id="epProjetCustom" type="text" placeholder="Nom du nouveau projet…" style="display:none;margin-top:4px;font-size:11px">
     </div>
     <div id="epNiveauxContainer">
       <!-- Les niveaux sont générés dynamiquement par JS -->
@@ -110,8 +110,8 @@ window._fbOnValue = (cb)   => onValue(_fbRef, snap => cb(snap.val()));</script>
   <div class="edit-panel-body">
     <div class="ep-group">
       <label class="ep-label">Projet</label>
-      <input class="ep-input" id="jpProjet" type="text" list="jpProjetList" placeholder="Nom du projet">
-      <datalist id="jpProjetList"></datalist>
+      <select class="ep-input" id="jpProjetSelect" onchange="onJpProjetSelectChange()" style="appearance:auto"></select>
+      <input class="ep-input" id="jpProjetCustom" type="text" placeholder="Nom du nouveau projet…" style="display:none;margin-top:4px;font-size:11px">
     </div>
     <div class="ep-group">
       <label class="ep-label">Nom du jalon</label>
