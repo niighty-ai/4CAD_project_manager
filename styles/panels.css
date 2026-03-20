@@ -1,0 +1,16 @@
+.edit-panel {
+    background-color: #f4f4f4;
+    border: 1px solid #ccc;
+    padding: 10px;
+    margin: 10px 0;
+    border-radius: 4px;
+}
+
+.edit-panel h2 {
+    color: #333;
+}
+
+.edit-panel p {
+    font-size: 14px;
+    line-height: 1.5;
+}
