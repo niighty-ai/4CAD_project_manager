@@ -90,8 +90,8 @@ function savePortfolio(){
     id:p.id, name:p.name, client:p.client||'',
     rows: p.rows
       .filter(r=>r._type!=='jalon') 
-      .map(r=>({...r, debut:r.debut?r.debut.toISOString():null, fin:r.fin?r.fin.toISOString():null})),
-    jalons: (p.jalons||[]).map(j=>({...j, date:j.date?j.date.toISOString():null})),
+      .map(r=>{const{_sourceProjectId,...rest}=r;return{...rest, debut:r.debut?r.debut.toISOString():null, fin:r.fin?r.fin.toISOString():null};}),
+    jalons: (p.jalons||[]).map(j=>{const{_sourceProjectId,...rest}=j;return{...rest, date:j.date?j.date.toISOString():null};}),
     projectColors: p.projectColors||{},
     collapsed: p.collapsed||{}
   }));
@@ -141,27 +141,136 @@ function createNewProject(name, initialRows, initialColors, client){
   switchToProject(id);
 }
 function switchToProject(id){
-  if(activeProjectId){
-    const cur = portfolio.find(p=>p.id===activeProjectId);
-    if(cur){
-      cur.rows   = rows.filter(r=>r._type==='tache').map(r=>({...r}));
-      cur.jalons = rows.filter(r=>r._type==='jalon').map(r=>({...r}));
-      cur.projectColors={...projectColors};
-      cur.collapsed={...collapsed};
-    }
-    savePortfolio();
-  }
+  saveActiveProject();
   activeProjectId = id;
-  const proj = portfolio.find(p=>p.id===id);
+  /* En mode multi-vue, on ajoute/garde la sélection */
+  if(multiViewMode){
+    selectedProjectIds.add(id);
+    loadMultiProjectView();
+  } else {
+    selectedProjectIds.clear();
+    selectedProjectIds.add(id);
+    const proj = portfolio.find(p=>p.id===id);
+    if(!proj) return;
+    rows = [
+      ...proj.rows.filter(r=>r._type==='tache').map(r=>({...r, _sourceProjectId:id})),
+      ...(proj.jalons||[]).map(r=>({...r, _sourceProjectId:id}))
+    ];
+    projectColors = {...proj.projectColors};
+    collapsed = {...proj.collapsed};
+    sortRows();
+    document.getElementById('activeProjectName').textContent = proj.name;
+  }
+  renderNavList();
+  renderAll();
+}
+function saveActiveProject(){
+  if(!activeProjectId) return;
+  const proj = portfolio.find(p=>p.id===activeProjectId);
   if(!proj) return;
-  rows = [
-    ...proj.rows.filter(r=>r._type==='tache').map(r=>({...r})),
-    ...(proj.jalons||[]).map(r=>({...r}))
-  ];
-  projectColors = {...proj.projectColors};
-  collapsed = {...proj.collapsed};
+  if(multiViewMode){
+    /* En multi-vue, ne sauvegarder que les rows qui appartiennent à ce projet */
+    const projRows = rows.filter(r=>r._sourceProjectId===activeProjectId);
+    proj.rows   = projRows.filter(r=>r._type==='tache').map(r=>{const {_sourceProjectId,...rest}=r;return rest;});
+    proj.jalons = projRows.filter(r=>r._type==='jalon').map(r=>{const {_sourceProjectId,...rest}=r;return rest;});
+  } else {
+    proj.rows   = rows.filter(r=>r._type==='tache').map(r=>{const {_sourceProjectId,...rest}=r;return rest;});
+    proj.jalons = rows.filter(r=>r._type==='jalon').map(r=>{const {_sourceProjectId,...rest}=r;return rest;});
+  }
+  proj.projectColors={...projectColors};
+  proj.collapsed={...collapsed};
+  savePortfolio();
+}
+function loadMultiProjectView(){
+  /* Sauvegarder d'abord le projet actif */
+  if(activeProjectId && !multiViewMode){
+    saveActiveProject();
+  }
+  multiViewMode = true;
+  rows = [];
+  projectColors = {};
+  collapsed = {};
+  selectedProjectIds.forEach(pid=>{
+    const proj = portfolio.find(p=>p.id===pid);
+    if(!proj) return;
+    const taches = proj.rows.filter(r=>r._type==='tache').map(r=>({...r, _sourceProjectId:pid}));
+    const jalons = (proj.jalons||[]).map(r=>({...r, _sourceProjectId:pid}));
+    rows.push(...taches, ...jalons);
+    Object.assign(projectColors, proj.projectColors||{});
+    Object.assign(collapsed, proj.collapsed||{});
+  });
   sortRows();
-  document.getElementById('activeProjectName').textContent = proj.name;
+  /* Mise à jour du header */
+  const names = [...selectedProjectIds].map(id=>portfolio.find(p=>p.id===id)?.name).filter(Boolean);
+  const clientName = portfolio.find(p=>p.id===activeProjectId)?.client || '';
+  if(names.length > 1){
+    document.getElementById('activeProjectName').textContent = 
+      (clientName ? clientName + ' — ' : '') + names.length + ' projets';
+  } else if(names.length === 1){
+    document.getElementById('activeProjectName').textContent = names[0];
+  }
+}
+function exitMultiView(){
+  multiViewMode = false;
+  if(activeProjectId){
+    selectedProjectIds.clear();
+    switchToProject(activeProjectId);
+  }
+}
+function toggleProjectSelection(id, e){
+  if(e) e.stopPropagation();
+  if(selectedProjectIds.has(id)){
+    selectedProjectIds.delete(id);
+    /* Si on décoche le projet actif, basculer l'actif vers un autre sélectionné */
+    if(activeProjectId === id && selectedProjectIds.size > 0){
+      activeProjectId = [...selectedProjectIds][0];
+    }
+  } else {
+    selectedProjectIds.add(id);
+  }
+  /* Passer en multi-vue si > 1 sélectionné, sinon mode simple */
+  if(selectedProjectIds.size > 1){
+    if(!multiViewMode) saveActiveProject();
+    multiViewMode = true;
+    loadMultiProjectView();
+  } else if(selectedProjectIds.size === 1){
+    multiViewMode = false;
+    const singleId = [...selectedProjectIds][0];
+    activeProjectId = singleId;
+    switchToProject(singleId);
+    return;
+  } else {
+    /* Rien de sélectionné */
+    multiViewMode = false;
+    rows = []; projectColors = {}; collapsed = {};
+    document.getElementById('activeProjectName').textContent = '—';
+  }
+  renderNavList();
+  renderAll();
+}
+function selectAllClientProjects(clientName, e){
+  if(e) e.stopPropagation();
+  const clientProjs = portfolio.filter(p=>(p.client||'')===clientName);
+  const allSelected = clientProjs.every(p=>selectedProjectIds.has(p.id));
+  if(allSelected){
+    /* Tout décocher → revenir au projet actif seul */
+    clientProjs.forEach(p=>selectedProjectIds.delete(p.id));
+    if(selectedProjectIds.size === 0 && activeProjectId){
+      selectedProjectIds.add(activeProjectId);
+    }
+    if(selectedProjectIds.size <= 1){
+      exitMultiView();
+      return;
+    }
+    loadMultiProjectView();
+  } else {
+    /* Tout cocher */
+    if(!multiViewMode) saveActiveProject();
+    clientProjs.forEach(p=>selectedProjectIds.add(p.id));
+    if(!activeProjectId) activeProjectId = clientProjs[0]?.id;
+    multiViewMode = true;
+    loadMultiProjectView();
+  }
   renderNavList();
   renderAll();
 }
@@ -171,13 +280,23 @@ function deleteProject(id, e){
   if(!proj) return;
   if(!confirm(`Supprimer le projet "${proj.name}" ?`)) return;
   portfolio = portfolio.filter(p=>p.id!==id);
+  selectedProjectIds.delete(id);
   savePortfolio();
   if(activeProjectId===id){
     activeProjectId = null;
-    rows=[]; projectColors={}; collapsed={};
-    document.getElementById('activeProjectName').textContent = '—';
-    if(portfolio.length>0) switchToProject(portfolio[0].id);
-    else renderAll();
+    if(multiViewMode && selectedProjectIds.size > 0){
+      activeProjectId = [...selectedProjectIds][0];
+      loadMultiProjectView();
+    } else {
+      multiViewMode = false;
+      rows=[]; projectColors={}; collapsed={};
+      document.getElementById('activeProjectName').textContent = '—';
+      if(portfolio.length>0) switchToProject(portfolio[0].id);
+      else renderAll();
+    }
+  } else if(multiViewMode){
+    loadMultiProjectView();
+    renderAll();
   }
   renderNavList();
 }
@@ -203,13 +322,29 @@ function duplicateProject(id, e){
 }
 function saveCurrentProject(){
   if(!activeProjectId) return;
-  const proj = portfolio.find(p=>p.id===activeProjectId);
-  if(proj){
-    proj.rows   = rows.filter(r=>r._type==='tache').map(r=>({...r}));
-    proj.jalons = rows.filter(r=>r._type==='jalon').map(r=>({...r}));
-    proj.projectColors={...projectColors};
-    proj.collapsed={...collapsed};
+  if(multiViewMode){
+    /* En multi-vue, sauvegarder tous les projets sélectionnés */
+    selectedProjectIds.forEach(pid=>{
+      const proj = portfolio.find(p=>p.id===pid);
+      if(!proj) return;
+      const projRows = rows.filter(r=>r._sourceProjectId===pid);
+      proj.rows   = projRows.filter(r=>r._type==='tache').map(r=>{const{_sourceProjectId,...rest}=r;return rest;});
+      proj.jalons = projRows.filter(r=>r._type==='jalon').map(r=>{const{_sourceProjectId,...rest}=r;return rest;});
+      proj.projectColors = proj.projectColors||{};
+      /* Récupérer les couleurs des sous-projets du projetColors global */
+      const projNames = [...new Set(projRows.map(r=>r.projet))];
+      projNames.forEach(n=>{ if(projectColors[n]) proj.projectColors[n]=projectColors[n]; });
+    });
     savePortfolio();
+  } else {
+    const proj = portfolio.find(p=>p.id===activeProjectId);
+    if(proj){
+      proj.rows   = rows.filter(r=>r._type==='tache').map(r=>{const{_sourceProjectId,...rest}=r;return rest;});
+      proj.jalons = rows.filter(r=>r._type==='jalon').map(r=>{const{_sourceProjectId,...rest}=r;return rest;});
+      proj.projectColors={...projectColors};
+      proj.collapsed={...collapsed};
+      savePortfolio();
+    }
   }
 }
 function importToNewProject(parsedRows, fileName){
