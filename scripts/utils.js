@@ -107,5 +107,3 @@ let _fbSaving     = false;
 let _fbInitLoaded = false;
 let _lastSaveTs = 0;
 let jpEditingIdx = null;
-let selectedProjectIds = new Set();
-let multiViewMode = false;

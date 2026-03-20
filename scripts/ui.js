@@ -166,17 +166,12 @@ function renderNavList(){
     const projs = portfolio.filter(p=>(p.client||'')===clientName);
     const clientKey = 'client_' + clientName;
     const isOpen = !navCollapsed[clientKey];
-    const allChecked = projs.every(p=>selectedProjectIds.has(p.id));
-    const someChecked = projs.some(p=>selectedProjectIds.has(p.id));
     if(clientName){
       html += `<div class="nav-client">
         <div class="nav-client-header" onclick="toggleNavClient('${escH(clientName)}')">
           <span class="nav-client-chevron${isOpen?' open':''}">&#9658;</span>
           <span class="nav-client-name" title="${escH(clientName)}">${escH(clientName)}</span>
           <div class="nav-client-actions">
-            <button class="nav-action-btn nav-multiview-btn${allChecked?' active':someChecked?' partial':''}" onclick="selectAllClientProjects('${escH(clientName)}',event)" title="${allChecked?'Quitter la vue combinée':'Vue combinée de tous les projets'}">
-              ${allChecked?'◉':'◎'}
-            </button>
             <button class="nav-action-btn" onclick="renameClient('${escH(clientName)}',event)" title="Renommer le client">&#9998;</button>
             <button class="nav-action-btn" onclick="addProjectToClient('${escH(clientName)}',event)" title="Nouveau projet">+</button>
           </div>
@@ -185,11 +180,9 @@ function renderNavList(){
     }
     projs.forEach((p,i)=>{
       const isActive = p.id===activeProjectId;
-      const isChecked = selectedProjectIds.has(p.id);
       const taskCount = p.rows.filter(r=>r._type==='tache').length;
       const dot = navColor(portfolio.indexOf(p));
-      html += `<div class="nav-item${isActive?' active':''}${isChecked?' checked':''}" id="navItem_${p.id}" onclick="switchToProject('${p.id}')">
-        <input type="checkbox" class="nav-item-check" ${isChecked?'checked':''} onclick="toggleProjectSelection('${p.id}',event)" title="Inclure dans la vue combinée">
+      html += `<div class="nav-item${isActive?' active':''}" id="navItem_${p.id}" onclick="switchToProject('${p.id}')">
         <div class="nav-item-dot" style="background:${dot};border-color:${dot}40"></div>
         <div style="flex:1;min-width:0;overflow:hidden">
           <div class="nav-item-name" title="${escH(p.name)}">${escH(p.name)}</div>
@@ -678,7 +671,7 @@ function saveEditPanel(){
     closeEditPanel();
     return;
   } else {
-    newRow={_type:'tache',projet:p,niveaux,tache:t||null,debut:parseDate(d),fin:parseDate(f),charge:c!==''?parseFloat(c.replace(',','.')):null,_sourceProjectId:activeProjectId};
+    newRow={_type:'tache',projet:p,niveaux,tache:t||null,debut:parseDate(d),fin:parseDate(f),charge:c!==''?parseFloat(c.replace(',','.')):null};
   }
   if(epMode==='edit'&&epEditingIdx!==null) rows[epEditingIdx]=newRow;
   else rows.push(newRow);
@@ -853,7 +846,7 @@ function saveJalonPanel(){
     else document.getElementById('jpDate').focus();
     return;
   }
-  const jalon = {_type:'jalon', projet, nom, date: parseDate(dateVal), _sourceProjectId:activeProjectId};
+  const jalon = {_type:'jalon', projet, nom, date: parseDate(dateVal)};
   if(jpEditingIdx !== null) rows[jpEditingIdx] = jalon;
   else rows.push(jalon);
   closeJalonPanel();
