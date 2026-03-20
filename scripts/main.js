@@ -1702,21 +1702,53 @@ function openEditPanel(rowIdx){
   const title = document.getElementById('epTitle');
   const taskRows = rows.filter(r=>r._type==='tache');
   _epRefreshProjetSelect(taskRows);
+  /* Reset visibility of all fields */
+  document.getElementById('epNiveauxContainer').style.display='';
+  document.getElementById('epTache').parentElement.style.display='';
+  document.querySelectorAll('.ep-dates-row, .ep-charge-row').forEach(el=>el.style.display='');
+  const datesRow = document.getElementById('epDebut').closest('.ep-group.ep-row') || document.getElementById('epDebut').parentElement.parentElement;
+  const chargeRow = document.getElementById('epCharge').closest('.ep-group') || document.getElementById('epCharge').parentElement;
   if(epMode==='edit'){
     const r = rows[rowIdx];
+    const isProjet = r._type==='projet';
     const isGroupe = r._type==='groupe';
-    title.textContent = isGroupe ? '✏ Modifier le groupe' : '✏ Modifier la tâche';
-    setEpProjet(r.projet||'');
-    const niveauxParent = isGroupe ? (r.niveaux||[]).slice(0,-1) : (r.niveaux||[]);
-    renderEpNiveaux(niveauxParent, isGroupe);
-    const nomGroupe = isGroupe ? ((r.niveaux||[]).slice(-1)[0]||'') : (r.tache||'');
-    document.getElementById('epTache').value = nomGroupe;
-    document.getElementById('epDebut').value = toInput(r.debut);
-    document.getElementById('epFin').value = toInput(r.fin);
-    document.getElementById('epCharge').value = r.charge!==null?r.charge:'';
-    document.getElementById('epDeleteBtn').style.display='block';
-    _epSetTacheRequired(true, isGroupe);
+    if(isProjet){
+      /* ── Mode renommage de projet ── */
+      title.textContent = '✏ Renommer le projet';
+      setEpProjet(r.projet||'');
+      document.getElementById('epProjetSelect').disabled = true;
+      document.getElementById('epNiveauxContainer').style.display='none';
+      document.getElementById('epTache').parentElement.style.display='';
+      _epSetTacheRequired(true, false);
+      document.getElementById('epTacheLabel').textContent = 'Nouveau nom du projet';
+      document.getElementById('epTache').value = r.projet||'';
+      document.getElementById('epTache').placeholder = 'Nom du projet';
+      document.getElementById('epTache').dataset.isprojet = '1';
+      datesRow.style.display='none';
+      chargeRow.style.display='none';
+      document.getElementById('epDeleteBtn').style.display='block';
+    } else {
+      document.getElementById('epProjetSelect').disabled = false;
+      document.getElementById('epTache').dataset.isprojet = '0';
+      title.textContent = isGroupe ? '✏ Modifier le groupe' : '✏ Modifier la tâche';
+      setEpProjet(r.projet||'');
+      const niveauxParent = isGroupe ? (r.niveaux||[]).slice(0,-1) : (r.niveaux||[]);
+      renderEpNiveaux(niveauxParent, isGroupe);
+      const nomGroupe = isGroupe ? ((r.niveaux||[]).slice(-1)[0]||'') : (r.tache||'');
+      document.getElementById('epTache').value = nomGroupe;
+      document.getElementById('epDebut').value = toInput(r.debut);
+      document.getElementById('epFin').value = toInput(r.fin);
+      document.getElementById('epCharge').value = r.charge!==null?r.charge:'';
+      datesRow.style.display='';
+      chargeRow.style.display='';
+      document.getElementById('epDeleteBtn').style.display='block';
+      _epSetTacheRequired(true, isGroupe);
+    }
   } else {
+    document.getElementById('epProjetSelect').disabled = false;
+    document.getElementById('epTache').dataset.isprojet = '0';
+    datesRow.style.display='';
+    chargeRow.style.display='';
     title.textContent = '+ Nouvelle tâche';
     const last = taskRows[taskRows.length-1];
     const activeProj = portfolio.find(p=>p.id===activeProjectId);
@@ -1737,6 +1769,7 @@ function openEditPanel(rowIdx){
     _epSetTacheRequired(true);
   }
   panel.classList.add('open');
+  _showBackdrop();
   setTimeout(()=>document.getElementById('epTache').focus(), 230);
 }
 function _epSetTacheRequired(required, isGroupe){
@@ -1833,8 +1866,15 @@ function onJpProjetSelectChange(){
     custom.value='';
   }
 }
+function _showBackdrop(){ document.getElementById('panelBackdrop')?.classList.add('visible'); }
+function _hideBackdrop(){ document.getElementById('panelBackdrop')?.classList.remove('visible'); }
+function closeAllPanels(){ closeEditPanel(); closeJalonPanel(); }
 function closeEditPanel(){
   document.getElementById('editPanel').classList.remove('open');
+  _hideBackdrop();
+  document.getElementById('epProjetSelect').disabled = false;
+  const tacheEl = document.getElementById('epTache');
+  if(tacheEl) tacheEl.dataset.isprojet = '0';
   epEditingIdx=null;
   if(window._promotedBackup){
     rows.push(window._promotedBackup.original);
@@ -1891,8 +1931,33 @@ function saveEditPanel(){
   else if(!f)       { document.getElementById('epFin').focus(); }
   if(hasError) return;
   const tacheEl2 = document.getElementById('epTache');
+  const isProjetEdit = tacheEl2?.dataset.isprojet === '1';
   const isGroupeEdit = tacheEl2?.dataset.isgroupe === '1';
   let newRow;
+  if(isProjetEdit){
+    /* ── Renommage de projet ── */
+    const nouveauNom = t;
+    if(!nouveauNom){ document.getElementById('epTache').focus(); return; }
+    const r = epEditingIdx !== null ? rows[epEditingIdx] : null;
+    const oldName = r?.projet||'';
+    if(nouveauNom !== oldName){
+      /* Renommer dans toutes les tâches et jalons */
+      rows = rows.map(row=>{
+        if(row.projet === oldName) return {...row, projet: nouveauNom};
+        return row;
+      });
+      /* Renommer dans projectColors */
+      if(projectColors[oldName]){
+        projectColors[nouveauNom] = projectColors[oldName];
+        delete projectColors[oldName];
+      }
+    }
+    sortRows(); renderAll(); saveCurrentProject();
+    window._promotedBackup = null;
+    document.getElementById('epProjetSelect').disabled = false;
+    closeEditPanel();
+    return;
+  }
   if(isGroupeEdit){
     const nouveauNom = t;
     if(!nouveauNom){ document.getElementById('epTache').focus(); return; }
@@ -1925,9 +1990,14 @@ function saveEditPanel(){
 function deleteFromPanel(){
   if(epEditingIdx===null)return;
   const r=rows[epEditingIdx];
-  if(!confirm(`Supprimer "${r.tache||r.projet}" ?`))return;
-  rows.splice(epEditingIdx,1);
-  rows=rows.filter(r=>r._type==='tache');
+  if(r._type==='projet'){
+    if(!confirm(`Supprimer le projet "${r.projet}" et toutes ses tâches ?`))return;
+    rows = rows.filter(row=>row.projet!==r.projet);
+  } else {
+    if(!confirm(`Supprimer "${r.tache||r.projet}" ?`))return;
+    rows.splice(epEditingIdx,1);
+    rows=rows.filter(r=>r._type==='tache');
+  }
   sortRows();
   closeEditPanel();
   renderAll();
@@ -2183,10 +2253,12 @@ function openJalonPanel(idx){
   }
   document.getElementById('editPanel').classList.remove('open');
   panel.classList.add('open');
+  _showBackdrop();
   setTimeout(()=>document.getElementById('jpNom').focus(), 230);
 }
 function closeJalonPanel(){
   document.getElementById('jalonPanel').classList.remove('open');
+  _hideBackdrop();
   jpEditingIdx = null;
 }
 function saveJalonPanel(){
