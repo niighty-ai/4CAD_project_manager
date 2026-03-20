@@ -2123,15 +2123,44 @@ document.addEventListener('keydown', e=>{
   if(e.key==='Escape') closeJalonPanel();
 });
 function downloadModele(){
-  const b64 = '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';
-  const bin = atob(b64);
-  const arr = new Uint8Array(bin.length);
-  for(let i=0;i<bin.length;i++) arr[i]=bin.charCodeAt(i);
-  const blob = new Blob([arr], {type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url; a.download = 'modele_import_gantt.xlsx'; a.click();
-  URL.revokeObjectURL(url);
+  /* Génère dynamiquement le modèle Excel d'import avec SheetJS */
+  const headers = ['Type','Projet','Niveau 1','Niveau 2','Niveau 3','Tâche','Début','Fin','Charge (j)'];
+  const examples = [
+    ['','ACME Corp','Cadrage','','','Atelier de lancement','2025-04-01','2025-04-03',1.5],
+    ['','ACME Corp','Cadrage','','','Rédaction cahier des charges','2025-04-04','2025-04-15',4],
+    ['','ACME Corp','Réalisation','Sprint 1','','Développement module A','2025-04-16','2025-05-02',8],
+    ['','ACME Corp','Réalisation','Sprint 1','','Tests unitaires','2025-04-28','2025-05-02',2],
+    ['','ACME Corp','Réalisation','Sprint 2','','Développement module B','2025-05-05','2025-05-23',10],
+    ['','ACME Corp','Recette','','','Recette client','2025-05-26','2025-06-06',5],
+    ['jalon','ACME Corp','','','','Mise en production','2025-06-09','',''],
+    ['','Projet Beta','Phase 1','','','Analyse','2025-04-01','2025-04-10',3],
+    ['jalon','Projet Beta','','','','Go / No Go','2025-04-11','',''],
+  ];
+  const data = [headers, ...examples];
+  const ws = XLSX.utils.aoa_to_sheet(data);
+  /* Largeurs de colonnes */
+  ws['!cols'] = [
+    {wch:8},{wch:16},{wch:16},{wch:14},{wch:14},{wch:30},{wch:12},{wch:12},{wch:10}
+  ];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Modèle');
+  /* Feuille d'aide */
+  const help = [
+    ['Colonne','Description','Obligatoire'],
+    ['Type','Laisser vide pour une tâche, écrire "jalon" pour un jalon','Non'],
+    ['Projet','Nom du projet (regroupe les tâches)','Oui'],
+    ['Niveau 1','Groupe de niveau 1 (ex: Phase, Sprint…)','Non'],
+    ['Niveau 2','Sous-groupe de niveau 2','Non'],
+    ['Niveau 3','Sous-groupe de niveau 3','Non'],
+    ['Tâche','Nom de la tâche ou du jalon','Oui'],
+    ['Début','Date de début (YYYY-MM-DD ou DD/MM/YYYY)','Oui'],
+    ['Fin','Date de fin (vide pour les jalons)','Oui (sauf jalon)'],
+    ['Charge (j)','Charge en jours-homme (nombre décimal)','Non'],
+  ];
+  const ws2 = XLSX.utils.aoa_to_sheet(help);
+  ws2['!cols'] = [{wch:12},{wch:50},{wch:16}];
+  XLSX.utils.book_append_sheet(wb, ws2, 'Aide');
+  XLSX.writeFile(wb, 'modele_import_gantt.xlsx');
 }
 function onEpDebutChange(){
   const debut = document.getElementById('epDebut');
