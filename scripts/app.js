@@ -8,6 +8,12 @@ document.addEventListener('click',e=>{if(!document.getElementById('colorPopup').
 );
 document.getElementById('fileInput').addEventListener('change',e=>{
   const file=e.target.files[0];if(!file)return;
+  // Routing : XML MS Project ou Excel/CSV
+  if(file.name.toLowerCase().endsWith('.xml')){
+    handleXMLImport(file);
+    e.target.value='';
+    return;
+  }
   const reader=new FileReader();
   reader.onload=ev=>{
     try{
@@ -56,53 +62,6 @@ document.getElementById('fileInput').addEventListener('change',e=>{
           else break;
         }
         rows.push({_type:'tache',projet:String(r[ci.projet]).trim(),niveaux,tache:nomVal,debut:d,fin:f,charge:ch});
-      }
-      projectColors={};collapsed={};sortRows();renderAll();
-    }catch(err){alert('Erreur : '+err.message);}
-  };
-  reader.readAsArrayBuffer(file);e.target.value='';
-}
-);
-document.addEventListener('keydown',e=>{
-  if(e.key==='Escape')cancelInlineEdit();
-  if(e.key==='Enter'&&editingIdx!==null&&e.target.classList.contains('cell-input'))saveInlineEdit(editingIdx);
-}
-);
-document.getElementById('cpCustom').addEventListener('input',e=>{if(!cpTarget)return;projectColors[cpTarget]=e.target.value;document.getElementById('colorGrid').querySelectorAll('.color-opt').forEach(el=>el.classList.remove('selected'));renderAll();}
-);
-document.addEventListener('click',e=>{if(!document.getElementById('colorPopup').contains(e.target))document.getElementById('colorPopup').style.display='none';}
-);
-document.getElementById('fileInput').addEventListener('change',e=>{
-  const file=e.target.files[0];if(!file)return;
-  const reader=new FileReader();
-  reader.onload=ev=>{
-    try{
-      const wb=XLSX.read(ev.target.result,{type:'array',cellDates:false});
-      const ws=wb.Sheets[wb.SheetNames[0]];
-      const data=XLSX.utils.sheet_to_json(ws,{header:1,raw:true});
-      let hr=0;
-      for(let i=0;i<Math.min(5,data.length);i++){
-        const r=data[i].map(c=>String(c||'').toLowerCase());
-        if(r.some(c=>c.includes('projet')||c.includes('tach')||c.includes('but'))){hr=i;break;}
-      }
-      const hdrs=data[hr].map(c=>String(c||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,''));
-      const ci={
-        projet:hdrs.findIndex(h=>h.includes('projet')),
-        groupe:hdrs.findIndex(h=>h.includes('groupe')||h.includes('group')),
-        tache:hdrs.findIndex(h=>h.includes('tach')),
-        debut:hdrs.findIndex(h=>h.includes('debut')||h.includes('but')||h==='debut'),
-        fin:hdrs.findIndex(h=>h==='fin'||h.includes('fin')),
-        charge:hdrs.findIndex(h=>h.includes('charge')),
-      };
-      rows=[];
-      for(let i=hr+1;i<data.length;i++){
-        const r=data[i];if(!r||!r[ci.projet])continue;
-        const d=ci.debut>=0?parseDate(r[ci.debut]):null;
-        const f=ci.fin>=0?parseDate(r[ci.fin]):null;
-        if(!d||!f||isNaN(d)||isNaN(f))continue;
-        let ch=ci.charge>=0?r[ci.charge]:null;
-        if(ch!==null){ch=parseFloat(String(ch).replace(',','.'));if(isNaN(ch))ch=null;}
-        rows.push({_type:'tache',projet:String(r[ci.projet]).trim(),groupe:ci.groupe>=0&&r[ci.groupe]?String(r[ci.groupe]).trim():null,tache:ci.tache>=0&&r[ci.tache]?String(r[ci.tache]).trim():null,debut:d,fin:f,charge:ch});
       }
       projectColors={};collapsed={};sortRows();renderAll();
     }catch(err){alert('Erreur : '+err.message);}
