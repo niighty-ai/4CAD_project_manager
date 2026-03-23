@@ -15,180 +15,172 @@ function parseMSProjectDuration(str) {
 }
 
 /**
- * Parse un fichier XML MS Project et retourne { rows, jalons, projectName }
- * compatible avec le format interne de l'application.
+ * Parse un fichier XML MS Project et retourne { rows, jalons }
+ *
+ * ⚠️  OutlineLevel est parfois incohérent dans les exports MS Project.
+ *     On utilise OutlineNumber ("2.1.3") comme source de vérité pour
+ *     calculer la vraie profondeur et reconstruire la hiérarchie.
+ *
+ * Correspondance hiérarchie :
+ *   OutlineNumber depth 1  Summary  → groupe racine (Niveau 1)
+ *   OutlineNumber depth 1 !Summary  → tâche sans groupe
+ *   OutlineNumber depth 2  Summary  → Niveau 2
+ *   OutlineNumber depth 2 !Summary  → tâche dans Niveau 1
+ *   OutlineNumber depth N  Summary  → Niveau N
+ *   OutlineNumber depth N !Summary  → tâche dans Niveau N-1
  */
-function parseMSProjectXML(xmlText, fileName) {
+function parseMSProjectXML(xmlText, projectName) {
   const parser = new DOMParser();
   const doc = parser.parseFromString(xmlText, 'application/xml');
 
-  // Vérification parsing
   const parseError = doc.querySelector('parsererror');
   if (parseError) throw new Error('XML invalide : ' + parseError.textContent.slice(0, 120));
 
-  // Namespace helper — MS Project utilise un namespace
   const ns = 'http://schemas.microsoft.com/project';
   function getVal(el, tag) {
-    const found = el.getElementsByTagNameNS(ns, tag)[0]
-                || el.getElementsByTagName(tag)[0];
-    return found ? found.textContent.trim() : null;
+    return (el.getElementsByTagNameNS(ns, tag)[0] || el.getElementsByTagName(tag)[0])
+      ?.textContent?.trim() ?? null;
+  }
+  function getAll(tag) {
+    const r = doc.getElementsByTagNameNS(ns, tag);
+    return r.length ? Array.from(r) : Array.from(doc.getElementsByTagName(tag));
   }
 
-  // Récupère toutes les tâches
-  const taskEls = Array.from(
-    doc.getElementsByTagNameNS(ns, 'Task').length
-      ? doc.getElementsByTagNameNS(ns, 'Task')
-      : doc.getElementsByTagName('Task')
-  );
-
-  // Récupère les assignments (pour la charge Work par tâche)
-  const assignmentEls = Array.from(
-    doc.getElementsByTagNameNS(ns, 'Assignment').length
-      ? doc.getElementsByTagNameNS(ns, 'Assignment')
-      : doc.getElementsByTagName('Assignment')
-  );
-
-  // Map taskUID → work total (heures)
+  // ── Assignments : map taskUID → heures totales Work ─────────────────────
   const taskWork = {};
-  for (const a of assignmentEls) {
+  for (const a of getAll('Assignment')) {
     const taskUID = getVal(a, 'TaskUID');
     const workStr = getVal(a, 'Work');
     if (!taskUID || !workStr) continue;
     const m = workStr.match(/PT(\d+)H(\d+)M/);
     if (!m) continue;
-    const h = parseInt(m[1]) + parseInt(m[2]) / 60;
-    taskWork[taskUID] = (taskWork[taskUID] || 0) + h;
+    taskWork[taskUID] = (taskWork[taskUID] || 0) + parseInt(m[1]) + parseInt(m[2]) / 60;
   }
 
-  // Parse les tâches
-  const tasks = taskEls.map(el => {
-    const uid          = getVal(el, 'UID');
-    const name         = getVal(el, 'Name') || getVal(el, 'n') || '';
-    const outlineLevel = parseInt(getVal(el, 'OutlineLevel') || '0');
-    const isMilestone  = getVal(el, 'Milestone') === '1';
-    const isSummary    = getVal(el, 'Summary') === '1';
-    const isNull       = getVal(el, 'IsNull') === '1';
-    const startStr     = getVal(el, 'Start') || getVal(el, 'ManualStart');
-    const finishStr    = getVal(el, 'Finish') || getVal(el, 'ManualFinish');
-    const durationStr  = getVal(el, 'Work') || getVal(el, 'Duration');
+  // ── Parse des tâches ────────────────────────────────────────────────────
+  const tasks = [];
+  for (const el of getAll('Task')) {
+    const uid         = getVal(el, 'UID');
+    const name        = getVal(el, 'Name') || getVal(el, 'n') || '';
+    const isNull      = getVal(el, 'IsNull') === '1';
+    const isSummary   = getVal(el, 'Summary') === '1';
+    const isMilestone = getVal(el, 'Milestone') === '1';
+    const olStr       = getVal(el, 'OutlineNumber') || '';
+    const startStr    = getVal(el, 'Start')  || getVal(el, 'ManualStart');
+    const finishStr   = getVal(el, 'Finish') || getVal(el, 'ManualFinish');
 
-    if (isNull || !name) return null;
+    if (isNull || !name || !olStr) continue;
 
-    const start  = startStr  ? new Date(startStr)  : null;
-    const finish = finishStr ? new Date(finishStr) : null;
+    // Profondeur réelle = nb de segments dans OutlineNumber
+    const depth = olStr.split('.').length;
 
-    // Normalise à minuit
-    if (start)  start.setHours(0, 0, 0, 0);
-    if (finish) finish.setHours(0, 0, 0, 0);
+    const mkDate = s => { if (!s) return null; const d = new Date(s); d.setHours(0,0,0,0); return d; };
+    const start  = mkDate(startStr);
+    const finish = mkDate(finishStr);
 
-    // Charge : priorité aux assignments réels, sinon Duration
     let charge = null;
     if (taskWork[uid] != null) {
-      charge = Math.round((taskWork[uid] / 8) * 100) / 100;
+      charge = Math.round((taskWork[uid] / 8) * 100) / 100 || null;
     } else {
-      charge = parseMSProjectDuration(durationStr);
+      charge = parseMSProjectDuration(getVal(el, 'Work') || getVal(el, 'Duration'));
     }
-    if (charge === 0) charge = null;
 
-    return { uid, name, outlineLevel, isMilestone, isSummary, start, finish, charge };
-  }).filter(Boolean);
+    tasks.push({ uid, name, depth, isSummary, isMilestone, start, finish, charge });
+  }
 
   if (!tasks.length) throw new Error('Aucune tâche trouvée dans ce fichier XML.');
 
-  // Nom du projet : tâche de niveau 1 (outlineLevel=1, summary=true) ou nom du fichier
-  const rootTask = tasks.find(t => t.outlineLevel === 1 && t.isSummary);
-  const projectName = rootTask
-    ? rootTask.name
-    : (fileName || 'Projet XML').replace(/\.[^.]+$/, '').replace(/[_-]/g, ' ');
-
-  // Construit la hiérarchie de niveaux
-  // On ignore les tâches summary (elles deviennent des groupes calculés automatiquement)
-  // et on reconstruit les niveaux depuis la pile d'ancêtres
-  const rows    = [];
-  const jalons  = [];
-
-  // Pile pour reconstruire les niveaux : stack[i] = nom de l'ancêtre à outlineLevel i
-  const stack = new Array(20).fill(null);
+  // ── Reconstruction de la hiérarchie via pile de Summary ─────────────────
+  // nameStack[d] = nom du dernier nœud Summary rencontré à la profondeur d
+  const nameStack = {};
+  const rows   = [];
+  const jalons = [];
 
   for (const t of tasks) {
-    const lvl = t.outlineLevel;
-    stack[lvl] = t.name;
-    // Efface les niveaux enfants
-    for (let i = lvl + 1; i < stack.length; i++) stack[i] = null;
+    // Mise à jour de la pile : ce nœud occupe sa profondeur
+    nameStack[t.depth] = t.name;
+    // On efface toutes les profondeurs enfants
+    for (const k of Object.keys(nameStack)) {
+      if (parseInt(k) > t.depth) delete nameStack[k];
+    }
 
-    // On ignore les tâches résumé (summary) et la tâche racine
+    // Les Summary servent de repères dans la pile, pas de tâches
     if (t.isSummary) continue;
-    if (lvl <= 1) continue; // racine projet → ignorée
 
+    // ── Jalon ──
     if (t.isMilestone) {
-      // Jalon : utilise la date de début
       if (!t.start) continue;
-      jalons.push({
-        _type:  'jalon',
-        projet: projectName,
-        nom:    t.name,
-        date:   t.start,
-        couleur: null
-      });
+      jalons.push({ _type: 'jalon', projet: projectName, nom: t.name, date: t.start, couleur: null });
       continue;
     }
 
     if (!t.start || !t.finish) continue;
 
-    // Reconstruit les niveaux (ancêtres entre niveau 2 et lvl-1)
+    // Niveaux = noms des Summary ancêtres (profondeurs 1 … depth-1)
     const niveaux = [];
-    for (let i = 2; i < lvl; i++) {
-      if (stack[i]) niveaux.push(stack[i]);
+    for (let d = 1; d < t.depth; d++) {
+      if (nameStack[d]) niveaux.push(nameStack[d]);
     }
 
-    rows.push({
-      _type:   'tache',
-      projet:  projectName,
-      niveaux,
-      tache:   t.name,
-      debut:   t.start,
-      fin:     t.finish,
-      charge:  t.charge
-    });
+    rows.push({ _type: 'tache', projet: projectName, niveaux, tache: t.name, debut: t.start, fin: t.finish, charge: t.charge });
   }
 
-  return { rows, jalons, projectName };
+  return { rows, jalons };
 }
 
 /**
- * Point d'entrée : déclenché par le bouton "Importer XML"
+ * Point d'entrée : importe dans le projet ACTIF du portfolio.
+ * Si aucun projet actif, crée un nouveau projet.
  */
 function handleXMLImport(file) {
   if (!file) return;
   const reader = new FileReader();
   reader.onload = ev => {
     try {
-      const { rows: parsedRows, jalons: parsedJalons, projectName } =
-        parseMSProjectXML(ev.target.result, file.name);
+      // Détermine le nom du projet actif (ou nom de fichier si aucun projet)
+      const proj = activeProjectId ? portfolio.find(p => p.id === activeProjectId) : null;
+      const projectName = proj ? proj.name : file.name.replace(/\.[^.]+$/, '').replace(/[_-]/g, ' ');
+
+      const { rows: parsedRows, jalons: parsedJalons } =
+        parseMSProjectXML(ev.target.result, projectName);
 
       if (!parsedRows.length && !parsedJalons.length) {
         alert('Aucune tâche exploitable trouvée dans ce fichier XML.');
         return;
       }
 
-      // Crée un nouveau projet dans le portfolio
-      const id = 'p_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6);
-      const proj = {
-        id,
-        name:          projectName,
-        client:        '',
-        rows:          parsedRows,
-        jalons:        parsedJalons,
-        projectColors: {},
-        collapsed:     {}
-      };
-      portfolio.push(proj);
-      savePortfolio();
-      renderNavList();
-      switchToProject(id);
+      if (proj) {
+        // ── Injecte dans le projet actif ────────────────────────────────
+        proj.rows   = [...(proj.rows   || []).filter(r => r._type !== 'jalon'), ...parsedRows];
+        proj.jalons = [...(proj.jalons || []),                                  ...parsedJalons];
 
-      const total = parsedRows.length + parsedJalons.length;
-      console.log(`[XML Import] "${projectName}" — ${parsedRows.length} tâche(s), ${parsedJalons.length} jalon(s)`);
+        // Recharge l'état courant depuis le projet mis à jour
+        rows = [
+          ...proj.rows.map(r => ({...r})),
+          ...proj.jalons.map(r => ({...r}))
+        ];
+        sortRows();
+        proj.rows   = rows.filter(r => r._type === 'tache').map(r => ({...r}));
+        proj.jalons = rows.filter(r => r._type === 'jalon').map(r => ({...r}));
+        savePortfolio();
+        renderNavList();
+        renderAll();
+      } else {
+        // ── Aucun projet actif : crée un nouveau ────────────────────────
+        createNewProject(projectName, parsedRows, {}, '');
+        const newProj = portfolio.find(p => p.id === activeProjectId);
+        if (newProj) {
+          newProj.jalons = parsedJalons;
+          rows = [...rows.filter(r => r._type !== 'jalon'), ...parsedJalons];
+          sortRows();
+          newProj.rows   = rows.filter(r => r._type === 'tache').map(r => ({...r}));
+          newProj.jalons = rows.filter(r => r._type === 'jalon').map(r => ({...r}));
+          savePortfolio();
+          renderAll();
+        }
+      }
+
+      console.log(`[XML Import] ${parsedRows.length} tâche(s), ${parsedJalons.length} jalon(s) importé(s) dans "${projectName}"`);
     } catch (err) {
       alert('Erreur import XML :\n' + err.message);
       console.error(err);
