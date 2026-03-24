@@ -86,9 +86,9 @@ function sortRows(){
 }
 function savePortfolio(){
   const data = portfolio.map(p=>({
-    id:p.id, name:p.name, client:p.client||'',
+    id:p.id, name:p.name, client:p.client||'', folder:p.folder||'',
     rows: p.rows
-      .filter(r=>r._type!=='jalon') 
+      .filter(r=>r._type!=='jalon')
       .map(r=>{const{_srcPid,...rest}=r;return{...rest, debut:r.debut?r.debut.toISOString():null, fin:r.fin?r.fin.toISOString():null};}),
     jalons: (p.jalons||[]).map(j=>{const{_srcPid,...rest}=j;return{...rest, date:j.date?j.date.toISOString():null};}),
     projectColors: p.projectColors||{},
@@ -104,6 +104,7 @@ function loadPortfolio(){
     portfolio = data.map(p=>({
       ...p,
       client: p.client||'',
+      folder: p.folder||'',
       rows: (p.rows||[]).filter(r=>r._type!=='jalon').map(r=>({...r, debut:r.debut?new Date(r.debut):null, fin:r.fin?new Date(r.fin):null})),
       jalons: (p.jalons||[]).map(j=>({...j, date:j.date?new Date(j.date):null}))
     }));
@@ -124,12 +125,13 @@ function createNewProjectPrompt(){
   }
   createNewProject('Nouveau projet', [], {}, clientName);
 }
-function createNewProject(name, initialRows, initialColors, client){
+function createNewProject(name, initialRows, initialColors, client, folder){
   const id = 'p_' + Date.now() + '_' + Math.random().toString(36).slice(2,6);
   const proj = {
     id,
     name: name || 'Nouveau projet ' + (portfolio.length+1),
     client: client || '',
+    folder: folder || '',
     rows: initialRows || [],
     projectColors: initialColors || {},
     collapsed: {}
@@ -139,6 +141,75 @@ function createNewProject(name, initialRows, initialColors, client){
   renderNavList();
   switchToProject(id);
 }
+
+/* ── Créer un nouveau dossier dans un client ── */
+function createFolder(clientName, e){
+  if(e) e.stopPropagation();
+  const name = prompt('Nom du dossier :');
+  if(!name || !name.trim()) return;
+  const folderName = name.trim();
+  /* Vérifier que ce dossier n'existe pas déjà */
+  const exists = portfolio.some(p=>(p.client||'')===clientName && (p.folder||'')===folderName);
+  if(exists){ alert('Un dossier avec ce nom existe déjà pour ce client.'); return; }
+  /* Créer un projet placeholder dans ce dossier pour l'initialiser,
+     ou juste stocker le dossier dans un état global */
+  if(!navFolders[clientName]) navFolders[clientName] = new Set();
+  navFolders[clientName].add(folderName);
+  renderNavList();
+}
+
+/* ── Renommer un dossier ── */
+function renameFolder(clientName, oldFolder, e){
+  if(e) e.stopPropagation();
+  const newName = prompt('Renommer le dossier :', oldFolder);
+  if(!newName || !newName.trim() || newName.trim()===oldFolder) return;
+  const trimmed = newName.trim();
+  /* Renommer sur tous les projets de ce dossier */
+  portfolio.forEach(p=>{
+    if((p.client||'')===clientName && (p.folder||'')===oldFolder){
+      p.folder = trimmed;
+    }
+  });
+  /* Mettre à jour navFolders */
+  if(navFolders[clientName]){
+    navFolders[clientName].delete(oldFolder);
+    navFolders[clientName].add(trimmed);
+  }
+  savePortfolio();
+  renderNavList();
+}
+
+/* ── Ajouter un projet dans un dossier ── */
+function addProjectToFolder(clientName, folderName, e){
+  if(e) e.stopPropagation();
+  createNewProject('Nouveau projet', [], {}, clientName, folderName);
+}
+
+/* ── Supprimer un dossier (déplacer les projets à la racine ou supprimer) ── */
+function deleteFolder(clientName, folderName, e){
+  if(e) e.stopPropagation();
+  const projs = portfolio.filter(p=>(p.client||'')===clientName && (p.folder||'')===folderName);
+  if(projs.length > 0){
+    const choice = confirm(`Supprimer le dossier "${folderName}" ?\n\nOK = déplacer les ${projs.length} projet(s) à la racine\nAnnuler = annuler`);
+    if(choice===null) return; /* annuler */
+    projs.forEach(p=>{ p.folder = ''; });
+  }
+  if(navFolders[clientName]) navFolders[clientName].delete(folderName);
+  savePortfolio();
+  renderNavList();
+}
+
+/* ── Déplacer un projet vers un dossier (utilisé après drag-and-drop) ── */
+function moveProjectToFolder(projId, clientName, folderName){
+  _saveBackToPortfolio();
+  const proj = portfolio.find(p=>p.id===projId);
+  if(!proj) return;
+  proj.client = clientName;
+  proj.folder = folderName || '';
+  savePortfolio();
+  renderNavList();
+}
+
 function switchToProject(id){
   _saveBackToPortfolio();
   const targetProj = portfolio.find(p=>p.id===id);
@@ -162,26 +233,19 @@ function switchToProject(id){
   renderNavList();
   renderAll();
 }
+
 /* ── Sauvegarde les rows actuels vers le(s) projet(s) du portfolio ── */
 function _saveBackToPortfolio(){
   if(!activeProjectId && !multiViewMode) return;
   if(multiViewMode){
-    /* Redistribuer chaque row vers son projet source via _srcPid.
-       IMPORTANT : on ne touche qu'aux projets qui ont effectivement des rows
-       dans la vue courante. Les projets sans rows dans rows[] sont laissés
-       INTACTS dans le portfolio (leurs données ne sont pas écrasées). */
     selectedProjectIds.forEach(pid=>{
       const proj = portfolio.find(p=>p.id===pid);
       if(!proj) return;
-      /* Rows tagués avec ce pid (chargés via _loadSelectedProjects) */
-      const mine = rows.filter(r=>r._srcPid===pid);
-      /* Si aucune row n'est taggée pour ce projet, c'est qu'il n'a jamais
-         été chargé dans la session — on ne touche PAS à ses données. */
       const projInRows = rows.some(r=>r._srcPid===pid);
       if(!projInRows) return;
+      const mine = rows.filter(r=>r._srcPid===pid);
       proj.rows   = mine.filter(r=>r._type==='tache').map(r=>{const{_srcPid,...rest}=r;return{...rest};});
       proj.jalons = mine.filter(r=>r._type==='jalon').map(r=>{const{_srcPid,...rest}=r;return{...rest};});
-      /* Sauver les couleurs propres au projet */
       const projNames = [...new Set(mine.map(r=>r.projet))];
       proj.projectColors = proj.projectColors||{};
       projNames.forEach(n=>{ if(projectColors[n]) proj.projectColors[n]=projectColors[n]; });
@@ -199,6 +263,7 @@ function _saveBackToPortfolio(){
   }
   savePortfolio();
 }
+
 /* ── Charge les projets sélectionnés dans rows[] ── */
 function _loadSelectedProjects(){
   rows = [];
@@ -207,8 +272,6 @@ function _loadSelectedProjects(){
   selectedProjectIds.forEach(pid=>{
     const proj = portfolio.find(p=>p.id===pid);
     if(!proj) return;
-    /* S'assurer que chaque row est taggée _srcPid pour pouvoir être
-       redistribuée fidèlement lors de _saveBackToPortfolio */
     const taches = (proj.rows||[]).filter(r=>r._type==='tache').map(r=>({...r, _srcPid:pid}));
     const jalons = (proj.jalons||[]).map(r=>({...r, _srcPid:pid}));
     rows.push(...taches, ...jalons);
@@ -216,7 +279,6 @@ function _loadSelectedProjects(){
     Object.assign(collapsed, proj.collapsed||{});
   });
   sortRows();
-  /* Header */
   const names = [...selectedProjectIds].map(id=>portfolio.find(p=>p.id===id)?.name).filter(Boolean);
   if(names.length>1){
     const client = portfolio.find(p=>p.id===activeProjectId)?.client||'';
@@ -225,21 +287,16 @@ function _loadSelectedProjects(){
     document.getElementById('activeProjectName').textContent = names[0];
   }
 }
+
 /* ── Toggle checkbox d'un projet ── */
 function toggleProjectSelection(id, e){
   if(e) e.stopPropagation();
-
-  /* ── Contrainte : multi-sélection limitée au même client ── */
   const targetProj = portfolio.find(p=>p.id===id);
   if(!targetProj) return;
   const targetClient = targetProj.client||'';
-
-  /* Si on coche un projet d'un autre client que ceux déjà sélectionnés,
-     on refuse silencieusement et on affiche un avertissement visuel bref */
   if(!selectedProjectIds.has(id) && selectedProjectIds.size > 0){
     const currentClient = portfolio.find(p=>selectedProjectIds.has(p.id))?.client||'';
     if(targetClient !== currentClient){
-      /* Feedback visuel : flash rouge sur la checkbox */
       const item = document.getElementById('navItem_'+id);
       if(item){
         item.style.transition='background .1s';
@@ -254,7 +311,6 @@ function toggleProjectSelection(id, e){
       return;
     }
   }
-
   _saveBackToPortfolio();
   if(selectedProjectIds.has(id)){
     selectedProjectIds.delete(id);
@@ -278,6 +334,7 @@ function toggleProjectSelection(id, e){
   _loadSelectedProjects();
   renderNavList(); renderAll();
 }
+
 /* ── Tout cocher/décocher pour un client ── */
 function selectAllClientProjects(clientName, e){
   if(e) e.stopPropagation();
@@ -292,14 +349,11 @@ function selectAllClientProjects(clientName, e){
       activeProjectId=first;
     }
   } else {
-    /* Si des projets d'un autre client sont déjà sélectionnés, on les déselectionne d'abord */
     const hasOtherClient = [...selectedProjectIds].some(id=>{
       const p = portfolio.find(x=>x.id===id);
       return p && (p.client||'') !== clientName;
     });
-    if(hasOtherClient){
-      selectedProjectIds.clear();
-    }
+    if(hasOtherClient) selectedProjectIds.clear();
     clientProjs.forEach(p=>selectedProjectIds.add(p.id));
     if(!activeProjectId || !clientProjs.find(p=>p.id===activeProjectId)){
       activeProjectId=clientProjs[0]?.id;
@@ -310,6 +364,7 @@ function selectAllClientProjects(clientName, e){
   _loadSelectedProjects();
   renderNavList(); renderAll();
 }
+
 function deleteProject(id, e){
   e.stopPropagation();
   const proj = portfolio.find(p=>p.id===id);
@@ -342,7 +397,6 @@ function duplicateProject(id, e){
   e.stopPropagation();
   const proj = portfolio.find(p=>p.id===id);
   if(!proj) return;
-  /* Sauvegarder si c'est le projet actif */
   if(selectedProjectIds.has(id)) _saveBackToPortfolio();
   const newId = 'p_' + Date.now() + '_' + Math.random().toString(36).slice(2,6);
   const srcProj = portfolio.find(p=>p.id===id);
@@ -350,6 +404,7 @@ function duplicateProject(id, e){
     id: newId,
     name: srcProj.name + ' (copie)',
     client: srcProj.client||'',
+    folder: srcProj.folder||'',
     rows: (srcProj.rows||[]).map(r=>({...r})),
     jalons: (srcProj.jalons||[]).map(r=>({...r})),
     projectColors: {...(srcProj.projectColors||{})},
@@ -399,7 +454,7 @@ async function doFirebaseSave(data){
   _fbSaving = true;
   try {
     const clean = cleanForFirebase(data);
-    _lastSaveTs = Date.now(); 
+    _lastSaveTs = Date.now();
     await window._fbSet(clean);
     const t   = new Date();
     const hms = [t.getHours(),t.getMinutes(),t.getSeconds()].map(n=>String(n).padStart(2,'0')).join(':');
@@ -411,7 +466,7 @@ async function doFirebaseSave(data){
 }
 function migrateFirebaseData(data){
   return data.map(p=>({
-    ...p, client: p.client||'',
+    ...p, client: p.client||'', folder: p.folder||'',
     projectColors: p.projectColors||{},
     collapsed: p.collapsed||{},
     jalons: (p.jalons||[
@@ -435,7 +490,6 @@ function migrateFirebaseData(data){
   }));
 }
 function downloadModele(){
-  /* Génère dynamiquement le modèle Excel d'import avec SheetJS */
   const headers = ['Type','Projet','Niveau 1','Niveau 2','Niveau 3','Tâche','Début','Fin','Charge (j)'];
   const examples = [
     ['','ACME Corp','Cadrage','','','Atelier de lancement','2025-04-01','2025-04-03',1.5],
@@ -450,13 +504,11 @@ function downloadModele(){
   ];
   const data = [headers, ...examples];
   const ws = XLSX.utils.aoa_to_sheet(data);
-  /* Largeurs de colonnes */
   ws['!cols'] = [
     {wch:8},{wch:16},{wch:16},{wch:14},{wch:14},{wch:30},{wch:12},{wch:12},{wch:10}
   ];
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'Modèle');
-  /* Feuille d'aide */
   const help = [
     ['Colonne','Description','Obligatoire'],
     ['Type','Laisser vide pour une tâche, écrire "jalon" pour un jalon','Non'],

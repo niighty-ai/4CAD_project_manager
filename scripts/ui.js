@@ -163,13 +163,14 @@ function renderNavList(){
   const clients = [...new Set(portfolio.map(p=>p.client||''))].sort();
   let html = '';
   clients.forEach(clientName=>{
-    const projs = portfolio.filter(p=>(p.client||'')===clientName);
+    const clientProjs = portfolio.filter(p=>(p.client||'')===clientName);
     const clientKey = 'client_' + clientName;
     const isOpen = !navCollapsed[clientKey];
-    const allChecked = projs.every(p=>selectedProjectIds.has(p.id));
-    const someChecked = projs.some(p=>selectedProjectIds.has(p.id));
+    const allChecked = clientProjs.every(p=>selectedProjectIds.has(p.id));
+    const someChecked = clientProjs.some(p=>selectedProjectIds.has(p.id));
+
     if(clientName){
-      html += `<div class="nav-client">
+      html += `<div class="nav-client" data-client="${escH(clientName)}">
         <div class="nav-client-header" onclick="toggleNavClient('${escH(clientName)}')">
           <span class="nav-client-chevron${isOpen?' open':''}">&#9658;</span>
           <span class="nav-client-name" title="${escH(clientName)}">${escH(clientName)}</span>
@@ -178,38 +179,160 @@ function renderNavList(){
               ${allChecked?'◉':'◎'}
             </button>
             <button class="nav-action-btn" onclick="renameClient('${escH(clientName)}',event)" title="Renommer le client">&#9998;</button>
+            <button class="nav-action-btn" onclick="createFolder('${escH(clientName)}',event)" title="Nouveau dossier">&#128193;</button>
             <button class="nav-action-btn" onclick="addProjectToClient('${escH(clientName)}',event)" title="Nouveau projet">+</button>
           </div>
         </div>
         <div class="nav-client-children${isOpen?'':' collapsed'}">`;
     }
-    projs.forEach((p,i)=>{
-      const isActive = p.id===activeProjectId;
-      const isChecked = selectedProjectIds.has(p.id);
-      const taskCount = (p.rows||[]).filter(r=>r._type==='tache').length;
-      const dot = navColor(portfolio.indexOf(p));
-      html += `<div class="nav-item${isActive?' active':''}${isChecked?' checked':''}" id="navItem_${p.id}" onclick="switchToProject('${p.id}')">
-        <input type="checkbox" class="nav-item-check" ${isChecked?'checked':''} onclick="toggleProjectSelection('${p.id}',event)" title="Inclure dans la vue">
-        <div class="nav-item-dot" style="background:${dot};border-color:${dot}40"></div>
-        <div style="flex:1;min-width:0;overflow:hidden">
-          <div class="nav-item-name" title="${escH(p.name)}">${escH(p.name)}</div>
-          <div class="nav-item-meta">${taskCount} tâche${taskCount!==1?'s':''}</div>
-        </div>
-        <div class="nav-item-actions">
-          <button class="nav-action-btn" onclick="startRename('${p.id}',event)" title="Renommer">&#9998;</button>
-          <button class="nav-action-btn" onclick="duplicateProject('${p.id}',event)" title="Dupliquer">&#10063;</button>
-          <button class="nav-action-btn danger" onclick="deleteProject('${p.id}',event)" title="Supprimer">&#128465;</button>
-        </div>
-      </div>`;
+
+    /* ── Récupère tous les dossiers connus pour ce client ── */
+    const folderNames = _getClientFolders(clientName);
+
+    /* ── Projets sans dossier (à la racine du client) ── */
+    const rootProjs = clientProjs.filter(p=>!(p.folder||''));
+    rootProjs.forEach(p=>{
+      html += _renderNavProject(p);
     });
+
+    /* ── Projets dans des dossiers ── */
+    folderNames.forEach(folderName=>{
+      const folderProjs = clientProjs.filter(p=>(p.folder||'')===folderName);
+      const folderKey = 'folder_' + clientName + '_' + folderName;
+      const isFolderOpen = !navCollapsed[folderKey];
+      html += `<div class="nav-folder" data-client="${escH(clientName)}" data-folder="${escH(folderName)}"
+          ondragover="navDragOver(event,'${escH(clientName)}','${escH(folderName)}')"
+          ondragleave="navDragLeave(event)"
+          ondrop="navDrop(event,'${escH(clientName)}','${escH(folderName)}')">
+        <div class="nav-folder-header" onclick="toggleNavFolder('${escH(clientName)}','${escH(folderName)}')">
+          <span class="nav-folder-chevron${isFolderOpen?' open':''}">&#9658;</span>
+          <span class="nav-folder-icon">${isFolderOpen?'📂':'📁'}</span>
+          <span class="nav-folder-name" title="${escH(folderName)}">${escH(folderName)}</span>
+          <div class="nav-folder-actions">
+            <button class="nav-action-btn" onclick="renameFolder('${escH(clientName)}','${escH(folderName)}',event)" title="Renommer le dossier">&#9998;</button>
+            <button class="nav-action-btn" onclick="addProjectToFolder('${escH(clientName)}','${escH(folderName)}',event)" title="Nouveau projet dans ce dossier">+</button>
+            <button class="nav-action-btn danger" onclick="deleteFolder('${escH(clientName)}','${escH(folderName)}',event)" title="Supprimer le dossier">&#128465;</button>
+          </div>
+        </div>
+        <div class="nav-folder-children${isFolderOpen?'':' collapsed'}">`;
+      folderProjs.forEach(p=>{
+        html += _renderNavProject(p);
+      });
+      html += `</div></div>`;
+    });
+
     if(clientName){
+      /* Drop zone racine du client */
+      html += `<div class="nav-client-dropzone" data-client="${escH(clientName)}" data-folder=""
+        ondragover="navDragOver(event,'${escH(clientName)}','')"
+        ondragleave="navDragLeave(event)"
+        ondrop="navDrop(event,'${escH(clientName)}','')"></div>`;
       html += `</div></div>`;
     }
   });
   list.innerHTML = html;
+  _initNavDrag();
 }
+
+/* ── Rendu d'un item projet dans la nav ── */
+function _renderNavProject(p){
+  const isActive = p.id===activeProjectId;
+  const isChecked = selectedProjectIds.has(p.id);
+  const taskCount = (p.rows||[]).filter(r=>r._type==='tache').length;
+  const dot = navColor(portfolio.indexOf(p));
+  return `<div class="nav-item${isActive?' active':''}${isChecked?' checked':''}" id="navItem_${p.id}"
+      draggable="true"
+      ondragstart="navDragStart(event,'${p.id}')"
+      ondragend="navDragEnd(event)"
+      onclick="switchToProject('${p.id}')">
+    <input type="checkbox" class="nav-item-check" ${isChecked?'checked':''} onclick="toggleProjectSelection('${p.id}',event)" title="Inclure dans la vue">
+    <div class="nav-item-dot" style="background:${dot};border-color:${dot}40"></div>
+    <div style="flex:1;min-width:0;overflow:hidden">
+      <div class="nav-item-name" title="${escH(p.name)}">${escH(p.name)}</div>
+      <div class="nav-item-meta">${taskCount} tâche${taskCount!==1?'s':''}</div>
+    </div>
+    <div class="nav-item-actions">
+      <button class="nav-action-btn" onclick="startRename('${p.id}',event)" title="Renommer">&#9998;</button>
+      <button class="nav-action-btn" onclick="duplicateProject('${p.id}',event)" title="Dupliquer">&#10063;</button>
+      <button class="nav-action-btn danger" onclick="deleteProject('${p.id}',event)" title="Supprimer">&#128465;</button>
+    </div>
+  </div>`;
+}
+
+/* ── Retourne les dossiers connus pour un client
+   (union de navFolders + dossiers existant dans portfolio) ── */
+function _getClientFolders(clientName){
+  const fromPortfolio = portfolio
+    .filter(p=>(p.client||'')===clientName && (p.folder||''))
+    .map(p=>p.folder);
+  const fromNav = navFolders[clientName] ? [...navFolders[clientName]] : [];
+  return [...new Set([...fromPortfolio, ...fromNav])].sort();
+}
+
+/* ── Drag-and-drop nav ── */
+let _navDragId = null;
+
+function _initNavDrag(){
+  /* rien — les handlers sont inline dans le HTML */
+}
+function navDragStart(e, projId){
+  _navDragId = projId;
+  e.dataTransfer.effectAllowed = 'move';
+  e.dataTransfer.setData('text/plain', projId);
+  setTimeout(()=>{
+    const el = document.getElementById('navItem_'+projId);
+    if(el) el.classList.add('nav-item-dragging');
+  }, 0);
+}
+function navDragEnd(e){
+  _navDragId = null;
+  document.querySelectorAll('.nav-item-dragging').forEach(el=>el.classList.remove('nav-item-dragging'));
+  document.querySelectorAll('.nav-drop-over').forEach(el=>el.classList.remove('nav-drop-over'));
+}
+function navDragOver(e, clientName, folderName){
+  e.preventDefault();
+  e.stopPropagation();
+  e.dataTransfer.dropEffect = 'move';
+  /* Highlight drop target */
+  const target = e.currentTarget;
+  document.querySelectorAll('.nav-drop-over').forEach(el=>{ if(el!==target) el.classList.remove('nav-drop-over'); });
+  target.classList.add('nav-drop-over');
+}
+function navDragLeave(e){
+  /* Ne retire le highlight que si on quitte vraiment le conteneur */
+  const related = e.relatedTarget;
+  const current = e.currentTarget;
+  if(!current.contains(related)){
+    current.classList.remove('nav-drop-over');
+  }
+}
+function navDrop(e, clientName, folderName){
+  e.preventDefault();
+  e.stopPropagation();
+  e.currentTarget.classList.remove('nav-drop-over');
+  const projId = e.dataTransfer.getData('text/plain') || _navDragId;
+  if(!projId) return;
+  const proj = portfolio.find(p=>p.id===projId);
+  if(!proj) return;
+  /* Vérifier contrainte client */
+  if((proj.client||'') !== clientName){
+    const msg = document.createElement('div');
+    msg.style.cssText='position:fixed;bottom:28px;left:50%;transform:translateX(-50%);background:#c0392b;color:#fff;padding:8px 18px;border-radius:6px;font-size:12px;font-weight:600;z-index:9999;box-shadow:0 4px 16px rgba(0,0,0,.3);pointer-events:none';
+    msg.textContent = 'Impossible de déplacer un projet vers un autre client';
+    document.body.appendChild(msg);
+    setTimeout(()=>msg.remove(), 2800);
+    return;
+  }
+  moveProjectToFolder(projId, clientName, folderName);
+}
+
 function toggleNavClient(clientName){
   const key = 'client_' + clientName;
+  navCollapsed[key] = !navCollapsed[key];
+  renderNavList();
+}
+function toggleNavFolder(clientName, folderName){
+  const key = 'folder_' + clientName + '_' + folderName;
   navCollapsed[key] = !navCollapsed[key];
   renderNavList();
 }
@@ -218,6 +341,11 @@ function renameClient(oldName, e){
   const newName = prompt('Renommer le client :', oldName);
   if(!newName || newName.trim()===oldName) return;
   portfolio.forEach(p=>{ if((p.client||'')===oldName) p.client = newName.trim(); });
+  /* Migrer navFolders */
+  if(navFolders[oldName]){
+    navFolders[newName.trim()] = navFolders[oldName];
+    delete navFolders[oldName];
+  }
   savePortfolio();
   renderNavList();
 }

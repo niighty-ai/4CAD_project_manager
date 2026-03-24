@@ -659,3 +659,119 @@ select.ep-input {
 .nav-sidebar.collapsed .nav-multiview-btn {
   display: none;
 }
+/* ── Dossiers dans la nav ── */
+.nav-folder {
+  margin-bottom: 2px;
+}
+
+.nav-folder-header {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 8px;
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text);
+  transition: background .12s;
+  user-select: none;
+  border: 1px solid transparent;
+}
+
+.nav-folder-header:hover {
+  background: rgba(114, 182, 236, .1);
+  border-color: rgba(114, 182, 236, .2);
+}
+
+.nav-folder-chevron {
+  font-size: 8px;
+  transition: transform .15s;
+  flex-shrink: 0;
+  color: var(--muted);
+}
+
+.nav-folder-chevron.open {
+  transform: rotate(90deg);
+}
+
+.nav-folder-icon {
+  font-size: 13px;
+  flex-shrink: 0;
+}
+
+.nav-folder-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.nav-folder-actions {
+  display: none;
+  gap: 2px;
+}
+
+.nav-folder-header:hover .nav-folder-actions {
+  display: flex;
+}
+
+.nav-folder-children {
+  padding-left: 12px;
+  overflow: hidden;
+}
+
+.nav-folder-children.collapsed {
+  display: none;
+}
+
+/* Drop zone en bas du client (racine) */
+.nav-client-dropzone {
+  height: 6px;
+  border-radius: 3px;
+  margin: 2px 6px;
+  transition: all .15s;
+}
+
+.nav-client-dropzone.nav-drop-over {
+  height: 22px;
+  background: rgba(236, 114, 6, .12);
+  border: 2px dashed var(--accent);
+}
+
+/* Dossier survolé pendant drag */
+.nav-folder.nav-drop-over > .nav-folder-header,
+.nav-folder-children.nav-drop-over {
+  background: rgba(236, 114, 6, .1);
+  border-color: var(--accent);
+}
+
+.nav-folder.nav-drop-over {
+  border: 1px dashed var(--accent);
+  border-radius: 5px;
+  background: rgba(236, 114, 6, .05);
+}
+
+/* Projet en cours de drag */
+.nav-item-dragging {
+  opacity: 0.45;
+  transform: scale(0.97);
+}
+
+/* Drop-over sur projet ou zone quelconque */
+.nav-drop-over {
+  outline: 2px dashed var(--accent);
+  outline-offset: -2px;
+  border-radius: 5px;
+  background: rgba(236, 114, 6, .06) !important;
+}
+
+/* Sidebar réduite : masquer dossiers */
+.nav-sidebar.collapsed .nav-folder-name,
+.nav-sidebar.collapsed .nav-folder-actions,
+.nav-sidebar.collapsed .nav-folder-children {
+  display: none;
+}

@@ -98,6 +98,7 @@ let _pptxExportReady = false;
 let dataSectionOpen=true;
 let navOpen = true;
 let navCollapsed = {};
+let navFolders = {};  // { clientName: Set<folderName> } — dossiers vides non encore dans portfolio
 const NAV_COLORS = ['#EC7206','#284053','#72B6EC','#43e97b','#ff6584','#a29bfe','#fdcb6e','#00b894','#e17055','#6c63ff'];
 function navColor(idx){ return NAV_COLORS[idx % NAV_COLORS.length]; }
 const _origRenderAll = typeof renderAll !== 'undefined' ? renderAll : null;
