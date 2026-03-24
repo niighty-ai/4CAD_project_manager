@@ -84,33 +84,71 @@ function sortRows(){
         .forEach(j=>final.push(j));
   rows=final;
 }
-function savePortfolio(){
-  const data = portfolio.map(p=>({
+
+/* ══════════════════════════════════════════════
+   PERSISTANCE — localStorage (immédiat) + Firebase (différé)
+   Le localStorage est la source de vérité locale.
+   Firebase est la synchronisation cloud.
+   ══════════════════════════════════════════════ */
+function _serializePortfolio(data){
+  return data.map(p=>({
     id:p.id, name:p.name, client:p.client||'', folder:p.folder||'',
-    rows: p.rows
+    rows: (p.rows||[])
       .filter(r=>r._type!=='jalon')
-      .map(r=>{const{_srcPid,...rest}=r;return{...rest, debut:r.debut?r.debut.toISOString():null, fin:r.fin?r.fin.toISOString():null};}),
-    jalons: (p.jalons||[]).map(j=>{const{_srcPid,...rest}=j;return{...rest, date:j.date?j.date.toISOString():null};}),
+      .map(r=>{const{_srcPid,...rest}=r;return{...rest,
+        debut:r.debut?r.debut.toISOString():null,
+        fin:r.fin?r.fin.toISOString():null
+      };}),
+    jalons: (p.jalons||[]).map(j=>{const{_srcPid,...rest}=j;return{...rest,
+      date:j.date?j.date.toISOString():null
+    };}),
     projectColors: p.projectColors||{},
     collapsed: p.collapsed||{}
   }));
-  scheduleFirebaseSave(data);
 }
+
+function savePortfolio(){
+  /* ── 1. Sauvegarde immédiate en localStorage (cookie de sécurité) ── */
+  try {
+    const serialized = _serializePortfolio(portfolio);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(serialized));
+  } catch(e){
+    console.warn('localStorage save failed:', e);
+  }
+  /* ── 2. Sauvegarde différée sur Firebase ── */
+  scheduleFirebaseSave(_serializePortfolio(portfolio));
+}
+
 function loadPortfolio(){
   try{
     const raw = localStorage.getItem(STORAGE_KEY);
     if(!raw) return false;
     const data = JSON.parse(raw);
-    portfolio = data.map(p=>({
-      ...p,
-      client: p.client||'',
-      folder: p.folder||'',
-      rows: (p.rows||[]).filter(r=>r._type!=='jalon').map(r=>({...r, debut:r.debut?new Date(r.debut):null, fin:r.fin?new Date(r.fin):null})),
-      jalons: (p.jalons||[]).map(j=>({...j, date:j.date?new Date(j.date):null}))
-    }));
-    return portfolio.length > 0;
+    if(!Array.isArray(data) || !data.length) return false;
+    portfolio = _deserializePortfolio(data);
+    return true;
   }catch(e){ return false; }
 }
+
+function _deserializePortfolio(data){
+  return data.map(p=>({
+    ...p,
+    client: p.client||'',
+    folder: p.folder||'',
+    projectColors: p.projectColors||{},
+    collapsed: p.collapsed||{},
+    rows: (p.rows||[]).filter(r=>r._type!=='jalon').map(r=>({
+      ...r,
+      debut: r.debut ? new Date(r.debut) : null,
+      fin:   r.fin   ? new Date(r.fin)   : null
+    })),
+    jalons: (p.jalons||[]).map(j=>({
+      ...j,
+      date: j.date ? new Date(j.date) : null
+    }))
+  }));
+}
+
 function createNewProjectPrompt(){
   const clients = [...new Set(portfolio.map(p=>p.client||'').filter(Boolean))];
   let clientName = '';
@@ -125,6 +163,7 @@ function createNewProjectPrompt(){
   }
   createNewProject('Nouveau projet', [], {}, clientName);
 }
+
 function createNewProject(name, initialRows, initialColors, client, folder){
   const id = 'p_' + Date.now() + '_' + Math.random().toString(36).slice(2,6);
   const proj = {
@@ -148,11 +187,6 @@ function createFolder(clientName, e){
   const name = prompt('Nom du dossier :');
   if(!name || !name.trim()) return;
   const folderName = name.trim();
-  /* Vérifier que ce dossier n'existe pas déjà */
-  const exists = portfolio.some(p=>(p.client||'')===clientName && (p.folder||'')===folderName);
-  if(exists){ alert('Un dossier avec ce nom existe déjà pour ce client.'); return; }
-  /* Créer un projet placeholder dans ce dossier pour l'initialiser,
-     ou juste stocker le dossier dans un état global */
   if(!navFolders[clientName]) navFolders[clientName] = new Set();
   navFolders[clientName].add(folderName);
   renderNavList();
@@ -164,13 +198,9 @@ function renameFolder(clientName, oldFolder, e){
   const newName = prompt('Renommer le dossier :', oldFolder);
   if(!newName || !newName.trim() || newName.trim()===oldFolder) return;
   const trimmed = newName.trim();
-  /* Renommer sur tous les projets de ce dossier */
   portfolio.forEach(p=>{
-    if((p.client||'')===clientName && (p.folder||'')===oldFolder){
-      p.folder = trimmed;
-    }
+    if((p.client||'')===clientName && (p.folder||'')===oldFolder) p.folder = trimmed;
   });
-  /* Mettre à jour navFolders */
   if(navFolders[clientName]){
     navFolders[clientName].delete(oldFolder);
     navFolders[clientName].add(trimmed);
@@ -185,13 +215,13 @@ function addProjectToFolder(clientName, folderName, e){
   createNewProject('Nouveau projet', [], {}, clientName, folderName);
 }
 
-/* ── Supprimer un dossier (déplacer les projets à la racine ou supprimer) ── */
+/* ── Supprimer un dossier ── */
 function deleteFolder(clientName, folderName, e){
   if(e) e.stopPropagation();
   const projs = portfolio.filter(p=>(p.client||'')===clientName && (p.folder||'')===folderName);
   if(projs.length > 0){
     const choice = confirm(`Supprimer le dossier "${folderName}" ?\n\nOK = déplacer les ${projs.length} projet(s) à la racine\nAnnuler = annuler`);
-    if(choice===null) return; /* annuler */
+    if(choice===null) return;
     projs.forEach(p=>{ p.folder = ''; });
   }
   if(navFolders[clientName]) navFolders[clientName].delete(folderName);
@@ -199,7 +229,7 @@ function deleteFolder(clientName, folderName, e){
   renderNavList();
 }
 
-/* ── Déplacer un projet vers un dossier (utilisé après drag-and-drop) ── */
+/* ── Déplacer un projet vers un dossier ── */
 function moveProjectToFolder(projId, clientName, folderName){
   _saveBackToPortfolio();
   const proj = portfolio.find(p=>p.id===projId);
@@ -210,11 +240,18 @@ function moveProjectToFolder(projId, clientName, folderName){
   renderNavList();
 }
 
+/* ══════════════════════════════════════════════
+   SWITCH / SAVE / LOAD — cœur de la navigation
+   ══════════════════════════════════════════════ */
+
 function switchToProject(id){
+  /* 1. Sauvegarder l'état courant AVANT tout changement */
   _saveBackToPortfolio();
+
+  /* 2. Contrainte client : si on change de client en multiview, reset sélection */
   const targetProj = portfolio.find(p=>p.id===id);
-  const targetClient = targetProj?.client||'';
-  /* Si on bascule vers un projet d'un autre client, on réinitialise la sélection */
+  if(!targetProj) return;
+  const targetClient = targetProj.client||'';
   if(multiViewMode && selectedProjectIds.size > 0){
     const currentClient = portfolio.find(p=>selectedProjectIds.has(p.id))?.client||'';
     if(targetClient !== currentClient){
@@ -222,6 +259,8 @@ function switchToProject(id){
       multiViewMode = false;
     }
   }
+
+  /* 3. Mettre à jour la sélection */
   activeProjectId = id;
   if(!multiViewMode){
     selectedProjectIds.clear();
@@ -229,24 +268,37 @@ function switchToProject(id){
   } else {
     selectedProjectIds.add(id);
   }
+
+  /* 4. Charger */
   _loadSelectedProjects();
   renderNavList();
   renderAll();
 }
 
-/* ── Sauvegarde les rows actuels vers le(s) projet(s) du portfolio ── */
+/* ── Sauvegarde les rows[] vers le(s) projet(s) source dans portfolio ──
+   RÈGLE DE SÉCURITÉ : on ne sauvegarde QUE si rows[] contient des données
+   appartenant au projet cible. Un rows[] vide ou sans correspondance ne
+   doit JAMAIS écraser les données existantes. ── */
 function _saveBackToPortfolio(){
+  /* Garde : si rows est vide ET qu'aucun projet n'est actif, rien à faire */
   if(!activeProjectId && !multiViewMode) return;
+
   if(multiViewMode){
     selectedProjectIds.forEach(pid=>{
       const proj = portfolio.find(p=>p.id===pid);
       if(!proj) return;
-      const projInRows = rows.some(r=>r._srcPid===pid);
-      if(!projInRows) return;
-      const mine = rows.filter(r=>r._srcPid===pid);
-      proj.rows   = mine.filter(r=>r._type==='tache').map(r=>{const{_srcPid,...rest}=r;return{...rest};});
-      proj.jalons = mine.filter(r=>r._type==='jalon').map(r=>{const{_srcPid,...rest}=r;return{...rest};});
-      const projNames = [...new Set(mine.map(r=>r.projet))];
+      /* Sécurité : ne sauvegarder que si des rows taggées pid existent */
+      const mine = rows.filter(r=>r._srcPid===pid && r._type==='tache');
+      const mineJalons = rows.filter(r=>r._srcPid===pid && r._type==='jalon');
+      /* Si aucune tâche ET aucun jalon taggés → projet pas chargé dans cette session,
+         on préserve ses données intactes */
+      if(mine.length === 0 && mineJalons.length === 0 &&
+         (proj.rows||[]).some(r=>r._type==='tache' || proj.jalons?.length)){
+        return; /* Ne pas écraser */
+      }
+      proj.rows   = mine.map(r=>{const{_srcPid,...rest}=r;return{...rest};});
+      proj.jalons = mineJalons.map(r=>{const{_srcPid,...rest}=r;return{...rest};});
+      const projNames = [...new Set([...mine,...mineJalons].map(r=>r.projet))];
       proj.projectColors = proj.projectColors||{};
       projNames.forEach(n=>{ if(projectColors[n]) proj.projectColors[n]=projectColors[n]; });
       proj.collapsed = proj.collapsed||{};
@@ -254,12 +306,19 @@ function _saveBackToPortfolio(){
     });
   } else if(activeProjectId){
     const proj = portfolio.find(p=>p.id===activeProjectId);
-    if(proj){
-      proj.rows   = rows.filter(r=>r._type==='tache').map(r=>{const{_srcPid,...rest}=r;return{...rest};});
-      proj.jalons = rows.filter(r=>r._type==='jalon').map(r=>{const{_srcPid,...rest}=r;return{...rest};});
-      proj.projectColors={...projectColors};
-      proj.collapsed={...collapsed};
+    if(!proj) return;
+    const taches = rows.filter(r=>r._type==='tache');
+    const jalons = rows.filter(r=>r._type==='jalon');
+    /* Sécurité : si rows[] est vide MAIS que le projet avait des données,
+       c'est un state vide (ex: sélection à 0), on ne touche pas */
+    if(taches.length === 0 && jalons.length === 0 &&
+       ((proj.rows||[]).filter(r=>r._type==='tache').length > 0 || (proj.jalons||[]).length > 0)){
+      return; /* Préserver les données existantes */
     }
+    proj.rows   = taches.map(r=>{const{_srcPid,...rest}=r;return{...rest};});
+    proj.jalons = jalons.map(r=>{const{_srcPid,...rest}=r;return{...rest};});
+    proj.projectColors = {...projectColors};
+    proj.collapsed = {...collapsed};
   }
   savePortfolio();
 }
@@ -291,6 +350,8 @@ function _loadSelectedProjects(){
 /* ── Toggle checkbox d'un projet ── */
 function toggleProjectSelection(id, e){
   if(e) e.stopPropagation();
+
+  /* Contrainte : multi-sélection limitée au même client */
   const targetProj = portfolio.find(p=>p.id===id);
   if(!targetProj) return;
   const targetClient = targetProj.client||'';
@@ -302,16 +363,19 @@ function toggleProjectSelection(id, e){
         item.style.transition='background .1s';
         item.style.background='rgba(192,57,43,.18)';
         setTimeout(()=>{ item.style.background=''; },500);
-        const msg = document.createElement('div');
-        msg.style.cssText='position:fixed;bottom:28px;left:50%;transform:translateX(-50%);background:#c0392b;color:#fff;padding:8px 18px;border-radius:6px;font-size:12px;font-weight:600;z-index:9999;box-shadow:0 4px 16px rgba(0,0,0,.3);pointer-events:none';
-        msg.textContent = 'Multi-sélection possible uniquement au sein d\'un même client';
-        document.body.appendChild(msg);
-        setTimeout(()=>msg.remove(), 2800);
       }
+      const msg = document.createElement('div');
+      msg.style.cssText='position:fixed;bottom:28px;left:50%;transform:translateX(-50%);background:#c0392b;color:#fff;padding:8px 18px;border-radius:6px;font-size:12px;font-weight:600;z-index:9999;box-shadow:0 4px 16px rgba(0,0,0,.3);pointer-events:none';
+      msg.textContent = 'Multi-sélection possible uniquement au sein d\'un même client';
+      document.body.appendChild(msg);
+      setTimeout(()=>msg.remove(), 2800);
       return;
     }
   }
+
+  /* Sauvegarder AVANT de modifier la sélection */
   _saveBackToPortfolio();
+
   if(selectedProjectIds.has(id)){
     selectedProjectIds.delete(id);
     if(activeProjectId===id && selectedProjectIds.size>0){
@@ -320,17 +384,23 @@ function toggleProjectSelection(id, e){
   } else {
     selectedProjectIds.add(id);
   }
+
   multiViewMode = selectedProjectIds.size > 1;
   if(selectedProjectIds.size===1){
     activeProjectId=[...selectedProjectIds][0];
     multiViewMode=false;
   }
+
   if(selectedProjectIds.size===0){
+    /* On vide la vue SANS écraser les données :
+       activeProjectId est mis à null avant renderAll pour bloquer tout save */
     multiViewMode=false;
+    activeProjectId=null;
     rows=[]; projectColors={}; collapsed={};
     document.getElementById('activeProjectName').textContent='—';
     renderNavList(); renderAll(); return;
   }
+
   _loadSelectedProjects();
   renderNavList(); renderAll();
 }
@@ -344,11 +414,13 @@ function selectAllClientProjects(clientName, e){
   if(allChecked){
     clientProjs.forEach(p=>selectedProjectIds.delete(p.id));
     if(selectedProjectIds.size===0 && portfolio.length>0){
+      /* Fallback : sélectionner le premier projet dispo */
       const first = portfolio[0].id;
       selectedProjectIds.add(first);
       activeProjectId=first;
     }
   } else {
+    /* Désélectionner les projets d'autres clients d'abord */
     const hasOtherClient = [...selectedProjectIds].some(id=>{
       const p = portfolio.find(x=>x.id===id);
       return p && (p.client||'') !== clientName;
@@ -370,36 +442,37 @@ function deleteProject(id, e){
   const proj = portfolio.find(p=>p.id===id);
   if(!proj) return;
   if(!confirm(`Supprimer le projet "${proj.name}" ?`)) return;
+  /* Sauvegarder avant de supprimer */
+  if(selectedProjectIds.has(id)) _saveBackToPortfolio();
   portfolio = portfolio.filter(p=>p.id!==id);
   selectedProjectIds.delete(id);
+  if(activeProjectId===id) activeProjectId=null;
   savePortfolio();
-  if(activeProjectId===id){
-    activeProjectId = null;
-    if(selectedProjectIds.size>0){
-      activeProjectId=[...selectedProjectIds][0];
-      multiViewMode=selectedProjectIds.size>1;
-      _loadSelectedProjects();
-    } else {
-      multiViewMode=false;
-      rows=[]; projectColors={}; collapsed={};
-      document.getElementById('activeProjectName').textContent='—';
-      if(portfolio.length>0) switchToProject(portfolio[0].id);
-      else renderAll();
-    }
+  if(!activeProjectId && selectedProjectIds.size>0){
+    activeProjectId=[...selectedProjectIds][0];
+    multiViewMode=selectedProjectIds.size>1;
+    _loadSelectedProjects();
+  } else if(!activeProjectId){
+    multiViewMode=false;
+    rows=[]; projectColors={}; collapsed={};
+    document.getElementById('activeProjectName').textContent='—';
+    if(portfolio.length>0) switchToProject(portfolio[0].id);
+    else { renderNavList(); renderAll(); }
+    return;
   } else if(multiViewMode){
     multiViewMode=selectedProjectIds.size>1;
     _loadSelectedProjects();
-    renderAll();
   }
-  renderNavList();
+  renderNavList(); renderAll();
 }
+
 function duplicateProject(id, e){
   e.stopPropagation();
   const proj = portfolio.find(p=>p.id===id);
   if(!proj) return;
   if(selectedProjectIds.has(id)) _saveBackToPortfolio();
-  const newId = 'p_' + Date.now() + '_' + Math.random().toString(36).slice(2,6);
   const srcProj = portfolio.find(p=>p.id===id);
+  const newId = 'p_' + Date.now() + '_' + Math.random().toString(36).slice(2,6);
   const copy = {
     id: newId,
     name: srcProj.name + ' (copie)',
@@ -415,13 +488,16 @@ function duplicateProject(id, e){
   renderNavList();
   switchToProject(newId);
 }
+
 function saveCurrentProject(){
   _saveBackToPortfolio();
 }
+
 function importToNewProject(parsedRows, fileName){
   const name = fileName.replace(/\.[^.]+$/, '').replace(/[_-]/g,' ');
   createNewProject(name, parsedRows, {});
 }
+
 function setFbStatus(text, color){
   const el = document.getElementById('fbStatus');
   if(!el) return;
@@ -429,6 +505,7 @@ function setFbStatus(text, color){
   el.style.color  = color || 'var(--muted)';
   el.style.background = color ? color + '18' : 'var(--surface2)';
 }
+
 function cleanForFirebase(obj){
   if(Array.isArray(obj)) return obj.map(cleanForFirebase);
   if(obj !== null && typeof obj === 'object'){
@@ -442,12 +519,14 @@ function cleanForFirebase(obj){
   }
   return obj;
 }
+
 function scheduleFirebaseSave(data){
   if(typeof window._fbSet !== 'function') return;
   clearTimeout(_fbSaveTimer);
   setFbStatus('⏳ Sync...', '#f7971e');
   _fbSaveTimer = setTimeout(()=> doFirebaseSave(data), 1500);
 }
+
 async function doFirebaseSave(data){
   if(_fbSaving) return;
   if(typeof window._fbSet !== 'function'){ setFbStatus('⚠ SDK non prêt', '#e17055'); return; }
@@ -464,16 +543,19 @@ async function doFirebaseSave(data){
     setFbStatus('⚠ Erreur Firebase', '#e17055');
   } finally { _fbSaving = false; }
 }
+
 function migrateFirebaseData(data){
-  return data.map(p=>({
-    ...p, client: p.client||'', folder: p.folder||'',
+  return _deserializePortfolio(data.map(p=>({
+    ...p,
+    client: p.client||'',
+    folder: p.folder||'',
     projectColors: p.projectColors||{},
     collapsed: p.collapsed||{},
     jalons: (p.jalons||[
       ...(p.rows||[]).filter(r=>r._type==='jalon')
     ]).map(j=>({
       _type:'jalon', nom:j.nom||'', projet:j.projet||'',
-      date: j.date ? new Date(j.date) : null, couleur:j.couleur||null
+      date: j.date ? j.date : null, couleur:j.couleur||null
     })),
     rows: (p.rows||[]).filter(r=>r._type!=='jalon').map(r=>{
       const niveaux = r.niveaux ? r.niveaux : (r.groupe ? [r.groupe] : []);
@@ -482,13 +564,14 @@ function migrateFirebaseData(data){
         projet: r.projet || '',
         niveaux,
         tache:  r.tache  || null,
-        debut:  r.debut  ? new Date(r.debut) : null,
-        fin:    r.fin    ? new Date(r.fin)   : null,
+        debut:  r.debut  ? r.debut : null,
+        fin:    r.fin    ? r.fin   : null,
         charge: r.charge != null ? r.charge : null
       };
     })
-  }));
+  })));
 }
+
 function downloadModele(){
   const headers = ['Type','Projet','Niveau 1','Niveau 2','Niveau 3','Tâche','Début','Fin','Charge (j)'];
   const examples = [
@@ -504,9 +587,7 @@ function downloadModele(){
   ];
   const data = [headers, ...examples];
   const ws = XLSX.utils.aoa_to_sheet(data);
-  ws['!cols'] = [
-    {wch:8},{wch:16},{wch:16},{wch:14},{wch:14},{wch:30},{wch:12},{wch:12},{wch:10}
-  ];
+  ws['!cols'] = [{wch:8},{wch:16},{wch:16},{wch:14},{wch:14},{wch:30},{wch:12},{wch:12},{wch:10}];
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'Modèle');
   const help = [
