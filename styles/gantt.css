@@ -8,11 +8,18 @@
   box-shadow:0 1px 4px var(--shadow)
 }
 
+.gantt-topbar {
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  margin-bottom:8px;
+  gap:12px
+}
+
 .gantt-toolbar {
   display:flex;
   align-items:center;
   gap:6px;
-  padding:8px 4px 8px 0;
   flex-wrap:wrap
 }
 

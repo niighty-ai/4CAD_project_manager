@@ -239,7 +239,10 @@ function _renderNavProject(p){
   const isActive = p.id===activeProjectId;
   const isChecked = selectedProjectIds.has(p.id);
   const taskCount = (p.rows||[]).filter(r=>r._type==='tache').length;
-  const dot = navColor(portfolio.indexOf(p));
+  const savedColors = p.projectColors || {};
+  // Cherche la couleur Gantt du projet : d'abord dans ses propres projectColors,
+  // sinon dans l'état global courant (si c'est le projet actif), sinon fallback palette
+  const dot = savedColors[p.name] || (p.id===activeProjectId && projectColors[p.name]) || navColor(portfolio.indexOf(p));
   return `<div class="nav-item${isActive?' active':''}${isChecked?' checked':''}" id="navItem_${p.id}"
       draggable="true"
       ondragstart="navDragStart(event,'${p.id}')"

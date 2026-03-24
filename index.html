@@ -194,8 +194,9 @@ window._fbOnValue = (cb)   => onValue(_fbRef, snap => cb(snap.val()));</script>
   </div>
   <div class="app-content">
     <main>
-      <div class="section-title">Diagramme de Gantt</div>
-      <div class="gantt-toolbar" id="ganttToolbar">
+      <div class="gantt-topbar">
+        <div class="section-title" style="margin-bottom:0;border-left:none;padding-left:0;">| DIAGRAMME DE GANTT</div>
+        <div class="gantt-toolbar" id="ganttToolbar">
         <button class="btn-ghost" id="btnJour" onclick="setView('jour')">Jour</button>
         <button class="btn-ghost active" id="btnSemaine" onclick="setView('semaine')">Semaine</button>
         <button class="btn-ghost" id="btnMois" onclick="setView('mois')">Mois</button>
@@ -210,6 +211,7 @@ window._fbOnValue = (cb)   => onValue(_fbRef, snap => cb(snap.val()));</script>
         <input type="file" id="fileInput" accept=".xlsx,.xls,.csv,.xml" style="display:none">
         <button class="btn-ghost" onclick="downloadModele()" title="Télécharger le modèle Excel d'import">📋 Modèle</button>
         <button class="btn-ghost" onclick="exportPPTX()" style="color:var(--accent);border-color:var(--accent);">📌 PPTX</button>
+        </div>
       </div>
       <div class="gantt-card">
         <div class="gantt-layout" id="ganttLayout"><div class="gantt-left" id="ganttLeftPanel" style="width:400px">
