@@ -109,3 +109,5 @@ let _fbSaving     = false;
 let _fbInitLoaded = false;
 let _lastSaveTs = 0;
 let jpEditingIdx = null;
+let selectedProjectIds = new Set();  // IDs des projets cochés (affichés dans le Gantt)
+let multiViewMode = false;           // true quand >1 projet sélectionné

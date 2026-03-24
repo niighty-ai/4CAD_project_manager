@@ -89,8 +89,8 @@ function savePortfolio(){
     id:p.id, name:p.name, client:p.client||'',
     rows: p.rows
       .filter(r=>r._type!=='jalon') 
-      .map(r=>({...r, debut:r.debut?r.debut.toISOString():null, fin:r.fin?r.fin.toISOString():null})),
-    jalons: (p.jalons||[]).map(j=>({...j, date:j.date?j.date.toISOString():null})),
+      .map(r=>{const{_srcPid,...rest}=r;return{...rest, debut:r.debut?r.debut.toISOString():null, fin:r.fin?r.fin.toISOString():null};}),
+    jalons: (p.jalons||[]).map(j=>{const{_srcPid,...rest}=j;return{...rest, date:j.date?j.date.toISOString():null};}),
     projectColors: p.projectColors||{},
     collapsed: p.collapsed||{}
   }));
@@ -140,29 +140,118 @@ function createNewProject(name, initialRows, initialColors, client){
   switchToProject(id);
 }
 function switchToProject(id){
-  if(activeProjectId){
-    const cur = portfolio.find(p=>p.id===activeProjectId);
-    if(cur){
-      cur.rows   = rows.filter(r=>r._type==='tache').map(r=>({...r}));
-      cur.jalons = rows.filter(r=>r._type==='jalon').map(r=>({...r}));
-      cur.projectColors={...projectColors};
-      cur.collapsed={...collapsed};
-    }
-    savePortfolio();
-  }
+  _saveBackToPortfolio();
   activeProjectId = id;
-  const proj = portfolio.find(p=>p.id===id);
-  if(!proj) return;
-  rows = [
-    ...proj.rows.filter(r=>r._type==='tache').map(r=>({...r})),
-    ...(proj.jalons||[]).map(r=>({...r}))
-  ];
-  projectColors = {...proj.projectColors};
-  collapsed = {...proj.collapsed};
-  sortRows();
-  document.getElementById('activeProjectName').textContent = proj.name;
+  if(!multiViewMode){
+    selectedProjectIds.clear();
+    selectedProjectIds.add(id);
+  } else {
+    selectedProjectIds.add(id);
+  }
+  _loadSelectedProjects();
   renderNavList();
   renderAll();
+}
+/* ── Sauvegarde les rows actuels vers le(s) projet(s) du portfolio ── */
+function _saveBackToPortfolio(){
+  if(!activeProjectId && !multiViewMode) return;
+  if(multiViewMode){
+    /* Redistribuer chaque row vers son projet source via _srcPid */
+    selectedProjectIds.forEach(pid=>{
+      const proj = portfolio.find(p=>p.id===pid);
+      if(!proj) return;
+      const mine = rows.filter(r=>r._srcPid===pid);
+      proj.rows   = mine.filter(r=>r._type==='tache').map(r=>{const{_srcPid,...rest}=r;return{...rest};});
+      proj.jalons = mine.filter(r=>r._type==='jalon').map(r=>{const{_srcPid,...rest}=r;return{...rest};});
+      /* Sauver les couleurs propres au projet */
+      const projNames = [...new Set(mine.map(r=>r.projet))];
+      proj.projectColors = proj.projectColors||{};
+      projNames.forEach(n=>{ if(projectColors[n]) proj.projectColors[n]=projectColors[n]; });
+      proj.collapsed = proj.collapsed||{};
+      Object.assign(proj.collapsed, collapsed);
+    });
+  } else if(activeProjectId){
+    const proj = portfolio.find(p=>p.id===activeProjectId);
+    if(proj){
+      proj.rows   = rows.filter(r=>r._type==='tache').map(r=>{const{_srcPid,...rest}=r;return{...rest};});
+      proj.jalons = rows.filter(r=>r._type==='jalon').map(r=>{const{_srcPid,...rest}=r;return{...rest};});
+      proj.projectColors={...projectColors};
+      proj.collapsed={...collapsed};
+    }
+  }
+  savePortfolio();
+}
+/* ── Charge les projets sélectionnés dans rows[] ── */
+function _loadSelectedProjects(){
+  rows = [];
+  projectColors = {};
+  collapsed = {};
+  selectedProjectIds.forEach(pid=>{
+    const proj = portfolio.find(p=>p.id===pid);
+    if(!proj) return;
+    const taches = (proj.rows||[]).filter(r=>r._type==='tache').map(r=>({...r, _srcPid:pid}));
+    const jalons = (proj.jalons||[]).map(r=>({...r, _srcPid:pid}));
+    rows.push(...taches, ...jalons);
+    Object.assign(projectColors, proj.projectColors||{});
+    Object.assign(collapsed, proj.collapsed||{});
+  });
+  sortRows();
+  /* Header */
+  const names = [...selectedProjectIds].map(id=>portfolio.find(p=>p.id===id)?.name).filter(Boolean);
+  if(names.length>1){
+    const client = portfolio.find(p=>p.id===activeProjectId)?.client||'';
+    document.getElementById('activeProjectName').textContent = (client?client+' — ':'')+names.length+' projets';
+  } else if(names.length===1){
+    document.getElementById('activeProjectName').textContent = names[0];
+  }
+}
+/* ── Toggle checkbox d'un projet ── */
+function toggleProjectSelection(id, e){
+  if(e) e.stopPropagation();
+  _saveBackToPortfolio();
+  if(selectedProjectIds.has(id)){
+    selectedProjectIds.delete(id);
+    if(activeProjectId===id && selectedProjectIds.size>0){
+      activeProjectId=[...selectedProjectIds][0];
+    }
+  } else {
+    selectedProjectIds.add(id);
+  }
+  multiViewMode = selectedProjectIds.size > 1;
+  if(selectedProjectIds.size===1){
+    activeProjectId=[...selectedProjectIds][0];
+    multiViewMode=false;
+  }
+  if(selectedProjectIds.size===0){
+    multiViewMode=false;
+    rows=[]; projectColors={}; collapsed={};
+    document.getElementById('activeProjectName').textContent='—';
+    renderNavList(); renderAll(); return;
+  }
+  _loadSelectedProjects();
+  renderNavList(); renderAll();
+}
+/* ── Tout cocher/décocher pour un client ── */
+function selectAllClientProjects(clientName, e){
+  if(e) e.stopPropagation();
+  _saveBackToPortfolio();
+  const clientProjs = portfolio.filter(p=>(p.client||'')===clientName);
+  const allChecked = clientProjs.every(p=>selectedProjectIds.has(p.id));
+  if(allChecked){
+    clientProjs.forEach(p=>selectedProjectIds.delete(p.id));
+    if(selectedProjectIds.size===0 && portfolio.length>0){
+      const first = portfolio[0].id;
+      selectedProjectIds.add(first);
+      activeProjectId=first;
+    }
+  } else {
+    clientProjs.forEach(p=>selectedProjectIds.add(p.id));
+    if(!activeProjectId) activeProjectId=clientProjs[0]?.id;
+  }
+  multiViewMode = selectedProjectIds.size > 1;
+  if(selectedProjectIds.size===1) activeProjectId=[...selectedProjectIds][0];
+  _loadSelectedProjects();
+  renderNavList(); renderAll();
 }
 function deleteProject(id, e){
   e.stopPropagation();
@@ -170,13 +259,25 @@ function deleteProject(id, e){
   if(!proj) return;
   if(!confirm(`Supprimer le projet "${proj.name}" ?`)) return;
   portfolio = portfolio.filter(p=>p.id!==id);
+  selectedProjectIds.delete(id);
   savePortfolio();
   if(activeProjectId===id){
     activeProjectId = null;
-    rows=[]; projectColors={}; collapsed={};
-    document.getElementById('activeProjectName').textContent = '—';
-    if(portfolio.length>0) switchToProject(portfolio[0].id);
-    else renderAll();
+    if(selectedProjectIds.size>0){
+      activeProjectId=[...selectedProjectIds][0];
+      multiViewMode=selectedProjectIds.size>1;
+      _loadSelectedProjects();
+    } else {
+      multiViewMode=false;
+      rows=[]; projectColors={}; collapsed={};
+      document.getElementById('activeProjectName').textContent='—';
+      if(portfolio.length>0) switchToProject(portfolio[0].id);
+      else renderAll();
+    }
+  } else if(multiViewMode){
+    multiViewMode=selectedProjectIds.size>1;
+    _loadSelectedProjects();
+    renderAll();
   }
   renderNavList();
 }
@@ -184,16 +285,18 @@ function duplicateProject(id, e){
   e.stopPropagation();
   const proj = portfolio.find(p=>p.id===id);
   if(!proj) return;
-  if(activeProjectId===id){
-    proj.rows=[...rows]; proj.projectColors={...projectColors}; proj.collapsed={...collapsed};
-  }
+  /* Sauvegarder si c'est le projet actif */
+  if(selectedProjectIds.has(id)) _saveBackToPortfolio();
   const newId = 'p_' + Date.now() + '_' + Math.random().toString(36).slice(2,6);
+  const srcProj = portfolio.find(p=>p.id===id);
   const copy = {
     id: newId,
-    name: proj.name + ' (copie)',
-    rows: proj.rows.map(r=>({...r})),
-    projectColors: {...proj.projectColors},
-    collapsed: {...proj.collapsed}
+    name: srcProj.name + ' (copie)',
+    client: srcProj.client||'',
+    rows: (srcProj.rows||[]).map(r=>({...r})),
+    jalons: (srcProj.jalons||[]).map(r=>({...r})),
+    projectColors: {...(srcProj.projectColors||{})},
+    collapsed: {...(srcProj.collapsed||{})}
   };
   portfolio.push(copy);
   savePortfolio();
@@ -201,15 +304,7 @@ function duplicateProject(id, e){
   switchToProject(newId);
 }
 function saveCurrentProject(){
-  if(!activeProjectId) return;
-  const proj = portfolio.find(p=>p.id===activeProjectId);
-  if(proj){
-    proj.rows   = rows.filter(r=>r._type==='tache').map(r=>({...r}));
-    proj.jalons = rows.filter(r=>r._type==='jalon').map(r=>({...r}));
-    proj.projectColors={...projectColors};
-    proj.collapsed={...collapsed};
-    savePortfolio();
-  }
+  _saveBackToPortfolio();
 }
 function importToNewProject(parsedRows, fileName){
   const name = fileName.replace(/\.[^.]+$/, '').replace(/[_-]/g,' ');
