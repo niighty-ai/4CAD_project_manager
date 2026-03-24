@@ -341,9 +341,9 @@ function _loadSelectedProjects(){
   const names = [...selectedProjectIds].map(id=>portfolio.find(p=>p.id===id)?.name).filter(Boolean);
   if(names.length>1){
     const client = portfolio.find(p=>p.id===activeProjectId)?.client||'';
-    document.getElementById('activeProjectName').textContent = (client?client+' — ':'')+names.length+' projets';
+    
   } else if(names.length===1){
-    document.getElementById('activeProjectName').textContent = names[0];
+    
   }
 }
 
@@ -397,7 +397,7 @@ function toggleProjectSelection(id, e){
     multiViewMode=false;
     activeProjectId=null;
     rows=[]; projectColors={}; collapsed={};
-    document.getElementById('activeProjectName').textContent='—';
+    
     renderNavList(); renderAll(); return;
   }
 
@@ -455,7 +455,7 @@ function deleteProject(id, e){
   } else if(!activeProjectId){
     multiViewMode=false;
     rows=[]; projectColors={}; collapsed={};
-    document.getElementById('activeProjectName').textContent='—';
+    
     if(portfolio.length>0) switchToProject(portfolio[0].id);
     else { renderNavList(); renderAll(); }
     return;
