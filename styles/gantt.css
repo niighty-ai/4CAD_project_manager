@@ -8,6 +8,16 @@
   box-shadow:0 1px 4px var(--shadow)
 }
 
+.gantt-toolbar {
+  display:flex;
+  align-items:center;
+  gap:6px;
+  padding:7px 12px;
+  border-bottom:2px solid var(--border);
+  background:var(--surface);
+  flex-wrap:wrap
+}
+
 .gantt-layout {
   display:flex;
   overflow:hidden
