@@ -10,6 +10,7 @@
 <link rel="stylesheet" href="styles/header.css">
 <link rel="stylesheet" href="styles/gantt.css">
 <link rel="stylesheet" href="styles/panels.css">
+<link rel="stylesheet" href="styles/resources.css">
 <script type="module">import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 import { getDatabase, ref, set, onValue } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
 const firebaseConfig = {
@@ -34,6 +35,14 @@ window._fbOnValue = (cb)   => onValue(_fbRef, snap => cb(snap.val()));</script>
     <div class="logo-divider"></div>
     <div class="logo-title">Project <span>manager</span></div>
   </div>
+  <nav class="nav-tabs">
+    <button class="nav-tab active" data-view="projets" onclick="switchView('projets')">
+      <span class="nav-tab-icon">📊</span> Projets
+    </button>
+    <button class="nav-tab" data-view="ressources" onclick="switchView('ressources')">
+      <span class="nav-tab-icon">👤</span> Ressources
+    </button>
+  </nav>
   <div class="toolbar">
     <span id="fbStatus" style="font-size:11px;font-weight:700;padding:3px 10px;border-radius:12px;background:var(--surface2);color:var(--muted);display:inline-flex;align-items:center;gap:5px;cursor:default">⏳ Firebase...</span>
     <button class="btn-theme" id="btnTheme" onclick="toggleTheme()">🌙 Sombre</button>
@@ -130,6 +139,7 @@ window._fbOnValue = (cb)   => onValue(_fbRef, snap => cb(snap.val()));</script>
     </div>
   </div>
 </div>
+<div id="viewProjets">
 <div class="app-shell">
   <div class="nav-sidebar" id="navSidebar">
     <div class="nav-header">
@@ -473,10 +483,18 @@ window._fbOnValue = (cb)   => onValue(_fbRef, snap => cb(snap.val()));</script>
       </div>
     </main>
   </div>
+</div><!-- /.app-shell -->
+</div><!-- /#viewProjets -->
+
+<div id="viewRessources" style="display:none; height:calc(100vh - var(--header-h)); overflow:hidden;">
+</div>
+
 <script src="scripts/xml_import.js"></script>
 <script src="scripts/utils.js"></script>
 <script src="scripts/data.js"></script>
 <script src="scripts/gantt.js"></script>
 <script src="scripts/ui.js"></script>
+<script src="scripts/resources.js"></script>
+<script src="scripts/router.js"></script>
 <script src="scripts/app.js"></script>
 </body></html>

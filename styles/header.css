@@ -123,3 +123,45 @@ input[type="file"] {
   font-weight:700
 }
 
+/* ── Onglets de navigation ── */
+.nav-tabs {
+  display:flex;
+  align-items:stretch;
+  gap:0;
+  height:100%;
+  margin-left:8px
+}
+
+.nav-tab {
+  display:flex;
+  align-items:center;
+  gap:6px;
+  padding:0 20px;
+  height:100%;
+  font-size:12px;
+  font-weight:700;
+  font-family:Arial,sans-serif;
+  color:var(--muted);
+  cursor:pointer;
+  border:none;
+  background:transparent;
+  border-bottom:3px solid transparent;
+  transition:color .15s,border-color .15s,background .15s;
+  letter-spacing:.3px;
+  white-space:nowrap
+}
+
+.nav-tab:hover {
+  color:var(--text);
+  background:rgba(236,114,6,.05)
+}
+
+.nav-tab.active {
+  color:var(--accent);
+  border-bottom-color:var(--accent)
+}
+
+.nav-tab-icon {
+  font-size:14px;
+  line-height:1
+}
