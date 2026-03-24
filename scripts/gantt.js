@@ -12,7 +12,7 @@ function buildGanttLeftWithEdit(visible, showDates, labelW){
     const datesHtml=`<span class="row-dates${showDates?'':' hidden'}">
       <span>${fmtShort(r.debut)}</span><span class="d-sep">&#8594;</span><span>${fmtShort(r.fin)}</span>
     </span>`;
-    const chargeHtml=r.charge!==null?`<span class="row-charge">${r.charge}j</span>`:'';
+    const chargeHtml=r.charge!==null?`<span class="row-charge">${fmtCharge(r.charge)}j</span>`:'';
     const realIdx=rows.indexOf(r);
     const clickAttr=`onclick="openEditPanel(${realIdx>=0?realIdx:'null'})"`;
     if(r._type==='projet'){
@@ -123,7 +123,7 @@ function renderGantt(){
     const datesHtml=`<span class="row-dates${showDates?'':' hidden'}">
       <span>${fmtShort(r.debut)}</span><span class="d-sep">→</span><span>${fmtShort(r.fin)}</span>
     </span>`;
-    const chargeHtml=r.charge!==null?`<span class="row-charge">${r.charge}j</span>`:'';
+    const chargeHtml=r.charge!==null?`<span class="row-charge">${fmtCharge(r.charge)}j</span>`:'';
     const realIdx=rows.indexOf(r);
     const clickAttr=`onclick="openEditPanel(${realIdx>=0?realIdx:'null'})"`;
     const niv=r.niveaux||[];
@@ -319,7 +319,7 @@ function renderChart(layout,legend,visible,minD0,maxD0,today,leftHTML,mode){
       const hookW=5;       
       const totalH=hookH+spineH;
       const cy=(ROW_H-totalH)/2; 
-      const charge=r.charge!==null?`${r.charge}j`:'';
+      const charge=r.charge!==null?`${fmtCharge(r.charge)}j`:'';
       barHtml=`<svg class="bracket-bar" style="left:${left}px;top:0;cursor:pointer"
         width="${width}" height="${ROW_H}" overflow="visible"
         ${barClick}
@@ -345,7 +345,7 @@ function renderChart(layout,legend,visible,minD0,maxD0,today,leftHTML,mode){
       const hookW=4;
       const totalH=hookH+spineH;
       const cy=(ROW_H-totalH)/2;
-      const charge=r.charge!==null?`${r.charge}j`:'';
+      const charge=r.charge!==null?`${fmtCharge(r.charge)}j`:'';
       barHtml=`<svg class="bracket-bar" style="left:${left}px;top:0;cursor:pointer"
         width="${width}" height="${ROW_H}" overflow="visible"
         ${barClick}
@@ -381,7 +381,7 @@ function renderChart(layout,legend,visible,minD0,maxD0,today,leftHTML,mode){
         ${colsBase}${tl}${barHtml}
       </div>`;
     } else {
-      const labelText=r.charge!==null?`${r.charge}j`:'';
+      const labelText=r.charge!==null?`${fmtCharge(r.charge)}j`:'';
       barHtml=`<div class="gantt-bar"
         style="left:${left}px;width:${width}px;background:${c}"
         ${barClick}
@@ -667,7 +667,7 @@ function _runPptxExport(){
         fontFace:'Courier New',valign:'middle',align:'center',margin:0});
       slide.addShape(pres.ShapeType.line,{x:LABEL_W+DATE_W,y:ry,w:0,h:ROW_H_IN,line:{color:BORDER,width:0.5}});
       if(r.charge!=null){
-        slide.addText(`${r.charge}j`,{
+        slide.addText(`${fmtCharge(r.charge)}j`,{
           x:LABEL_W+DATE_W+0.02,y:ry+Math.max(0.01,ROW_H_IN*0.15),
           w:CHARGE_W-0.04,h:ROW_H_IN*0.70,
           fontSize:Math.max(5,fs-1.5),fontFace:'Courier New',color:ACCENT,bold:true,
@@ -702,7 +702,7 @@ function _runPptxExport(){
           fill:{color:barColor},line:{color:barColor,width:1},
           shadow:{type:'outer',color:'000000',blur:2,offset:1,angle:135,opacity:0.15}});
         if(r.charge!=null && bw>0.18){
-          slide.addText(`${r.charge}j`,{x:bx,y:bary,w:bw,h:BAR_H,
+          slide.addText(`${fmtCharge(r.charge)}j`,{x:bx,y:bary,w:bw,h:BAR_H,
             fontSize:Math.max(5,fs-2),fontFace:'Courier New',color:'FFFFFF',bold:true,
             align:'center',valign:'middle',margin:0});
         }

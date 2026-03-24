@@ -60,7 +60,7 @@ function submitForm(){
   const f=document.getElementById('fFin').value;
   const c=document.getElementById('fCharge').value;
   if(!p||!d||!f){alert('Projet, Début et Fin requis.');return;}
-  rows.push({_type:'tache',projet:p,groupe:g||null,tache:t||null,debut:parseDate(d),fin:parseDate(f),charge:c?parseFloat(c.replace(',','.')):null});
+  rows.push({_type:'tache',projet:p,groupe:g||null,tache:t||null,debut:parseDate(d),fin:parseDate(f),charge:c?roundCharge(parseFloat(c.replace(',','.'))):null});
   document.getElementById('addForm').style.display='none';
   sortRows();renderAll();
 }
@@ -94,7 +94,7 @@ function renderTableRow(r,ri){
     <td style="color:var(--muted)">${r.groupe?escH(r.groupe):'<em style="opacity:.38">—</em>'}</td>
     <td style="color:var(--text)">${r.tache?escH(r.tache):'<em style="opacity:.38">—</em>'}</td>
     <td>${fmtD(r.debut)}</td><td>${fmtD(r.fin)}</td>
-    <td>${r.charge!==null?`<span class="charge-badge">${r.charge}j</span>`:'—'}</td>
+    <td>${r.charge!==null?`<span class="charge-badge">${fmtCharge(r.charge)}j</span>`:'—'}</td>
     <td onclick="event.stopPropagation()"><button class="del-btn" onclick="deleteRow(${ri})">✕</button></td>
   </tr>`;
 }
@@ -114,7 +114,7 @@ function saveInlineEdit(ri){
   const f=document.getElementById('ei-fin')?.value;
   const c=document.getElementById('ei-charge')?.value;
   if(!p||!d||!f){alert('Projet, Début et Fin requis.');return;}
-  rows[ri]={_type:'tache',projet:p,groupe:g||null,tache:t||null,debut:parseDate(d),fin:parseDate(f),charge:c!==''?parseFloat(c):null};
+  rows[ri]={_type:'tache',projet:p,groupe:g||null,tache:t||null,debut:parseDate(d),fin:parseDate(f),charge:c!==''?roundCharge(parseFloat(c)):null};
   editingIdx=null;sortRows();renderAll();
 }
 function cancelInlineEdit(){
@@ -671,7 +671,7 @@ function saveEditPanel(){
     closeEditPanel();
     return;
   } else {
-    newRow={_type:'tache',projet:p,niveaux,tache:t||null,debut:parseDate(d),fin:parseDate(f),charge:c!==''?parseFloat(c.replace(',','.')):null};
+    newRow={_type:'tache',projet:p,niveaux,tache:t||null,debut:parseDate(d),fin:parseDate(f),charge:c!==''?roundCharge(parseFloat(c.replace(',','.'))):null};
   }
   if(epMode==='edit'&&epEditingIdx!==null) rows[epEditingIdx]=newRow;
   else rows.push(newRow);

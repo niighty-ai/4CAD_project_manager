@@ -17,7 +17,7 @@ function sortRows(){
     if(depth===0){
       const pMin=new Date(Math.min(...taskList.map(r=>r.debut.getTime())));
       const pMax=new Date(Math.max(...taskList.map(r=>r.fin.getTime())));
-      const pCharge=taskList.reduce((s,r)=>s+(r.charge||0),0);
+      const pCharge=roundCharge(taskList.reduce((s,r)=>s+(r.charge||0),0));
       sorted.push({_type:'projet',projet,niveaux:[],tache:null,debut:pMin,fin:pMax,charge:pCharge});
     }
     const noMore=taskList.filter(r=>!r.niveaux[depth]);
@@ -27,7 +27,7 @@ function sortRows(){
       const gT=withMore.filter(r=>r.niveaux[depth]===g);
       const gMin=new Date(Math.min(...gT.map(r=>r.debut.getTime())));
       const gMax=new Date(Math.max(...gT.map(r=>r.fin.getTime())));
-      const gCharge=gT.reduce((s,r)=>s+(r.charge||0),0);
+      const gCharge=roundCharge(gT.reduce((s,r)=>s+(r.charge||0),0));
       return {g, gT, gMin, gMax, gCharge};
     });
     const items=[
@@ -84,7 +84,6 @@ function sortRows(){
         .forEach(j=>final.push(j));
   rows=final;
 }
-function clearAll(){if(!rows.length||confirm('Tout effacer ?')){rows=[];projectColors={};collapsed={};editingIdx=null;document.getElementById('addForm').style.display='none';renderAll();}}
 function savePortfolio(){
   const data = portfolio.map(p=>({
     id:p.id, name:p.name, client:p.client||'',
@@ -215,36 +214,6 @@ function saveCurrentProject(){
 function importToNewProject(parsedRows, fileName){
   const name = fileName.replace(/\.[^.]+$/, '').replace(/[_-]/g,' ');
   createNewProject(name, parsedRows, {});
-}
-function exportHTML(){
-  const data = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
-  if(!data.length){ alert('Aucune donnée à sauvegarder.'); return; }
-  const source = document.documentElement.outerHTML;
-  const dataJson = JSON.stringify(data);
-  const oldInit = /\/\/ -- INIT --[\s\S]*?}\)\(\);/;
-  const newInit = `
-(function(){
-  const savedData = ${dataJson};
-  portfolio = savedData.map(p=>({
-    ...p,
-    rows: p.rows.map(r=>({...r,
-      debut: r.debut ? new Date(r.debut) : null,
-      fin:   r.fin   ? new Date(r.fin)   : null
-    }))
-  }));
-  savePortfolio();
-  renderNavList();
-  if(portfolio.length) switchToProject(portfolio[0].id);
-})();`;
-  const newSource = source.replace(oldInit, newInit);
-  const blob = new Blob([newSource], {type: 'text/html;charset=utf-8'});
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  const d = new Date();
-  a.download = `gantt_${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}.html`;
-  a.click();
-  URL.revokeObjectURL(url);
 }
 function setFbStatus(text, color){
   const el = document.getElementById('fbStatus');

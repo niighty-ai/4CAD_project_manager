@@ -49,10 +49,8 @@ window._fbOnValue = (cb)   => onValue(_fbRef, snap => cb(snap.val()));</script>
     <label for="fileInput" style="cursor: pointer; padding: 6px 12px; border: 1px solid var(--border); border-radius: 4px; font-size: 12px; font-weight: 600; background: var(--surface2); display: inline-block; color: var(--text);">📂 Importer</label>
     <input type="file" id="fileInput" accept=".xlsx,.xls,.csv,.xml">
     <button class="btn-ghost" onclick="downloadModele()" title="Télécharger le modèle Excel d'import">📋 Modèle</button>
-    <button class="btn-ghost" onclick="exportHTML()" title="Télécharger une copie locale">💾 Local</button>
     <span id="fbStatus" style="font-size:11px;font-weight:700;padding:3px 10px;border-radius:12px;background:var(--surface2);color:var(--muted);display:inline-flex;align-items:center;gap:5px;cursor:default">⏳ Firebase...</span>
     <button class="btn-ghost" onclick="exportPPTX()" style="color: var(--accent); border-color: var(--accent);">📌 PPTX</button>
-    <button class="btn-danger" onclick="clearAll()">🗑</button>
     <button class="btn-theme" id="btnTheme" onclick="toggleTheme()">🌙 Sombre</button>
   </div>
 </header>

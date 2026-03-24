@@ -55,7 +55,7 @@ document.getElementById('fileInput').addEventListener('change',e=>{
         const f=ci.fin>=0?parseDate(r[ci.fin]):null;
         if(!d||!f||isNaN(d)||isNaN(f))continue;
         let ch=ci.charge>=0?r[ci.charge]:null;
-        if(ch!==null){ch=parseFloat(String(ch).replace(',','.'));if(isNaN(ch))ch=null;}
+        if(ch!==null){ch=parseFloat(String(ch).replace(',','.'));if(isNaN(ch))ch=null;else ch=roundCharge(ch);}
         const niveaux=[];
         for(const idx of ci.niveaux){
           if(idx>=0&&r[idx]&&String(r[idx]).trim()) niveaux.push(String(r[idx]).trim());

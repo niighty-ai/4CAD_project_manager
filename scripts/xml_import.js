@@ -11,7 +11,7 @@ function parseMSProjectDuration(str) {
   const m = String(str).match(/PT(\d+)H(\d+)M/);
   if (!m) return null;
   const hours = parseInt(m[1]) + parseInt(m[2]) / 60;
-  return hours > 0 ? Math.round((hours / 8) * 100) / 100 : null;
+  return hours > 0 ? Math.round((hours / 8) * 10000) / 10000 : null;
 }
 
 /**
@@ -80,7 +80,7 @@ function parseMSProjectXML(xmlText, projectName) {
 
     let charge = null;
     if (taskWork[uid] != null) {
-      charge = Math.round((taskWork[uid] / 8) * 100) / 100 || null;
+      charge = Math.round((taskWork[uid] / 8) * 10000) / 10000 || null;
     } else {
       charge = parseMSProjectDuration(getVal(el, 'Work') || getVal(el, 'Duration'));
     }

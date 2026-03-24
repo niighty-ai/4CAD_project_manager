@@ -53,6 +53,8 @@ function parseDate(s){
 function fmtD(d){if(!d)return'—';return`${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`;}
 function fmtShort(d){if(!d)return'—';return`${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}`;}
 function toInput(d){if(!d)return'';return`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;}
+function roundCharge(v){if(v==null)return null;const n=parseFloat(v);return isNaN(n)?null:Math.round(n*10000)/10000;}
+function fmtCharge(v){if(v==null)return'—';const n=parseFloat(v);return isNaN(n)?'—':(Math.round(n*100)/100).toString();}
 function diff(a,b){return Math.round((b-a)/86400000);}
 function escH(s){return String(s||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
 function getColor(p){
