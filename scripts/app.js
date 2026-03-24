@@ -83,7 +83,7 @@ document.addEventListener('keydown',e=>{
       if(proj && (proj.name.startsWith('Nouveau projet'))){
         const name = file.name.replace(/\.[^.]+$/,'').replace(/[_-]/g,' ');
         proj.name = name;
-        document.getElementById('activeProjectName').textContent = name;
+        // activeProjectName removed from header
         savePortfolio();
         renderNavList();
       }

@@ -195,23 +195,23 @@ window._fbOnValue = (cb)   => onValue(_fbRef, snap => cb(snap.val()));</script>
   <div class="app-content">
     <main>
       <div class="section-title">Diagramme de Gantt</div>
-      <input type="file" id="fileInput" accept=".xlsx,.xls,.csv,.xml">
-      <div class="gantt-card">
-        <div class="gantt-toolbar" id="ganttToolbar">
-          <button class="btn-ghost" id="btnJour" onclick="setView('jour')">Jour</button>
-          <button class="btn-ghost active" id="btnSemaine" onclick="setView('semaine')">Semaine</button>
-          <button class="btn-ghost" id="btnMois" onclick="setView('mois')">Mois</button>
-          <div class="sep"></div>
-          <div class="zoom-bar">
-            <button onclick="changeZoom(-1)">−</button>
-            <span id="zoomLevel">6</span><span style="font-size:8px;color:var(--muted);" id="zoomUnit">px/j</span>
-            <button onclick="changeZoom(1)">+</button>
-          </div>
-          <div class="sep"></div>
-          <label for="fileInput" style="cursor:pointer;padding:6px 12px;border:1px solid var(--border);border-radius:4px;font-size:12px;font-weight:600;background:var(--surface2);display:inline-flex;align-items:center;color:var(--text);">📂 Importer</label>
-          <button class="btn-ghost" onclick="downloadModele()" title="Télécharger le modèle Excel d'import">📋 Modèle</button>
-          <button class="btn-ghost" onclick="exportPPTX()" style="color:var(--accent);border-color:var(--accent);">📌 PPTX</button>
+      <div class="gantt-toolbar" id="ganttToolbar">
+        <button class="btn-ghost" id="btnJour" onclick="setView('jour')">Jour</button>
+        <button class="btn-ghost active" id="btnSemaine" onclick="setView('semaine')">Semaine</button>
+        <button class="btn-ghost" id="btnMois" onclick="setView('mois')">Mois</button>
+        <div class="sep"></div>
+        <div class="zoom-bar">
+          <button onclick="changeZoom(-1)">−</button>
+          <span id="zoomLevel">6</span><span style="font-size:8px;color:var(--muted);" id="zoomUnit">px/j</span>
+          <button onclick="changeZoom(1)">+</button>
         </div>
+        <div class="sep"></div>
+        <label for="fileInput" style="cursor:pointer;padding:6px 12px;border:1px solid var(--border);border-radius:4px;font-size:12px;font-weight:600;background:var(--surface2);display:inline-flex;align-items:center;color:var(--text);">📂 Importer</label>
+        <input type="file" id="fileInput" accept=".xlsx,.xls,.csv,.xml" style="display:none">
+        <button class="btn-ghost" onclick="downloadModele()" title="Télécharger le modèle Excel d'import">📋 Modèle</button>
+        <button class="btn-ghost" onclick="exportPPTX()" style="color:var(--accent);border-color:var(--accent);">📌 PPTX</button>
+      </div>
+      <div class="gantt-card">
         <div class="gantt-layout" id="ganttLayout"><div class="gantt-left" id="ganttLeftPanel" style="width:400px">
     <div class="gantt-left-header">
       <span class="lh-title lh-title-editable" onclick="startRenameLhTitle()" title="Cliquer pour renommer">ABERDEEN &amp; 4CAD</span>

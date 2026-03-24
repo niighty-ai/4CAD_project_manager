@@ -12,9 +12,7 @@
   display:flex;
   align-items:center;
   gap:6px;
-  padding:7px 12px;
-  border-bottom:2px solid var(--border);
-  background:var(--surface);
+  padding:8px 4px 8px 0;
   flex-wrap:wrap
 }
 

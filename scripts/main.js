@@ -1283,7 +1283,7 @@ renderAll = function(){ _ganttRenderAll(); saveCurrentProject(); };
       if(proj && (proj.name.startsWith('Nouveau projet'))){
         const name = file.name.replace(/\.[^.]+$/,'').replace(/[_-]/g,' ');
         proj.name = name;
-        document.getElementById('activeProjectName').textContent = name;
+        
         savePortfolio();
         renderNavList();
       }
@@ -1370,7 +1370,7 @@ function switchToProject(id){
   projectColors = {...proj.projectColors};
   collapsed = {...proj.collapsed};
   sortRows();
-  document.getElementById('activeProjectName').textContent = proj.name;
+  
   renderNavList();
   renderAll();
 }
@@ -1384,7 +1384,7 @@ function deleteProject(id, e){
   if(activeProjectId===id){
     activeProjectId = null;
     rows=[]; projectColors={}; collapsed={};
-    document.getElementById('activeProjectName').textContent = '—';
+    
     if(portfolio.length>0) switchToProject(portfolio[0].id);
     else renderAll();
   }
