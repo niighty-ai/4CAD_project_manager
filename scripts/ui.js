@@ -239,17 +239,12 @@ function _renderNavProject(p){
   const isActive = p.id===activeProjectId;
   const isChecked = selectedProjectIds.has(p.id);
   const taskCount = (p.rows||[]).filter(r=>r._type==='tache').length;
-  const savedColors = p.projectColors || {};
-  // Cherche la couleur Gantt du projet : d'abord dans ses propres projectColors,
-  // sinon dans l'état global courant (si c'est le projet actif), sinon fallback palette
-  const dot = savedColors[p.name] || (p.id===activeProjectId && projectColors[p.name]) || navColor(portfolio.indexOf(p));
   return `<div class="nav-item${isActive?' active':''}${isChecked?' checked':''}" id="navItem_${p.id}"
       draggable="true"
       ondragstart="navDragStart(event,'${p.id}')"
       ondragend="navDragEnd(event)"
       onclick="switchToProject('${p.id}')">
     <input type="checkbox" class="nav-item-check" ${isChecked?'checked':''} onclick="toggleProjectSelection('${p.id}',event)" title="Inclure dans la vue">
-    <div class="nav-item-dot" style="background:${dot};border-color:${dot}40"></div>
     <div style="flex:1;min-width:0;overflow:hidden">
       <div class="nav-item-name" title="${escH(p.name)}">${escH(p.name)}</div>
       <div class="nav-item-meta">${taskCount} tâche${taskCount!==1?'s':''}</div>
