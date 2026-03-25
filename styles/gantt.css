@@ -995,10 +995,11 @@
 /* ── Bouton affectation ressources ── */
 .affect-btn {
   flex-shrink: 0;
+  width: 34px;
   font-size: 10px;
   font-family: 'Courier New', monospace;
   font-weight: 700;
-  padding: 1px 5px;
+  padding: 1px 4px;
   border-radius: 3px;
   border: 1px solid var(--border);
   background: var(--surface2);
@@ -1008,6 +1009,8 @@
   white-space: nowrap;
   line-height: 1.4;
   display: none; /* révélé dans .row-actions au hover */
+  justify-content: center;
+  align-items: center;
 }
 .affect-btn.has-res {
   /* Quand ressources présentes : toujours visible (pas seulement au hover) */
@@ -1136,4 +1139,21 @@
   text-align: center;
   color: var(--muted);
   font-size: 12px;
+}
+
+/* Spacer dans l'en-tête pour aligner avec le bouton affectation */
+.ch-hdr-affect-spacer {
+  display: inline-flex;
+  width: 34px;
+  flex-shrink: 0;
+  border-left: 1px solid rgba(255,255,255,.1);
+}
+[data-theme="dark"] .ch-hdr-affect-spacer {
+  border-color: var(--border);
+}
+
+/* .gantt-col-headers hérite de .row-right pour l'alignement automatique */
+.gantt-col-headers.row-right {
+  background: transparent;
+  border-bottom: none;
 }

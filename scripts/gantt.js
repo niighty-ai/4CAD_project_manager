@@ -45,7 +45,6 @@ function buildGanttLeftWithEdit(visible, showDates, labelW){
   return`<div class="gantt-left${hasTracking?' has-tracking':''}" id="ganttLeftPanel" style="width:${labelW}px">
     <div class="gantt-left-header">
       <span class="lh-title">Projet / Groupe / Tâche</span>
-      <button class="toggle-dates-btn${showDates?'':' hidden-dates'}" id="toggleDatesBtn" onclick="toggleDates()">${showDates?'Masquer dates':'Afficher dates'}</button>
     </div>
     ${rows_html}
     <div style="display:flex;border-top:1px solid var(--border)">
@@ -192,8 +191,11 @@ function renderGantt(){
 
   /* ── En-têtes colonnes ── */
   function headerCols() {
-    if (!hasTracking) return `<span class="ch-col ch-hdr ch-prev">Chg</span><span class="ch-col ch-dates ch-hdr">Début → Fin</span>`;
-    return `<span class="ch-col ch-hdr ch-prev">Prév.</span>` +
+    // Spacer pour le bouton affectation (toujours présent pour alignement)
+    const affectSpacer = `<span class="ch-hdr-affect-spacer"></span>`;
+    if (!hasTracking) return affectSpacer + `<span class="ch-col ch-hdr ch-prev">Chg</span><span class="ch-col ch-dates ch-hdr">Début → Fin</span>`;
+    return affectSpacer +
+           `<span class="ch-col ch-hdr ch-prev">Prév.</span>` +
            `<span class="ch-col ch-hdr ch-pass">Pass.</span>` +
            `<span class="ch-col ch-hdr ch-rest">Rest.</span>` +
            `<span class="ch-col ch-dates ch-hdr">Début → Fin</span>`;
@@ -201,7 +203,6 @@ function renderGantt(){
 
   /* ── Colonne dates ── */
   function datecol(r) {
-    if (!showDates) return '';
     if (r._type === 'jalon') return `<span class="ch-col ch-dates">${fmtShort(r.date)}</span>`;
     return `<span class="ch-col ch-dates">${fmtShort(r.debut)}<span class="d-sep">→</span>${fmtShort(r.fin)}</span>`;
   }
@@ -303,10 +304,13 @@ function renderGantt(){
   const leftHTML=`<div class="gantt-left${hasTracking?' has-tracking':''}" id="ganttLeftPanel" style="width:${labelW}px">
     <div class="gantt-left-header">
       <span class="lh-title lh-title-editable" onclick="startRenameLhTitle()" title="Cliquer pour renommer">${lhTitle}</span>
-      <div class="gantt-col-headers">
-        <div class="ch-hdr-right">${headerCols()}</div>
+      <div class="row-right gantt-col-headers">
+        ${headerCols()}
+        <div class="row-actions" style="display:flex;opacity:0;pointer-events:none">
+          <button class="row-add-btn">+</button>
+          <button class="row-del-btn">🗑</button>
+        </div>
       </div>
-      <button class="toggle-dates-btn${showDates?'':' hidden-dates'}" id="toggleDatesBtn" onclick="toggleDates()">${showDates?'Masquer dates':'Afficher dates'}</button>
     </div>
     ${leftRows}
     <div style="display:flex;border-top:1px solid var(--border)">
