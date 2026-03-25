@@ -804,7 +804,23 @@ function saveEditPanel(){
     closeEditPanel();
     return;
   } else {
-    newRow={_type:'tache',projet:p,niveaux,tache:t||null,debut:parseDate(d),fin:parseDate(f),charge:c!==''?roundCharge(parseFloat(c.replace(',','.'))):null,_srcPid:activeProjectId};
+    /* Préserve les champs de suivi (assignments, chargePassee, chargeRestante) si on édite */
+    const _existingRow = (epMode==='edit' && epEditingIdx!==null) ? rows[epEditingIdx] : null;
+    const _newCharge = c!==''?roundCharge(parseFloat(c.replace(',','.'))):null;
+    const _assignments = _existingRow?.assignments || [];
+    /* Si des assignments existent, la charge = leur somme sauf si saisie manuelle */
+    const _chargeFromAssign = _assignments.length > 0
+      ? Math.round(_assignments.reduce((s,a)=>s+(a.charge||0),0)*10000)/10000 || null
+      : null;
+    newRow={
+      _type:'tache', projet:p, niveaux, tache:t||null,
+      debut:parseDate(d), fin:parseDate(f),
+      charge: _chargeFromAssign !== null ? _chargeFromAssign : _newCharge,
+      chargePassee:   _existingRow?.chargePassee   ?? null,
+      chargeRestante: _existingRow?.chargeRestante ?? null,
+      assignments:    _assignments,
+      _srcPid: activeProjectId
+    };
   }
   if(epMode==='edit'&&epEditingIdx!==null) rows[epEditingIdx]=newRow;
   else rows.push(newRow);

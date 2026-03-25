@@ -303,11 +303,10 @@ function renderGantt(){
   const leftHTML=`<div class="gantt-left${hasTracking?' has-tracking':''}" id="ganttLeftPanel" style="width:${labelW}px">
     <div class="gantt-left-header">
       <span class="lh-title lh-title-editable" onclick="startRenameLhTitle()" title="Cliquer pour renommer">${lhTitle}</span>
+      <div class="gantt-col-headers">
+        <div class="ch-hdr-right">${headerCols()}</div>
+      </div>
       <button class="toggle-dates-btn${showDates?'':' hidden-dates'}" id="toggleDatesBtn" onclick="toggleDates()">${showDates?'Masquer dates':'Afficher dates'}</button>
-    </div>
-    <div class="gantt-col-headers">
-      <span class="ch-hdr-label">Tâche</span>
-      <div class="ch-hdr-right">${headerCols()}</div>
     </div>
     ${leftRows}
     <div style="display:flex;border-top:1px solid var(--border)">
