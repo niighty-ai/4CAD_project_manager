@@ -885,17 +885,14 @@
 }
 /* Largeur minimale des lignes = slot + charges + dates */
 .gantt-left-row,
-.gantt-col-headers {
-  min-width: 320px;
-}
 
-/* Application à TOUTES les lignes et à l'en-tête */
-.gantt-left-row,
-.gantt-col-headers {
+/* Application à TOUTES les lignes : CSS Grid avec colonnes fixes ── */
+.gantt-left-row {
   display: grid !important;
   grid-template-columns: var(--gl-tpl);
   align-items: center;
   gap: 0;
+  position: relative;
 }
 
 /* ── Cellule label (colonne 1) ── */
@@ -984,6 +981,30 @@
 .row-actions-ghost { display: none; }
 
 /* ── En-tête colonnes ── */
+
+/* ── En-têtes colonnes — intégrés dans gantt-left-header ── */
+.gantt-col-headers {
+  display: flex;
+  align-items: stretch;
+  flex-shrink: 0;
+  margin-left: auto;
+  height: 100%;
+}
+.ch-col.ch-hdr {
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  opacity: 0.75;
+  color: #fff;
+  background: transparent;
+  border-left-color: rgba(255,255,255,.2);
+}
+[data-theme="dark"] .ch-col.ch-hdr {
+  color: var(--muted);
+  border-left-color: var(--border);
+}
+
 .ch-hdr-label {
   font-size: 8px;
   font-weight: 700;
@@ -993,12 +1014,6 @@
   padding: 0 6px;
   white-space: nowrap;
   overflow: hidden;
-}
-.gantt-col-headers {
-  height: 18px;
-  background: var(--surface2);
-  border-bottom: 2px solid var(--border);
-  border-top: 1px solid var(--border);
 }
 .ch-col.ch-hdr {
   font-size: 8px;
