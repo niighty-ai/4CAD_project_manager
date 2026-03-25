@@ -112,3 +112,76 @@ let _lastSaveTs = 0;
 let jpEditingIdx = null;
 let selectedProjectIds = new Set();  // IDs des projets cochés (affichés dans le Gantt)
 let multiViewMode = false;           // true quand >1 projet sélectionné
+
+/* ══════════════════════════════════════════════════════════
+   MODÈLE DE DONNÉES — RESSOURCES & AFFECTATIONS
+   ══════════════════════════════════════════════════════════
+
+   Chaque tâche (_type==='tache') peut porter :
+   ┌─ charge         {number|null}  charge totale prévue (j)  — existant
+   ├─ chargePassee   {number|null}  charge déjà consommée (j) — NOUVEAU
+   ├─ chargeRestante {number|null}  charge restante (j)       — NOUVEAU
+   └─ assignments    {Array}        liste des affectations     — NOUVEAU
+        └─ {
+             resourceId     {string}       id interne ressource dans l'appli
+             resourceNom    {string}       nom affiché "Prénom NOM"
+             charge         {number|null}  charge prévue pour cette ressource (j)
+             chargePassee   {number|null}  charge passée pour cette ressource (j)
+             chargeRestante {number|null}  charge restante pour cette ressource (j)
+           }
+
+   Note : chargePassee / chargeRestante peuvent être null si non renseignées
+          (tâche créée manuellement sans import XML).
+          La charge totale = somme des assignments si ceux-ci existent,
+          sinon le champ charge direct.
+   ══════════════════════════════════════════════════════════ */
+
+/* Clé de collapse pour le détail ressources d'une tâche (par index de ligne) */
+function collapseResKey(rowIdx) {
+  return 'RES:' + rowIdx;
+}
+
+/* État global des panneaux détail-ressources dépliés */
+let collapsedRes = {};
+
+/* Base de conversion heures → jours */
+const HEURES_PAR_JOUR = 8;
+
+/**
+ * Parse une durée ISO PT MS Project en jours (base HEURES_PAR_JOUR)
+ * Ex: "PT22H0M0S" → 2.75 ;  "PT29H31M0S" → 3.69
+ * @param {string} str
+ * @returns {number|null}
+ */
+function parsePTtoDays(str) {
+  if (!str) return null;
+  const m = String(str).match(/PT(\d+)H(\d+)M/);
+  if (!m) return null;
+  const hours = parseInt(m[1]) + parseInt(m[2]) / 60;
+  if (hours <= 0) return 0;
+  return Math.round((hours / HEURES_PAR_JOUR) * 10000) / 10000;
+}
+
+/**
+ * Parse un nom de ressource MS Project "Prénom NOM  - Profession"
+ * Règle : les mots entièrement en MAJUSCULES (contigus à la fin) = nom de famille.
+ * @param {string} fullName
+ * @returns {{ prenom: string, nom: string, profession: string }}
+ */
+function parseResourceName(fullName) {
+  if (!fullName) return { prenom: '', nom: '', profession: '' };
+  const dashIdx = fullName.indexOf(' - ');
+  const namePart   = dashIdx >= 0 ? fullName.slice(0, dashIdx).trim() : fullName.trim();
+  const profession = dashIdx >= 0 ? fullName.slice(dashIdx + 3).trim() : '';
+
+  const parts = namePart.split(/\s+/).filter(Boolean);
+  // Remonte depuis la fin tant que les mots sont tout-majuscules → nom de famille
+  let nomIdx = parts.length;
+  while (nomIdx > 1 && parts[nomIdx - 1] === parts[nomIdx - 1].toUpperCase()
+                     && /[A-ZÀÂÆÇÉÈÊËÎÏÔŒÙÛÜŸ]/.test(parts[nomIdx - 1])) {
+    nomIdx--;
+  }
+  const prenom = parts.slice(0, nomIdx).join(' ');
+  const nom    = parts.slice(nomIdx).join(' ');
+  return { prenom, nom, profession };
+}

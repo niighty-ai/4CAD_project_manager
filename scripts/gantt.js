@@ -77,6 +77,7 @@ function changeZoom(d){
   renderGantt();
 }
 function toggleCollapse(key){collapsed[key]=!collapsed[key];renderGantt();}
+function toggleResCollapse(key){collapsedRes[key]=!collapsedRes[key];renderGantt();}
 function initDrag(el){
   let down=false,startX,sl;
   el.addEventListener('mousedown',e=>{if(e.target.closest('.gantt-bar,.toggle-btn'))return;down=true;startX=e.pageX-el.offsetLeft;sl=el.scrollLeft;el.style.cursor='grabbing';});
@@ -118,12 +119,58 @@ function renderGantt(){
     const open=!collapsed[key];
     return`<span class="toggle-btn" data-ckey="${escH(key)}" onclick="event.stopPropagation();toggleCollapse(this.dataset.ckey)">${open?'▾':'▸'}</span>`;
   }
+  /* ── helpers colonnes charge ── */
+  function chargeBadge(val, cls) {
+    cls = cls || 'row-charge';
+    return val != null ? '<span class="' + cls + '">' + fmtCharge(val) + 'j</span>'
+                       : '<span class="' + cls + ' row-charge-empty">—</span>';
+  }
+  function chargesCols(r) {
+    var hasTracking = r.chargePassee != null || r.chargeRestante != null ||
+                      (r.assignments && r.assignments.length > 0);
+    if (!hasTracking) {
+      return r.charge != null ? '<span class="row-charge">' + fmtCharge(r.charge) + 'j</span>' : '';
+    }
+    return '<span class="row-charge-group">' +
+      chargeBadge(r.charge, 'row-charge') +
+      chargeBadge(r.chargePassee, 'row-charge row-charge-passee') +
+      chargeBadge(r.chargeRestante, 'row-charge row-charge-restante') +
+      '</span>';
+  }
+  function resDetailRows(r, realIdx, indent) {
+    var asgns = r.assignments;
+    if (!asgns || !asgns.length) return '';
+    var resKey = collapseResKey(realIdx);
+    if (collapsedRes[resKey]) return '';
+    return asgns.map(function(a) {
+      return '<div class="gantt-left-row is-res-detail" style="padding-left:' + (indent + 18) + 'px">' +
+        '<span class="res-detail-icon">👤</span>' +
+        '<span class="row-label res-detail-name">' + escH(a.resourceNom || '?') + '</span>' +
+        '<span class="row-charge-group">' +
+          chargeBadge(a.charge, 'row-charge row-charge-sm') +
+          chargeBadge(a.chargePassee, 'row-charge row-charge-passee row-charge-sm') +
+          chargeBadge(a.chargeRestante, 'row-charge row-charge-restante row-charge-sm') +
+        '</span>' +
+        '</div>';
+    }).join('');
+  }
+  function resToggleBtn(r, realIdx) {
+    var asgns = r.assignments;
+    if (!asgns || !asgns.length) return '';
+    var resKey = collapseResKey(realIdx);
+    var isOpen = !collapsedRes[resKey];
+    var count = asgns.length;
+    return '<span class="res-toggle-btn" title="' + (isOpen ? 'Replier' : 'Déplier') + ' les ressources (' + count + ')"' +
+      ' data-reskey="' + escH(resKey) + '"' +
+      ' onclick="event.stopPropagation();toggleResCollapse(this.dataset.reskey)">' +
+      (isOpen ? '👥' : '👥<sup>' + count + '</sup>') + '</span>';
+  }
+
   const leftRows=visible.map(r=>{
     const c=getColor(r.projet);
     const datesHtml=`<span class="row-dates${showDates?'':' hidden'}">
       <span>${fmtShort(r.debut)}</span><span class="d-sep">→</span><span>${fmtShort(r.fin)}</span>
     </span>`;
-    const chargeHtml=r.charge!==null?`<span class="row-charge">${fmtCharge(r.charge)}j</span>`:'';
     const realIdx=rows.indexOf(r);
     const clickAttr=`onclick="openEditPanel(${realIdx>=0?realIdx:'null'})"`;
     const niv=r.niveaux||[];
@@ -134,7 +181,7 @@ function renderGantt(){
         <span class="toggle-btn" data-ckey="${escH(key)}" onclick="event.stopPropagation();toggleCollapse(this.dataset.ckey)">${!collapsed[key]?'▾':'▸'}</span>
         <span style="color:${c};font-size:9px;flex-shrink:0">■</span>
         <span class="row-label" style="color:${c}">${escH(r.projet)}</span>
-        ${chargeHtml}${datesHtml}
+        ${chargesCols(r)}${datesHtml}
         <button class="row-add-btn" onclick="event.stopPropagation();openAddAfter(${realIdx>=0?realIdx:'null'},event)" title="Ajouter une tâche dans ce projet">+</button>
         <button class="row-del-btn" onclick="event.stopPropagation();deleteGanttProjet(event,this.dataset.proj)" data-proj="${escH(r.projet)}" title="Supprimer ce projet">&#128465;</button>
       </div>`;
@@ -155,7 +202,7 @@ function renderGantt(){
         <span class="toggle-btn" data-ckey="${escH(key)}" onclick="event.stopPropagation();toggleCollapse(this.dataset.ckey)">${!collapsed[key]?'▾':'▸'}</span>
         <span style="color:${col};font-size:${9-depth}px;flex-shrink:0">${icon}</span>
         <span class="row-label" style="color:${col};font-weight:${depth===1?700:600}">${escH(nomGroupe)}</span>
-        ${chargeHtml}${datesHtml}
+        ${chargesCols(r)}${datesHtml}
         <button class="row-add-btn" onclick="event.stopPropagation();openAddAfter(${realIdx>=0?realIdx:'null'},event)" title="Ajouter ici">+</button>
         <button class="row-del-btn" onclick="event.stopPropagation();deleteGanttGroupe(event,this.dataset.proj,'${niveauxJson}')" data-proj="${escH(r.projet)}" title="Supprimer ce groupe">&#128465;</button>
       </div>`;
@@ -171,22 +218,37 @@ function renderGantt(){
         <button class="row-del-btn" onclick="event.stopPropagation();deleteJalonDirect(${realIdx})" title="Supprimer ce jalon">&#128465;</button>
       </div>`;
     }
+    /* tâche */
     const depth=niv.length;
     const indent=depth>0?(depth*14+6):6;
+    const resToggle=resToggleBtn(r,realIdx);
+    const resRows=resDetailRows(r,realIdx,indent);
     return`<div class="gantt-left-row is-tache" ${clickAttr}>
       <span style="width:${indent}px;flex-shrink:0"></span>
       <span style="color:var(--muted);font-size:8px;flex-shrink:0">↳</span>
       <span class="row-label">${escH(r.tache||'—')}</span>
-      ${chargeHtml}${datesHtml}
+      ${resToggle}
+      ${chargesCols(r)}${datesHtml}
       <button class="row-add-btn" onclick="openAddAfter(${realIdx>=0?realIdx:'null'},event)" title="Ajouter une tâche ici">+</button>
       <button class="row-del-btn" onclick="event.stopPropagation();deleteGanttTache(event,this.dataset.idx)" data-idx="${realIdx}" title="Supprimer cette tâche">&#128465;</button>
-    </div>`;
+    </div>${resRows}`;
   }).join('');
-  const activeProj = portfolio.find(p=>p.id===activeProjectId);
+  const activeProj = portfolio.find  const activeProj = portfolio.find(p=>p.id===activeProjectId);
   const lhTitle = activeProj ? escH(activeProj.name) : 'Projet / Groupe / Tache';
+  /* Détermine si des tâches visibles ont des données de suivi → affiche les en-têtes de colonnes */
+  const hasTracking = visible.some(r => r._type==='tache' &&
+    (r.chargePassee != null || r.chargeRestante != null || (r.assignments && r.assignments.length)));
+  const chargeHeaders = hasTracking
+    ? `<div class="gantt-charge-headers">
+        <span class="gantt-charge-hdr gantt-charge-hdr-prev" title="Charge prévue">Prév.</span>
+        <span class="gantt-charge-hdr gantt-charge-hdr-pass" title="Charge passée">Pass.</span>
+        <span class="gantt-charge-hdr gantt-charge-hdr-rest" title="Charge restante">Rest.</span>
+      </div>`
+    : '';
   const leftHTML=`<div class="gantt-left" id="ganttLeftPanel" style="width:${labelW}px">
     <div class="gantt-left-header">
       <span class="lh-title lh-title-editable" onclick="startRenameLhTitle()" title="Cliquer pour renommer">${lhTitle}</span>
+      ${chargeHeaders}
       <button class="toggle-dates-btn${showDates?'':' hidden-dates'}" id="toggleDatesBtn" onclick="toggleDates()">${showDates?'Masquer dates':'Afficher dates'}</button>
     </div>
     ${leftRows}

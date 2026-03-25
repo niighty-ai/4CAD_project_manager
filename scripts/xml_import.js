@@ -2,33 +2,13 @@
    xml_import.js — Import MS Project XML (.xml)
    ═══════════════════════════════════════════ */
 
-/**
- * Parse une durée ISO PT de MS Project en jours (base 8h/j)
- * Ex: "PT36H0M0S" → 4.5
- */
-function parseMSProjectDuration(str) {
-  if (!str) return null;
-  const m = String(str).match(/PT(\d+)H(\d+)M/);
-  if (!m) return null;
-  const hours = parseInt(m[1]) + parseInt(m[2]) / 60;
-  return hours > 0 ? Math.round((hours / 8) * 10000) / 10000 : null;
-}
+/* ──────────────────────────────────────────────────────────
+   parseMSProjectXML
+   Retourne { rows, jalons, importedResources }
 
-/**
- * Parse un fichier XML MS Project et retourne { rows, jalons }
- *
- * ⚠️  OutlineLevel est parfois incohérent dans les exports MS Project.
- *     On utilise OutlineNumber ("2.1.3") comme source de vérité pour
- *     calculer la vraie profondeur et reconstruire la hiérarchie.
- *
- * Correspondance hiérarchie :
- *   OutlineNumber depth 1  Summary  → groupe racine (Niveau 1)
- *   OutlineNumber depth 1 !Summary  → tâche sans groupe
- *   OutlineNumber depth 2  Summary  → Niveau 2
- *   OutlineNumber depth 2 !Summary  → tâche dans Niveau 1
- *   OutlineNumber depth N  Summary  → Niveau N
- *   OutlineNumber depth N !Summary  → tâche dans Niveau N-1
- */
+   importedResources : ressources créées/fusionnées dans l'appli
+   (pour log/notification)
+   ────────────────────────────────────────────────────────── */
 function parseMSProjectXML(xmlText, projectName) {
   const parser = new DOMParser();
   const doc = parser.parseFromString(xmlText, 'application/xml');
@@ -37,6 +17,7 @@ function parseMSProjectXML(xmlText, projectName) {
   if (parseError) throw new Error('XML invalide : ' + parseError.textContent.slice(0, 120));
 
   const ns = 'http://schemas.microsoft.com/project';
+
   function getVal(el, tag) {
     return (el.getElementsByTagNameNS(ns, tag)[0] || el.getElementsByTagName(tag)[0])
       ?.textContent?.trim() ?? null;
@@ -46,19 +27,87 @@ function parseMSProjectXML(xmlText, projectName) {
     return r.length ? Array.from(r) : Array.from(doc.getElementsByTagName(tag));
   }
 
-  // ── Assignments : map taskUID → heures totales Work ─────────────────────
-  const taskWork = {};
-  for (const a of getAll('Assignment')) {
-    const taskUID = getVal(a, 'TaskUID');
-    const workStr = getVal(a, 'Work');
-    if (!taskUID || !workStr) continue;
-    const m = workStr.match(/PT(\d+)H(\d+)M/);
-    if (!m) continue;
-    taskWork[taskUID] = (taskWork[taskUID] || 0) + parseInt(m[1]) + parseInt(m[2]) / 60;
+  /* ── 1. Ressources XML → ressources appli ──────────────────
+     Format XML : <n>Prénom NOM  - Profession</n>
+     On crée ou fusionne dans resources[] (global, défini dans resources.js)
+     Clé de fusion : nom complet normalisé (sans espaces doubles, casse normalisée)
+     Retourne une map { xmlResourceUID → resourceId (appli) }
+  ─────────────────────────────────────────────────────────── */
+  const uidToAppId = {};   // xmlUID → id interne appli
+  const importedResources = [];
+
+  for (const el of getAll('Resource')) {
+    const uid      = getVal(el, 'UID');
+    const fullName = getVal(el, 'Name') || getVal(el, 'n') || '';
+    const type     = getVal(el, 'Type');
+
+    // On ignore la ressource "vide" (UID=0) et les ressources matérielles (Type=0)
+    if (!uid || uid === '0' || type === '0' || !fullName) continue;
+
+    const { prenom, nom, profession } = parseResourceName(fullName);
+
+    // Clé de déduplication : Prénom NOM en minuscules normalisé
+    const normalizedKey = (prenom + ' ' + nom).toLowerCase().replace(/\s+/g, ' ').trim();
+
+    // Cherche une correspondance exacte dans resources[] existantes
+    let existing = null;
+    if (typeof resources !== 'undefined' && resources.length) {
+      existing = resources.find(r => {
+        const rKey = ((r.prenom || '') + ' ' + (r.nom || '')).toLowerCase().replace(/\s+/g, ' ').trim();
+        return rKey === normalizedKey;
+      });
+    }
+
+    if (existing) {
+      // Fusion : on met à jour la profession si elle était vide
+      if (!existing.profession && profession) {
+        existing.profession = profession;
+      }
+      uidToAppId[uid] = existing.id;
+    } else {
+      // Création d'une nouvelle ressource
+      const newId = genResId();
+      const newRes = { id: newId, nom, prenom, profession };
+      if (typeof resources !== 'undefined') {
+        resources.push(newRes);
+      }
+      uidToAppId[uid] = newId;
+      importedResources.push(newRes);
+    }
   }
 
-  // ── Parse des tâches ────────────────────────────────────────────────────
+  // Persiste les ressources si elles ont changé
+  if (importedResources.length && typeof saveResources === 'function') {
+    saveResources();
+  }
+
+  /* ── 2. Assignments XML : map taskUID → [{resourceUID, work, actualWork, remainingWork}]
+  ─────────────────────────────────────────────────────────── */
+  const taskAssignments = {}; // taskUID → [{ resourceUID, work, actualWork, remainingWork }]
+
+  for (const a of getAll('Assignment')) {
+    const taskUID     = getVal(a, 'TaskUID');
+    const resourceUID = getVal(a, 'ResourceUID');
+    const workStr     = getVal(a, 'Work')          || 'PT0H0M0S';
+    const actualStr   = getVal(a, 'ActualWork')    || 'PT0H0M0S';
+    const remainStr   = getVal(a, 'RemainingWork') || 'PT0H0M0S';
+
+    if (!taskUID || !resourceUID || resourceUID === '0') continue;
+    // On ignore les assignments vers des ressources non mappées
+    if (!uidToAppId[resourceUID]) continue;
+
+    if (!taskAssignments[taskUID]) taskAssignments[taskUID] = [];
+    taskAssignments[taskUID].push({
+      resourceUID,
+      work:          parsePTtoDays(workStr),
+      actualWork:    parsePTtoDays(actualStr),
+      remainingWork: parsePTtoDays(remainStr),
+    });
+  }
+
+  /* ── 3. Parse des tâches ────────────────────────────────── */
   const tasks = [];
+
   for (const el of getAll('Task')) {
     const uid         = getVal(el, 'UID');
     const name        = getVal(el, 'Name') || getVal(el, 'n') || '';
@@ -71,43 +120,70 @@ function parseMSProjectXML(xmlText, projectName) {
 
     if (isNull || !name || !olStr) continue;
 
-    // Profondeur réelle = nb de segments dans OutlineNumber
     const depth = olStr.split('.').length;
-
     const mkDate = s => { if (!s) return null; const d = new Date(s); d.setHours(0,0,0,0); return d; };
     const start  = mkDate(startStr);
     const finish = mkDate(finishStr);
 
+    // Charge : on préfère les assignments s'ils existent, sinon Duration/Work de la tâche
     let charge = null;
-    if (taskWork[uid] != null) {
-      charge = Math.round((taskWork[uid] / 8) * 10000) / 10000 || null;
+    let chargePassee = null;
+    let chargeRestante = null;
+    let assignments = [];
+
+    const asgns = taskAssignments[uid];
+    if (asgns && asgns.length) {
+      // Somme toutes les ressources pour les totaux de la tâche
+      charge         = asgns.reduce((s, a) => s + (a.work          || 0), 0);
+      chargePassee   = asgns.reduce((s, a) => s + (a.actualWork    || 0), 0);
+      chargeRestante = asgns.reduce((s, a) => s + (a.remainingWork || 0), 0);
+
+      charge         = Math.round(charge         * 10000) / 10000 || null;
+      chargePassee   = Math.round(chargePassee   * 10000) / 10000 || null;
+      chargeRestante = Math.round(chargeRestante * 10000) / 10000 || null;
+
+      // Détail par ressource
+      assignments = asgns.map(a => {
+        const appId = uidToAppId[a.resourceUID];
+        const res   = typeof resources !== 'undefined'
+          ? resources.find(r => r.id === appId)
+          : null;
+        const resourceNom = res
+          ? [res.prenom, res.nom].filter(Boolean).join(' ')
+          : '?';
+        return {
+          resourceId:     appId,
+          resourceNom,
+          charge:         a.work          != null ? Math.round(a.work          * 10000) / 10000 : null,
+          chargePassee:   a.actualWork    != null ? Math.round(a.actualWork    * 10000) / 10000 : null,
+          chargeRestante: a.remainingWork != null ? Math.round(a.remainingWork * 10000) / 10000 : null,
+        };
+      });
     } else {
-      charge = parseMSProjectDuration(getVal(el, 'Work') || getVal(el, 'Duration'));
+      // Pas d'assignment : utilise Work ou Duration de la tâche
+      const workStr = getVal(el, 'Work') || getVal(el, 'Duration');
+      charge = parsePTtoDays(workStr);
     }
 
-    tasks.push({ uid, name, depth, isSummary, isMilestone, start, finish, charge });
+    tasks.push({ uid, name, depth, isSummary, isMilestone, start, finish,
+                 charge, chargePassee, chargeRestante, assignments });
   }
 
   if (!tasks.length) throw new Error('Aucune tâche trouvée dans ce fichier XML.');
 
-  // ── Reconstruction de la hiérarchie via pile de Summary ─────────────────
-  // nameStack[d] = nom du dernier nœud Summary rencontré à la profondeur d
+  /* ── 4. Reconstruction de la hiérarchie ────────────────── */
   const nameStack = {};
   const rows   = [];
   const jalons = [];
 
   for (const t of tasks) {
-    // Mise à jour de la pile : ce nœud occupe sa profondeur
     nameStack[t.depth] = t.name;
-    // On efface toutes les profondeurs enfants
     for (const k of Object.keys(nameStack)) {
       if (parseInt(k) > t.depth) delete nameStack[k];
     }
 
-    // Les Summary servent de repères dans la pile, pas de tâches
     if (t.isSummary) continue;
 
-    // ── Jalon ──
     if (t.isMilestone) {
       if (!t.start) continue;
       jalons.push({ _type: 'jalon', projet: projectName, nom: t.name, date: t.start, couleur: null });
@@ -116,32 +192,42 @@ function parseMSProjectXML(xmlText, projectName) {
 
     if (!t.start || !t.finish) continue;
 
-    // Niveaux = noms des Summary ancêtres (profondeurs 1 … depth-1)
     const niveaux = [];
     for (let d = 1; d < t.depth; d++) {
       if (nameStack[d]) niveaux.push(nameStack[d]);
     }
 
-    rows.push({ _type: 'tache', projet: projectName, niveaux, tache: t.name, debut: t.start, fin: t.finish, charge: t.charge });
+    rows.push({
+      _type: 'tache',
+      projet: projectName,
+      niveaux,
+      tache:          t.name,
+      debut:          t.start,
+      fin:            t.finish,
+      charge:         t.charge,
+      chargePassee:   t.chargePassee,
+      chargeRestante: t.chargeRestante,
+      assignments:    t.assignments,
+    });
   }
 
-  return { rows, jalons };
+  return { rows, jalons, importedResources };
 }
 
-/**
- * Point d'entrée : importe dans le projet ACTIF du portfolio.
- * Si aucun projet actif, crée un nouveau projet.
- */
+/* ──────────────────────────────────────────────────────────
+   handleXMLImport — point d'entrée (appelé par app.js)
+   ────────────────────────────────────────────────────────── */
 function handleXMLImport(file) {
   if (!file) return;
   const reader = new FileReader();
   reader.onload = ev => {
     try {
-      // Détermine le nom du projet actif (ou nom de fichier si aucun projet)
       const proj = activeProjectId ? portfolio.find(p => p.id === activeProjectId) : null;
-      const projectName = proj ? proj.name : file.name.replace(/\.[^.]+$/, '').replace(/[_-]/g, ' ');
+      const projectName = proj
+        ? proj.name
+        : file.name.replace(/\.[^.]+$/, '').replace(/[_-]/g, ' ');
 
-      const { rows: parsedRows, jalons: parsedJalons } =
+      const { rows: parsedRows, jalons: parsedJalons, importedResources } =
         parseMSProjectXML(ev.target.result, projectName);
 
       if (!parsedRows.length && !parsedJalons.length) {
@@ -150,14 +236,12 @@ function handleXMLImport(file) {
       }
 
       if (proj) {
-        // ── Injecte dans le projet actif ────────────────────────────────
         proj.rows   = [...(proj.rows   || []).filter(r => r._type !== 'jalon'), ...parsedRows];
-        proj.jalons = [...(proj.jalons || []),                                  ...parsedJalons];
+        proj.jalons = [...(proj.jalons || []), ...parsedJalons];
 
-        // Recharge l'état courant depuis le projet mis à jour
         rows = [
           ...proj.rows.map(r => ({...r})),
-          ...proj.jalons.map(r => ({...r}))
+          ...proj.jalons.map(r => ({...r})),
         ];
         sortRows();
         proj.rows   = rows.filter(r => r._type === 'tache').map(r => ({...r}));
@@ -166,7 +250,6 @@ function handleXMLImport(file) {
         renderNavList();
         renderAll();
       } else {
-        // ── Aucun projet actif : crée un nouveau ────────────────────────
         createNewProject(projectName, parsedRows, {}, '');
         const newProj = portfolio.find(p => p.id === activeProjectId);
         if (newProj) {
@@ -180,7 +263,11 @@ function handleXMLImport(file) {
         }
       }
 
-      console.log(`[XML Import] ${parsedRows.length} tâche(s), ${parsedJalons.length} jalon(s) importé(s) dans "${projectName}"`);
+      const resMsg = importedResources.length
+        ? ` | ${importedResources.length} ressource(s) créée(s) : ${importedResources.map(r => [r.prenom, r.nom].filter(Boolean).join(' ')).join(', ')}`
+        : '';
+      console.log(`[XML Import] ${parsedRows.length} tâche(s), ${parsedJalons.length} jalon(s) importé(s) dans "${projectName}"${resMsg}`);
+
     } catch (err) {
       alert('Erreur import XML :\n' + err.message);
       console.error(err);

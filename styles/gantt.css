@@ -8,21 +8,6 @@
   box-shadow:0 1px 4px var(--shadow)
 }
 
-.gantt-topbar {
-  display:flex;
-  align-items:center;
-  justify-content:space-between;
-  margin-bottom:8px;
-  gap:12px
-}
-
-.gantt-toolbar {
-  display:flex;
-  align-items:center;
-  gap:6px;
-  flex-wrap:wrap
-}
-
 .gantt-layout {
   display:flex;
   overflow:hidden
@@ -712,3 +697,142 @@
   color: var(--muted);
 }
 
+
+/* ══════════════════════════════════════════════════════════
+   COLONNES CHARGE : Prévue / Passée / Restante
+   ══════════════════════════════════════════════════════════ */
+
+/* Groupe de 3 badges sur la même ligne */
+.row-charge-group {
+  display: flex;
+  gap: 3px;
+  flex-shrink: 0;
+  align-items: center;
+}
+
+/* Badge charge vide (tiret) */
+.row-charge-empty {
+  opacity: 0.35;
+  font-style: italic;
+}
+
+/* Charge passée — bleu */
+.row-charge-passee {
+  background: rgba(114,182,236,.15) !important;
+  color: var(--blue) !important;
+}
+[data-theme="dark"] .row-charge-passee {
+  background: rgba(114,182,236,.12) !important;
+}
+
+/* Charge restante — vert */
+.row-charge-restante {
+  background: rgba(46,125,50,.12) !important;
+  color: var(--green) !important;
+}
+[data-theme="dark"] .row-charge-restante {
+  background: rgba(67,233,123,.10) !important;
+  color: var(--green) !important;
+}
+
+/* Badges plus petits pour les lignes détail ressource */
+.row-charge-sm {
+  font-size: 10px !important;
+  padding: 1px 4px !important;
+}
+
+/* En-têtes des colonnes de charge dans le header du panneau gauche */
+.gantt-charge-headers {
+  display: flex;
+  gap: 3px;
+  align-items: center;
+  flex-shrink: 0;
+  margin-left: auto;
+  margin-right: 6px;
+}
+
+.gantt-charge-hdr {
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: .5px;
+  text-transform: uppercase;
+  border-radius: 3px;
+  padding: 2px 5px;
+  white-space: nowrap;
+  font-family: 'Courier New', monospace;
+}
+
+.gantt-charge-hdr-prev {
+  background: rgba(236,114,6,.15);
+  color: var(--accent);
+}
+.gantt-charge-hdr-pass {
+  background: rgba(114,182,236,.15);
+  color: var(--blue);
+}
+.gantt-charge-hdr-rest {
+  background: rgba(46,125,50,.12);
+  color: var(--green);
+}
+
+/* ══════════════════════════════════════════════════════════
+   LIGNES DÉTAIL RESSOURCES (sous chaque tâche)
+   ══════════════════════════════════════════════════════════ */
+
+.gantt-left-row.is-res-detail {
+  height: 18px;
+  background: rgba(114,182,236,.04);
+  border-bottom: 1px dashed var(--border);
+  font-size: 10px;
+  font-family: Arial, sans-serif;
+  gap: 4px;
+  box-sizing: border-box;
+  cursor: default;
+}
+
+[data-theme="dark"] .gantt-left-row.is-res-detail {
+  background: rgba(114,182,236,.03);
+}
+
+.gantt-left-row.is-res-detail:hover {
+  background: rgba(114,182,236,.08) !important;
+}
+
+.res-detail-icon {
+  font-size: 9px;
+  flex-shrink: 0;
+  opacity: .7;
+}
+
+.res-detail-name {
+  font-size: 10px !important;
+  color: var(--muted) !important;
+  font-style: italic;
+}
+
+/* Bouton toggle ressources (icône 👥) sur la ligne tâche */
+.res-toggle-btn {
+  flex-shrink: 0;
+  font-size: 11px;
+  cursor: pointer;
+  padding: 1px 3px;
+  border-radius: 3px;
+  transition: background .12s;
+  user-select: none;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+}
+
+.res-toggle-btn:hover {
+  background: rgba(114,182,236,.18);
+}
+
+.res-toggle-btn sup {
+  font-size: 8px;
+  font-weight: 700;
+  color: var(--blue);
+  margin-left: 1px;
+  vertical-align: super;
+  font-family: Arial, sans-serif;
+}
