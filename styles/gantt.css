@@ -872,11 +872,21 @@
   --gl-slot:   32px;
   --gl-prev:   50px;
   --gl-dates:  88px;
-  --gl-act:    52px;
-  --gl-tpl:    1fr var(--gl-slot) var(--gl-prev) var(--gl-dates) var(--gl-act);
+  /* template sans col actions (actions = position:absolute sur label) */
+  --gl-tpl:    1fr var(--gl-slot) var(--gl-prev) var(--gl-dates);
 }
 .gantt-left.has-tracking {
-  --gl-tpl: 1fr var(--gl-slot) var(--gl-prev) 50px 50px var(--gl-dates) var(--gl-act);
+  --gl-tpl: 1fr var(--gl-slot) var(--gl-prev) 50px 50px var(--gl-dates);
+}
+/* Scroll horizontal si le panneau est trop étroit */
+.gantt-left {
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+/* Largeur minimale des lignes = slot + charges + dates */
+.gantt-left-row,
+.gantt-col-headers {
+  min-width: 320px;
 }
 
 /* Application à TOUTES les lignes et à l'en-tête */
@@ -957,23 +967,33 @@
   display: none;
   align-items: center;
   gap: 2px;
-  padding: 0 3px;
-  height: 100%;
-  justify-content: flex-end;
-  border-left: 1px solid var(--border);
+  padding: 0 4px;
+  /* Overlay absolu sur la cellule label — côté gauche */
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  background: linear-gradient(to right, var(--surface) 80%, transparent 100%);
+  z-index: 5;
+  pointer-events: auto;
 }
+.gantt-left-row { position: relative; }
 .gantt-left-row:hover .row-actions { display: flex; }
 
-/* Ghost pour l'en-tête */
-.row-actions-ghost {
-  display: flex;
-  visibility: hidden;
-  padding: 0 3px;
-  gap: 2px;
-  border-left: 1px solid transparent;
-}
+/* Ghost pour l'en-tête (invisible, prend 0 espace) */
+.row-actions-ghost { display: none; }
 
 /* ── En-tête colonnes ── */
+.ch-hdr-label {
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--muted);
+  padding: 0 6px;
+  white-space: nowrap;
+  overflow: hidden;
+}
 .gantt-col-headers {
   height: 18px;
   background: var(--surface2);

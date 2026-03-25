@@ -175,9 +175,8 @@ function renderGantt(){
         <span class="ch-col ch-slot"></span>
         ${chargeColsRes(a)}
         <span class="ch-col ch-dates ch-dates-empty"></span>
-        <div class="row-actions row-actions-ghost"></div>
       </div>`
-    ).join('');;
+    ).join('');
   }
 
   /* ── Bouton affectation sur chaque tâche ── */
@@ -192,8 +191,8 @@ function renderGantt(){
 
   /* ── En-têtes colonnes ── */
   function headerCols() {
-    if (!hasTracking) return `<span class="ch-col ch-hdr ch-slot"></span><span class="ch-col ch-hdr ch-prev">Prév.</span><span class="ch-col ch-dates ch-hdr">Début → Fin</span><div class="row-actions row-actions-ghost"></div>`;
-    return `<span class="ch-col ch-hdr ch-slot"></span><span class="ch-col ch-hdr ch-prev">Prév.</span><span class="ch-col ch-hdr ch-pass">Pass.</span><span class="ch-col ch-hdr ch-rest">Rest.</span><span class="ch-col ch-dates ch-hdr">Début → Fin</span><div class="row-actions row-actions-ghost"></div>`;
+    if (!hasTracking) return `<span class="ch-col ch-hdr ch-slot"></span><span class="ch-col ch-hdr ch-prev">Prév.</span><span class="ch-col ch-dates ch-hdr">Début → Fin</span>`;
+    return `<span class="ch-col ch-hdr ch-slot"></span><span class="ch-col ch-hdr ch-prev">Prév.</span><span class="ch-col ch-hdr ch-pass">Pass.</span><span class="ch-col ch-hdr ch-rest">Rest.</span><span class="ch-col ch-dates ch-hdr">Début → Fin</span>`;
   }
 
   /* ── Colonne dates ── */
@@ -294,6 +293,7 @@ function renderGantt(){
       <span class="lh-title lh-title-editable" onclick="startRenameLhTitle()" title="Cliquer pour renommer">${lhTitle}</span>
     </div>
     <div class="gantt-left-row gantt-col-headers">
+      <span class="ch-hdr-label">Nom</span>
       ${headerCols()}
     </div>
     ${leftRows}

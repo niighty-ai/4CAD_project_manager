@@ -13,7 +13,7 @@ let collapsed={};
 let editingIdx=null;
 let showDates=true;
 let showResources=false; // affiche les lignes ressources sous les tâches
-let labelW=400;
+let labelW=520;
 const PALETTE=['#6c63ff','#ff6584','#43e97b','#f7971e','#38b2f8','#ff9a3c','#a29bfe','#fd79a8','#00b894','#fdcb6e','#e17055','#74b9ff','#55efc4','#d63031','#6ab04c','#e84393','#0984e3','#b8e994','#f19066','#786fa6'];
 const MOIS=['Jan','Fév','Mar','Avr','Mai','Jun','Jul','Aoû','Sep','Oct','Nov','Déc'];
 function getJoursFeries(year){
