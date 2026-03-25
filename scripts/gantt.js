@@ -154,6 +154,10 @@ function renderGantt(){
 
   /* ── Colonnes charge sur une ligne ressource ── */
   function chargeColsRes(a) {
+    if (!hasTracking) {
+      return chCell(a.charge, 'ch-prev') +
+             '<span class="ch-col ch-dates ch-dates-empty"></span>';
+    }
     return chCell(a.charge, 'ch-prev') +
            chCell(a.chargePassee, 'ch-pass') +
            chCell(a.chargeRestante, 'ch-rest') +
