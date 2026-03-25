@@ -560,13 +560,18 @@ function migrateFirebaseData(data){
     rows: (p.rows||[]).filter(r=>r._type!=='jalon').map(r=>{
       const niveaux = r.niveaux ? r.niveaux : (r.groupe ? [r.groupe] : []);
       return {
+        // Préserve TOUS les champs (assignments, chargePassee, chargeRestante, etc.)
+        ...r,
         _type:  r._type  || 'tache',
         projet: r.projet || '',
         niveaux,
         tache:  r.tache  || null,
         debut:  r.debut  ? r.debut : null,
         fin:    r.fin    ? r.fin   : null,
-        charge: r.charge != null ? r.charge : null
+        charge: r.charge != null ? r.charge : null,
+        chargePassee:   r.chargePassee   ?? null,
+        chargeRestante: r.chargeRestante ?? null,
+        assignments:    Array.isArray(r.assignments) ? r.assignments : []
       };
     })
   })));
