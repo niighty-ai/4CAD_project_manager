@@ -154,9 +154,10 @@ function renderGantt(){
 
   /* ── Colonnes charge sur une ligne ressource ── */
   function chargeColsRes(a) {
-    return chCell(a.charge, 'ch-prev ch-sm') +
-           chCell(a.chargePassee, 'ch-pass ch-sm') +
-           chCell(a.chargeRestante, 'ch-rest ch-sm');
+    return chCell(a.charge, 'ch-prev') +
+           chCell(a.chargePassee, 'ch-pass') +
+           chCell(a.chargeRestante, 'ch-rest') +
+           '<span class="ch-col ch-dates ch-dates-empty"></span>';
   }
 
   /* ── Lignes détail ressources (panneau gauche) ── */
@@ -174,7 +175,6 @@ function renderGantt(){
         </span>
         <span class="ch-col ch-slot"></span>
         ${chargeColsRes(a)}
-        <span class="ch-col ch-dates ch-dates-empty"></span>
       </div>`
     ).join('');
   }
@@ -291,10 +291,7 @@ function renderGantt(){
   const leftHTML=`<div class="gantt-left${hasTracking?' has-tracking':''}" id="ganttLeftPanel" style="width:${labelW}px">
     <div class="gantt-left-header">
       <span class="lh-title lh-title-editable" onclick="startRenameLhTitle()" title="Cliquer pour renommer">${lhTitle}</span>
-    </div>
-    <div class="gantt-left-row gantt-col-headers">
-      <span class="ch-hdr-label">Nom</span>
-      ${headerCols()}
+      <div class="gantt-col-headers">${headerCols()}</div>
     </div>
     ${leftRows}
     <div style="display:flex;border-top:1px solid var(--border)">
