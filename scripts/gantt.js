@@ -168,11 +168,14 @@ function renderGantt(){
     const resKey = collapseResKey(realIdx);
     if (collapsedRes[resKey]) return '';
     return asgns.map(a =>
-      `<div class="gantt-left-row is-res-detail" style="--row-indent:${indent+14}px">
+      `<div class="gantt-left-row is-res-detail">
+        <span class="rd-indent" style="width:${indent+20}px;flex-shrink:0"></span>
         <span class="rd-icon">👤</span>
-        <span class="row-label rd-name">${escH(a.resourceNom||'?')}</span>
-        ${chargeColsRes(a)}
-        <span class="ch-col ch-dates ch-dates-empty"></span>
+        <span class="rd-name">${escH(a.resourceNom||'?')}</span>
+        <div class="row-right">
+          ${chargeColsRes(a)}
+          <span class="ch-col ch-dates ch-dates-empty"></span>
+        </div>
       </div>`
     ).join('');
   }
@@ -207,60 +210,91 @@ function renderGantt(){
     const c=getColor(r.projet);
     const realIdx=rows.indexOf(r);
     const niv=r.niveaux||[];
+
+    /* dates cell */
+    const dc = showDates
+      ? (r._type==='jalon'
+          ? `<span class="ch-col ch-dates">${fmtShort(r.date)}</span>`
+          : `<span class="ch-col ch-dates">${fmtShort(r.debut)}<span class="d-sep">→</span>${fmtShort(r.fin)}</span>`)
+      : '';
+
     if(r._type==='projet'){
       const key=collapseKey(r.projet,[]);
-      return`<div class="gantt-left-row is-projet" onclick="openEditPanel(${realIdx>=0?realIdx:'null'})">
-        <span class="row-indent"></span>
-        <span class="toggle-btn" data-ckey="${escH(key)}" onclick="event.stopPropagation();toggleCollapse(this.dataset.ckey)">${!collapsed[key]?'▾':'▸'}</span>
-        <span class="row-icon" style="color:${c}">■</span>
-        <span class="row-label" style="color:${c}">${escH(r.projet)}</span>
-        ${chargeCols(r)}${datecol(r)}
+      const acts=`<div class="row-actions">
         <button class="row-add-btn" onclick="event.stopPropagation();openAddAfter(${realIdx>=0?realIdx:'null'},event)" title="Ajouter">+</button>
         <button class="row-del-btn" onclick="event.stopPropagation();deleteGanttProjet(event,this.dataset.proj)" data-proj="${escH(r.projet)}" title="Supprimer">&#128465;</button>
+      </div>`;
+      return`<div class="gantt-left-row is-projet" onclick="openEditPanel(${realIdx>=0?realIdx:'null'})">
+        <span class="toggle-btn" data-ckey="${escH(key)}" onclick="event.stopPropagation();toggleCollapse(this.dataset.ckey)">${!collapsed[key]?'▾':'▸'}</span>
+        <span style="color:${c};font-size:9px;flex-shrink:0;margin-right:3px">■</span>
+        <span class="row-label" style="color:${c}">${escH(r.projet)}</span>
+        <div class="row-right">
+          ${chargeCols(r)}${dc}${acts}
+        </div>
       </div>`;
     }
     if(r._type==='groupe'){
       const depth=niv.length;
       const key=collapseKey(r.projet,niv);
+      const ind=(depth-1)*14;
       const col=lighten(c,Math.min(depth*10,40));
       const nomGroupe=niv[niv.length-1]||'—';
       const icons=['◆','◇','▸','·','–'];
       const icon=icons[Math.min(depth-1,icons.length-1)];
       const niveauxJson=JSON.stringify(niv).replace(/"/g,'&quot;');
-      return`<div class="gantt-left-row is-groupe is-groupe-depth-${depth}" onclick="openEditPanel(${realIdx>=0?realIdx:'null'})" style="--row-indent:${(depth-1)*14}px">
-        <span class="row-indent"></span>
-        <span class="toggle-btn" data-ckey="${escH(key)}" onclick="event.stopPropagation();toggleCollapse(this.dataset.ckey)">${!collapsed[key]?'▾':'▸'}</span>
-        <span class="row-icon" style="color:${col};font-size:${9-depth}px">${icon}</span>
-        <span class="row-label" style="color:${col};font-weight:${depth===1?700:600}">${escH(nomGroupe)}</span>
-        ${chargeCols(r)}${datecol(r)}
+      const acts=`<div class="row-actions">
         <button class="row-add-btn" onclick="event.stopPropagation();openAddAfter(${realIdx>=0?realIdx:'null'},event)" title="Ajouter">+</button>
         <button class="row-del-btn" onclick="event.stopPropagation();deleteGanttGroupe(event,this.dataset.proj,'${niveauxJson}')" data-proj="${escH(r.projet)}" title="Supprimer">&#128465;</button>
+      </div>`;
+      return`<div class="gantt-left-row is-groupe is-groupe-depth-${depth}" onclick="openEditPanel(${realIdx>=0?realIdx:'null'})">
+        <span style="width:${ind}px;flex-shrink:0"></span>
+        <span class="toggle-btn" data-ckey="${escH(key)}" onclick="event.stopPropagation();toggleCollapse(this.dataset.ckey)">${!collapsed[key]?'▾':'▸'}</span>
+        <span style="color:${col};font-size:${9-depth}px;flex-shrink:0;margin-right:3px">${icon}</span>
+        <span class="row-label" style="color:${col};font-weight:${depth===1?700:600}">${escH(nomGroupe)}</span>
+        <div class="row-right">
+          ${chargeCols(r)}${dc}${acts}
+        </div>
       </div>`;
     }
     if(r._type==='jalon'){
       const jColor=getColor(r.projet||rows.find(x=>x._type==='projet')?.projet||'')||'var(--accent)';
+      const acts=`<div class="row-actions">
+        <button class="row-del-btn" onclick="event.stopPropagation();deleteJalonDirect(${realIdx})" title="Supprimer">&#128465;</button>
+      </div>`;
       return`<div class="gantt-left-row is-jalon" onclick="openJalonPanel(${realIdx})">
-        <span class="row-indent"></span>
         <span class="jalon-diamond" style="background:${jColor}"></span>
         <span class="row-label" style="color:${jColor}">${escH(r.nom||'—')}</span>
-        <span class="ch-col ch-prev ch-empty">—</span>
-        ${hasTracking?'<span class="ch-col ch-pass ch-empty">—</span><span class="ch-col ch-rest ch-empty">—</span>':''}
-        ${datecol(r)}
-        <button class="row-del-btn" onclick="event.stopPropagation();deleteJalonDirect(${realIdx})" title="Supprimer">&#128465;</button>
+        <div class="row-right">
+          <span class="ch-col ch-prev ch-empty">—</span>
+          ${hasTracking?'<span class="ch-col ch-pass ch-empty">—</span><span class="ch-col ch-rest ch-empty">—</span>':''}
+          ${dc}${acts}
+        </div>
       </div>`;
     }
     /* ── tâche ── */
     const depth=niv.length;
     const indent=depth>0?(depth*14+6):6;
+    /* Bouton affectation : toujours visible si ressources présentes, sinon dans les actions hover */
+    const hasAsgn = (r.assignments||[]).length > 0;
+    const aCount  = (r.assignments||[]).length;
+    const aLabel  = hasAsgn ? aCount : '+';
+    const aTitle  = hasAsgn ? `${aCount} ressource(s) — gérer` : 'Affecter des ressources';
+    const aBtnCls = `affect-btn${hasAsgn?' has-res':''}`;
+    const aBtn    = `<button class="${aBtnCls}" title="${aTitle}" onclick="event.stopPropagation();openAffectPanel(${realIdx})">${aLabel}👤</button>`;
+    const acts    = `<div class="row-actions">
+        ${!hasAsgn ? aBtn : ''}
+        <button class="row-add-btn" onclick="openAddAfter(${realIdx>=0?realIdx:'null'},event)" title="Ajouter">+</button>
+        <button class="row-del-btn" onclick="event.stopPropagation();deleteGanttTache(event,this.dataset.idx)" data-idx="${realIdx}" title="Supprimer">&#128465;</button>
+      </div>`;
     const resRows = resDetailRows(r, realIdx, indent);
-    return`<div class="gantt-left-row is-tache" onclick="openEditPanel(${realIdx>=0?realIdx:'null'})" style="--row-indent:${indent}px">
-      <span class="row-indent"></span>
-      <span class="row-icon" style="color:var(--muted);font-size:8px">↳</span>
+    return`<div class="gantt-left-row is-tache" onclick="openEditPanel(${realIdx>=0?realIdx:'null'})">
+      <span style="width:${indent}px;flex-shrink:0"></span>
+      <span style="color:var(--muted);font-size:8px;flex-shrink:0;margin-right:2px">↳</span>
       <span class="row-label">${escH(r.tache||'—')}</span>
-      ${affectBtn(r,realIdx)}
-      ${chargeCols(r)}${datecol(r)}
-      <button class="row-add-btn" onclick="openAddAfter(${realIdx>=0?realIdx:'null'},event)" title="Ajouter">+</button>
-      <button class="row-del-btn" onclick="event.stopPropagation();deleteGanttTache(event,this.dataset.idx)" data-idx="${realIdx}" title="Supprimer">&#128465;</button>
+      <div class="row-right">
+        ${hasAsgn ? aBtn : ''}
+        ${chargeCols(r)}${dc}${acts}
+      </div>
     </div>${resRows}`;
   }).join('');
 
@@ -272,8 +306,8 @@ function renderGantt(){
       <button class="toggle-dates-btn${showDates?'':' hidden-dates'}" id="toggleDatesBtn" onclick="toggleDates()">${showDates?'Masquer dates':'Afficher dates'}</button>
     </div>
     <div class="gantt-col-headers">
-      <span class="ch-col-hdr-label">Tâche</span>
-      <span class="ch-col ch-hdr-group">${headerCols()}</span>
+      <span class="ch-hdr-label">Tâche</span>
+      <div class="ch-hdr-right">${headerCols()}</div>
     </div>
     ${leftRows}
     <div style="display:flex;border-top:1px solid var(--border)">

@@ -163,10 +163,6 @@
 
 .gantt-left-row {
   height:var(--row-h);
-  display:flex;
-  align-items:center;
-  padding:0 8px;
-  gap:4px;
   border-bottom:1px solid var(--border);
   font-size:11px;
   overflow:hidden;
@@ -526,11 +522,11 @@
 }
 
 .gantt-left-row:hover {
-  background:rgba(236,114,6,.06)!important
+  background:rgba(236,114,6,.04)!important
 }
 
 .row-add-btn {
-  display:none;
+  display:inline-flex;
   flex-shrink:0;
   width:18px;
   height:18px;
@@ -548,9 +544,7 @@
   font-family:Arial,sans-serif
 }
 
-.gantt-left-row:hover .row-add-btn {
-  display:inline-flex
-}
+/* row-add-btn shown via .row-actions */
 
 .row-add-btn:hover {
   background:var(--accent-dark);
@@ -558,7 +552,7 @@
 }
 
 .row-del-btn {
-  display:none;
+  display:inline-flex;
   flex-shrink:0;
   width:18px;
   height:18px;
@@ -577,9 +571,7 @@
   line-height:1
 }
 
-.gantt-left-row:hover .row-del-btn {
-  display:inline-flex
-}
+/* row-del-btn shown via .row-actions */
 
 .row-del-btn:hover {
   background:#922b21;
@@ -862,37 +854,29 @@
 }
 
 /* ══════════════════════════════════════════════════════════
-   COLONNES FIXES — PANNEAU GAUCHE (CSS Grid)
-   Layout : [indent] [icon] [label flex] [ch-prev] [ch-pass?] [ch-rest?] [ch-dates] [actions]
+   COLONNES FIXES — PANNEAU GAUCHE (Flexbox)
+   Approche : la ligne reste flex ; les colonnes de droite
+   sont groupées dans .row-right avec largeurs fixes.
+   Layout par ligne :
+     [indent+toggle+icon] [label flex:1] [.row-right fixe]
+   .row-right contient : [ch-prev] [ch-pass?] [ch-rest?] [ch-dates] [actions hover]
    ══════════════════════════════════════════════════════════ */
 
-/* Toutes les lignes du panneau gauche utilisent le même modèle de colonnes */
+/* Remet la ligne en flexbox propre (écrase les règles précédentes) */
 .gantt-left-row {
-  display: grid !important;
-  grid-template-columns: var(--row-indent, 0px) 14px 1fr 48px 95px auto;
+  display: flex !important;
   align-items: center;
   gap: 0;
-  padding: 0 4px 0 6px;
-}
-
-/* Avec données de suivi : 3 colonnes charges + dates */
-.gantt-left.has-tracking .gantt-left-row {
-  grid-template-columns: var(--row-indent, 0px) 14px 1fr 48px 48px 48px 95px auto;
-}
-
-/* Colonne indentation */
-.row-indent { display: block; width: var(--row-indent, 0px); min-width: 0; }
-
-/* Icône toggle / symbole */
-.row-icon { flex-shrink: 0; font-size: 9px; white-space: nowrap; }
-
-/* Label */
-.gantt-left-row .row-label {
+  padding: 0 0 0 6px;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  min-width: 0;
-  padding: 0 4px;
+}
+
+/* Groupe de droite : colonnes fixes alignées */
+.row-right {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  margin-left: auto;
 }
 
 /* ── Cellules charges ── */
@@ -907,73 +891,84 @@
   height: 100%;
   border-left: 1px solid var(--border);
   padding: 0 3px;
+  flex-shrink: 0;
 }
 
-.ch-prev {
-  color: var(--accent);
-  background: rgba(236,114,6,.06);
-}
-.ch-pass {
-  color: var(--blue);
-  background: rgba(114,182,236,.08);
-}
-.ch-rest {
-  color: var(--green);
-  background: rgba(46,125,50,.08);
-}
-[data-theme="dark"] .ch-rest {
-  background: rgba(67,233,123,.06);
-}
+.ch-prev { width: 48px; color: var(--accent);  background: rgba(236,114,6,.06); }
+.ch-pass { width: 48px; color: var(--blue);    background: rgba(114,182,236,.08); }
+.ch-rest { width: 48px; color: var(--green);   background: rgba(46,125,50,.08); }
+[data-theme="dark"] .ch-rest { background: rgba(67,233,123,.06); }
 
 .ch-dates {
+  width: 90px;
   font-size: 10px;
-  gap: 2px;
   color: var(--muted);
   padding: 0 5px;
   justify-content: center;
+  gap: 2px;
+  border-left: 1px solid var(--border);
+  flex-shrink: 0;
 }
+/* Quand dates masquées */
+.ch-dates.hidden { display: none; }
 
-.ch-empty {
-  opacity: 0.3;
-  font-style: italic;
-}
-.ch-dates-empty { opacity: 0; }
-
+.ch-empty { opacity: 0.3; font-style: italic; }
+.ch-dates-empty { visibility: hidden; }
 .ch-sm { font-size: 9px !important; }
 
-/* ── En-têtes colonnes ── */
+/* Actions (survolées) — dans .row-right, après les colonnes */
+.row-actions {
+  display: none;
+  align-items: center;
+  gap: 2px;
+  padding: 0 4px;
+  flex-shrink: 0;
+  background: var(--surface);
+  border-left: 1px solid var(--border);
+}
+.gantt-left-row:hover .row-actions { display: flex; }
+
+/* Remet les boutons en inline-flex dans row-actions */
+.row-actions .row-add-btn,
+.row-actions .row-del-btn,
+.row-actions .affect-btn {
+  display: inline-flex;
+}
+
+/* ── En-tête colonnes sous le header principal ── */
 .gantt-col-headers {
-  display: grid;
-  grid-template-columns: 1fr auto;
+  display: flex;
   align-items: center;
   height: 18px;
-  border-bottom: 1px solid var(--border);
+  border-bottom: 2px solid var(--border);
   background: var(--surface2);
-  padding: 0 4px 0 6px;
-  font-size: 8px;
-}
-.ch-col-hdr-label {
   font-size: 8px;
   font-weight: 700;
   letter-spacing: 0.5px;
   text-transform: uppercase;
-  color: var(--muted);
-  padding-left: 2px;
 }
-.ch-hdr-group { display: flex; }
+.ch-hdr-label {
+  flex: 1;
+  color: var(--muted);
+  padding-left: 8px;
+  min-width: 0;
+}
+.ch-hdr-right {
+  display: flex;
+  flex-shrink: 0;
+}
 .ch-col.ch-hdr {
   font-size: 8px;
-  letter-spacing: 0.5px;
-  text-transform: uppercase;
   opacity: 0.8;
 }
 
-/* ── Ligne ressource (sous une tâche) ── */
+/* ── Ligne ressource détail ── */
 .gantt-left-row.is-res-detail {
   height: 18px !important;
   background: rgba(114,182,236,.04);
   border-bottom: 1px dashed var(--border);
   cursor: default;
+  padding-left: 0;
 }
 [data-theme="dark"] .gantt-left-row.is-res-detail {
   background: rgba(114,182,236,.03);
@@ -981,8 +976,9 @@
 .gantt-left-row.is-res-detail:hover {
   background: rgba(114,182,236,.08) !important;
 }
-.rd-icon { font-size: 9px; opacity: .7; }
-.rd-name { font-size: 10px !important; color: var(--muted) !important; font-style: italic; }
+.rd-indent { flex-shrink: 0; }
+.rd-icon { font-size: 9px; opacity: .7; flex-shrink: 0; margin: 0 2px; }
+.rd-name { font-size: 10px !important; color: var(--muted) !important; font-style: italic; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* ── Ligne ressource côté droit (barre vide pour l'alignement) ── */
 .gantt-row.is-res-row {
@@ -1015,21 +1011,17 @@
   transition: all .12s;
   white-space: nowrap;
   line-height: 1.4;
-}
-.affect-btn:hover {
-  border-color: var(--accent);
-  color: var(--accent);
-  background: rgba(236,114,6,.08);
+  display: none; /* révélé dans .row-actions au hover */
 }
 .affect-btn.has-res {
+  /* Quand ressources présentes : toujours visible (pas seulement au hover) */
+  display: inline-flex !important;
   border-color: rgba(114,182,236,.5);
   color: var(--blue);
   background: rgba(114,182,236,.08);
 }
-.affect-btn.has-res:hover {
-  border-color: var(--blue);
-  background: rgba(114,182,236,.15);
-}
+.affect-btn:hover { border-color: var(--accent); color: var(--accent); background: rgba(236,114,6,.08); }
+.affect-btn.has-res:hover { border-color: var(--blue); background: rgba(114,182,236,.15); }
 
 /* ══════════════════════════════════════════════════════════
    PANNEAU D'AFFECTATION
