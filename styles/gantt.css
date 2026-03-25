@@ -8,6 +8,30 @@
   box-shadow:0 1px 4px var(--shadow)
 }
 
+
+/* ── Barre supérieure du Gantt (titre + toolbar sur la même ligne) ── */
+.gantt-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 4px 6px 0;
+  gap: 10px;
+  flex-wrap: nowrap;
+}
+
+.gantt-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  flex-shrink: 0;
+}
+
+.section-title {
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
 .gantt-layout {
   display:flex;
   overflow:hidden
@@ -835,4 +859,293 @@
   margin-left: 1px;
   vertical-align: super;
   font-family: Arial, sans-serif;
+}
+
+/* ══════════════════════════════════════════════════════════
+   COLONNES FIXES — PANNEAU GAUCHE (CSS Grid)
+   Layout : [indent] [icon] [label flex] [ch-prev] [ch-pass?] [ch-rest?] [ch-dates] [actions]
+   ══════════════════════════════════════════════════════════ */
+
+/* Toutes les lignes du panneau gauche utilisent le même modèle de colonnes */
+.gantt-left-row {
+  display: grid !important;
+  grid-template-columns: var(--row-indent, 0px) 14px 1fr 48px 95px auto;
+  align-items: center;
+  gap: 0;
+  padding: 0 4px 0 6px;
+}
+
+/* Avec données de suivi : 3 colonnes charges + dates */
+.gantt-left.has-tracking .gantt-left-row {
+  grid-template-columns: var(--row-indent, 0px) 14px 1fr 48px 48px 48px 95px auto;
+}
+
+/* Colonne indentation */
+.row-indent { display: block; width: var(--row-indent, 0px); min-width: 0; }
+
+/* Icône toggle / symbole */
+.row-icon { flex-shrink: 0; font-size: 9px; white-space: nowrap; }
+
+/* Label */
+.gantt-left-row .row-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+  padding: 0 4px;
+}
+
+/* ── Cellules charges ── */
+.ch-col {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-family: 'Courier New', monospace;
+  font-weight: 700;
+  white-space: nowrap;
+  height: 100%;
+  border-left: 1px solid var(--border);
+  padding: 0 3px;
+}
+
+.ch-prev {
+  color: var(--accent);
+  background: rgba(236,114,6,.06);
+}
+.ch-pass {
+  color: var(--blue);
+  background: rgba(114,182,236,.08);
+}
+.ch-rest {
+  color: var(--green);
+  background: rgba(46,125,50,.08);
+}
+[data-theme="dark"] .ch-rest {
+  background: rgba(67,233,123,.06);
+}
+
+.ch-dates {
+  font-size: 10px;
+  gap: 2px;
+  color: var(--muted);
+  padding: 0 5px;
+  justify-content: center;
+}
+
+.ch-empty {
+  opacity: 0.3;
+  font-style: italic;
+}
+.ch-dates-empty { opacity: 0; }
+
+.ch-sm { font-size: 9px !important; }
+
+/* ── En-têtes colonnes ── */
+.gantt-col-headers {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  height: 18px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface2);
+  padding: 0 4px 0 6px;
+  font-size: 8px;
+}
+.ch-col-hdr-label {
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--muted);
+  padding-left: 2px;
+}
+.ch-hdr-group { display: flex; }
+.ch-col.ch-hdr {
+  font-size: 8px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  opacity: 0.8;
+}
+
+/* ── Ligne ressource (sous une tâche) ── */
+.gantt-left-row.is-res-detail {
+  height: 18px !important;
+  background: rgba(114,182,236,.04);
+  border-bottom: 1px dashed var(--border);
+  cursor: default;
+}
+[data-theme="dark"] .gantt-left-row.is-res-detail {
+  background: rgba(114,182,236,.03);
+}
+.gantt-left-row.is-res-detail:hover {
+  background: rgba(114,182,236,.08) !important;
+}
+.rd-icon { font-size: 9px; opacity: .7; }
+.rd-name { font-size: 10px !important; color: var(--muted) !important; font-style: italic; }
+
+/* ── Ligne ressource côté droit (barre vide pour l'alignement) ── */
+.gantt-row.is-res-row {
+  height: 18px !important;
+  background: rgba(114,182,236,.02);
+  border-bottom: 1px dashed var(--border);
+  opacity: 0.8;
+}
+.gantt-bar-res {
+  position: absolute;
+  height: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  border-radius: 2px;
+  pointer-events: none;
+}
+
+/* ── Bouton affectation ressources ── */
+.affect-btn {
+  flex-shrink: 0;
+  font-size: 10px;
+  font-family: 'Courier New', monospace;
+  font-weight: 700;
+  padding: 1px 5px;
+  border-radius: 3px;
+  border: 1px solid var(--border);
+  background: var(--surface2);
+  color: var(--muted);
+  cursor: pointer;
+  transition: all .12s;
+  white-space: nowrap;
+  line-height: 1.4;
+}
+.affect-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: rgba(236,114,6,.08);
+}
+.affect-btn.has-res {
+  border-color: rgba(114,182,236,.5);
+  color: var(--blue);
+  background: rgba(114,182,236,.08);
+}
+.affect-btn.has-res:hover {
+  border-color: var(--blue);
+  background: rgba(114,182,236,.15);
+}
+
+/* ══════════════════════════════════════════════════════════
+   PANNEAU D'AFFECTATION
+   ══════════════════════════════════════════════════════════ */
+
+.affect-totals {
+  display: flex;
+  gap: 8px;
+  padding: 8px 14px;
+  border-bottom: 2px solid var(--border);
+  background: var(--surface2);
+  flex-wrap: wrap;
+}
+.affect-total-item {
+  font-size: 11px;
+  font-family: 'Courier New', monospace;
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-weight: 600;
+}
+.affect-total-item.ch-prev { background: rgba(236,114,6,.1); color: var(--accent); }
+.affect-total-item.ch-pass { background: rgba(114,182,236,.12); color: var(--blue); }
+.affect-total-item.ch-rest { background: rgba(46,125,50,.1); color: var(--green); }
+
+.affect-list { overflow-y: auto; flex: 1; }
+
+.affect-row {
+  border-bottom: 1px solid var(--border);
+  padding: 10px 14px;
+  transition: background .1s;
+}
+.affect-row:hover { background: rgba(236,114,6,.03); }
+
+.affect-row-main {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.affect-select {
+  flex: 1;
+  font-family: Arial, sans-serif;
+  font-size: 12px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text);
+  padding: 5px 8px;
+  outline: none;
+  cursor: pointer;
+  transition: border-color .14s;
+}
+.affect-select:focus { border-color: var(--accent); }
+
+.affect-del-btn {
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+  border: 1px solid rgba(192,57,43,.25);
+  background: rgba(192,57,43,.08);
+  color: #c0392b;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: all .12s;
+}
+.affect-del-btn:hover {
+  background: rgba(192,57,43,.2);
+}
+
+.affect-row-charges {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 6px;
+}
+.affect-charge-group {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.affect-ch-label {
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+}
+.ch-prev-lbl { color: var(--accent); }
+.ch-pass-lbl { color: var(--blue); }
+.ch-rest-lbl { color: var(--green); }
+
+.affect-ch-input {
+  font-family: 'Courier New', monospace;
+  font-size: 12px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text);
+  padding: 4px 6px;
+  outline: none;
+  width: 100%;
+  transition: border-color .14s;
+}
+.affect-ch-input:focus { border-color: var(--accent); }
+.affect-ch-input[readonly] {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.affect-empty {
+  padding: 30px;
+  text-align: center;
+  color: var(--muted);
+  font-size: 12px;
 }

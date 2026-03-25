@@ -162,6 +162,8 @@ window._fbOnValue = (cb)   => onValue(_fbRef, snap => cb(snap.val()));</script>
           <button class="btn-ghost active" id="btnSemaine" onclick="setView('semaine')">Semaine</button>
           <button class="btn-ghost" id="btnMois" onclick="setView('mois')">Mois</button>
           <div class="sep"></div>
+          <button class="btn-ghost" id="btnResources" onclick="toggleResources()" title="Afficher ressources">👥 Ressources</button>
+          <div class="sep"></div>
           <div class="zoom-bar">
             <button onclick="changeZoom(-1)">−</button>
             <span id="zoomLevel">6</span><span style="font-size:8px;color:var(--muted);" id="zoomUnit">px/j</span>
@@ -184,6 +186,21 @@ window._fbOnValue = (cb)   => onValue(_fbRef, snap => cb(snap.val()));</script>
 </div><!-- /#viewProjets -->
 
 <div id="viewRessources" style="display:none; height:calc(100vh - var(--header-h)); overflow:hidden;">
+</div>
+
+<div class="edit-panel" id="affectPanel">
+  <div class="edit-panel-header">
+    <span class="edit-panel-title" id="affectPanelTitle">👥 Affectations</span>
+    <button class="edit-panel-close" onclick="closeAffectPanel()">✕</button>
+  </div>
+  <div class="edit-panel-body" style="padding:0">
+    <div id="affectTotals" class="affect-totals"></div>
+    <div id="affectList" class="affect-list"></div>
+  </div>
+  <div class="edit-panel-footer">
+    <button class="ep-btn-save" onclick="affectAddRow()">+ Ajouter une ressource</button>
+    <button class="ep-btn-cancel" onclick="closeAffectPanel()">Fermer</button>
+  </div>
 </div>
 
 <script src="scripts/xml_import.js"></script>

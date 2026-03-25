@@ -1015,3 +1015,153 @@ function onEpFinChange(){
     fin.value = debut.value;
   }
 }
+
+/* ══════════════════════════════════════════════════════════
+   PANNEAU D'AFFECTATION DES RESSOURCES
+   Slide-in depuis la droite — ouvert par le bouton 👤 sur chaque tâche
+   ══════════════════════════════════════════════════════════ */
+
+let affectRowIdx = null; // index de la tâche en cours d'édition
+
+function openAffectPanel(rowIdx) {
+  affectRowIdx = rowIdx;
+  const r = rows[rowIdx];
+  if (!r || r._type !== 'tache') return;
+
+  // Ouvre aussi le backdrop
+  document.getElementById('panelBackdrop').classList.add('visible');
+  const panel = document.getElementById('affectPanel');
+  panel.classList.add('open');
+
+  // Titre
+  document.getElementById('affectPanelTitle').textContent =
+    '👥 ' + (r.tache || 'Tâche');
+
+  // Point 5 : si aucune ressource, ouvre avec une ligne vide prête à remplir
+  if (!r.assignments || r.assignments.length === 0) {
+    if (!r.assignments) r.assignments = [];
+    r.assignments.push({ resourceId: '', resourceNom: '', charge: null, chargePassee: null, chargeRestante: null });
+  }
+  renderAffectList(r);
+}
+
+function closeAffectPanel() {
+  affectRowIdx = null;
+  document.getElementById('affectPanel').classList.remove('open');
+  document.getElementById('panelBackdrop').classList.remove('visible');
+}
+
+function renderAffectList(r) {
+  const asgns = r.assignments || [];
+  const container = document.getElementById('affectList');
+
+  const rows_html = asgns.map((a, i) => {
+    const resOpts = (typeof resources !== 'undefined' ? resources : []).map(res => {
+      const name = [res.prenom, res.nom].filter(Boolean).join(' ');
+      const sel  = a.resourceId === res.id ? 'selected' : '';
+      return `<option value="${escH(res.id)}" ${sel}>${escH(name)}</option>`;
+    }).join('');
+
+    return `<div class="affect-row" data-asgn="${i}">
+      <div class="affect-row-main">
+        <select class="affect-select" onchange="affectChangeRes(${i},this.value)">
+          <option value="">— Choisir une ressource —</option>
+          ${resOpts}
+        </select>
+        <button class="affect-del-btn" onclick="affectDelRow(${i})" title="Supprimer">✕</button>
+      </div>
+      <div class="affect-row-charges">
+        <div class="affect-charge-group">
+          <label class="affect-ch-label ch-prev-lbl">Prévue (j)</label>
+          <input type="number" class="affect-ch-input" step="0.25" min="0"
+            value="${a.charge != null ? a.charge : ''}"
+            placeholder="—"
+            onchange="affectChangeCharge(${i},'charge',this.value)">
+        </div>
+        <div class="affect-charge-group">
+          <label class="affect-ch-label ch-pass-lbl">Passée (j)</label>
+          <input type="number" class="affect-ch-input" step="0.25" min="0"
+            value="${a.chargePassee != null ? a.chargePassee : ''}"
+            placeholder="—" readonly
+            title="Renseignée à l'import ou via l'outil source">
+        </div>
+        <div class="affect-charge-group">
+          <label class="affect-ch-label ch-rest-lbl">Restante (j)</label>
+          <input type="number" class="affect-ch-input" step="0.25" min="0"
+            value="${a.chargeRestante != null ? a.chargeRestante : ''}"
+            placeholder="—" readonly
+            title="Calculée automatiquement">
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+
+  container.innerHTML = rows_html ||
+    '<div class="affect-empty">Aucune ressource affectée</div>';
+
+  updateAffectTotals(r);
+}
+
+function affectChangeRes(idx, resId) {
+  const r = rows[affectRowIdx];
+  if (!r) return;
+  if (!r.assignments) r.assignments = [];
+  const res = (typeof resources !== 'undefined' ? resources : []).find(x => x.id === resId);
+  r.assignments[idx].resourceId  = resId;
+  r.assignments[idx].resourceNom = res ? [res.prenom, res.nom].filter(Boolean).join(' ') : '?';
+  saveAndRefreshAffect(r);
+}
+
+function affectChangeCharge(idx, field, val) {
+  const r = rows[affectRowIdx];
+  if (!r || !r.assignments) return;
+  const v = parseFloat(val);
+  r.assignments[idx][field] = isNaN(v) ? null : Math.round(v * 10000) / 10000;
+  // Recalcule charge totale tâche = somme des charges assignments
+  const totalCharge = r.assignments.reduce((s, a) => s + (a.charge || 0), 0);
+  r.charge = Math.round(totalCharge * 10000) / 10000 || null;
+  saveAndRefreshAffect(r);
+}
+
+function affectDelRow(idx) {
+  const r = rows[affectRowIdx];
+  if (!r || !r.assignments) return;
+  r.assignments.splice(idx, 1);
+  // Recalcule charge totale
+  if (r.assignments.length > 0) {
+    const total = r.assignments.reduce((s, a) => s + (a.charge || 0), 0);
+    r.charge = Math.round(total * 10000) / 10000 || null;
+  }
+  saveAndRefreshAffect(r);
+}
+
+function affectAddRow() {
+  const r = rows[affectRowIdx];
+  if (!r) return;
+  if (!r.assignments) r.assignments = [];
+  r.assignments.push({ resourceId: '', resourceNom: '', charge: null, chargePassee: null, chargeRestante: null });
+  renderAffectList(r);
+}
+
+function saveAndRefreshAffect(r) {
+  sortRows();
+  saveCurrentProject();
+  renderAffectList(r);
+  renderGantt();
+}
+
+function updateAffectTotals(r) {
+  const asgns = r.assignments || [];
+  const totalPrev = asgns.reduce((s, a) => s + (a.charge || 0), 0);
+  const totalPass = asgns.reduce((s, a) => s + (a.chargePassee || 0), 0);
+  const totalRest = asgns.reduce((s, a) => s + (a.chargeRestante || 0), 0);
+
+  const el = document.getElementById('affectTotals');
+  if (!el) return;
+
+  el.innerHTML = `
+    <span class="affect-total-item ch-prev">Prév : <b>${totalPrev ? (Math.round(totalPrev*100)/100)+'j' : '—'}</b></span>
+    <span class="affect-total-item ch-pass">Pass : <b>${totalPass ? (Math.round(totalPass*100)/100)+'j' : '—'}</b></span>
+    <span class="affect-total-item ch-rest">Rest : <b>${totalRest ? (Math.round(totalRest*100)/100)+'j' : '—'}</b></span>
+  `;
+}
