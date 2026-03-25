@@ -853,33 +853,72 @@
   font-family: Arial, sans-serif;
 }
 
+
 /* ══════════════════════════════════════════════════════════
-   COLONNES FIXES — PANNEAU GAUCHE (Flexbox)
-   Approche : la ligne reste flex ; les colonnes de droite
-   sont groupées dans .row-right avec largeurs fixes.
-   Layout par ligne :
-     [indent+toggle+icon] [label flex:1] [.row-right fixe]
-   .row-right contient : [ch-prev] [ch-pass?] [ch-rest?] [ch-dates] [actions hover]
+   PANNEAU GAUCHE — CSS GRID (colonnes parfaitement alignées)
+   
+   Template de base (sans tracking) :
+     [label 1fr] [slot 32px] [prev 50px] [dates 88px] [actions]
+   
+   Template avec tracking :
+     [label 1fr] [slot 32px] [prev 50px] [pass 50px] [rest 50px] [dates 88px] [actions]
+   
+   TOUTES les lignes (.gantt-left-row) et l'en-tête utilisent
+   le MÊME template → alignement garanti.
    ══════════════════════════════════════════════════════════ */
 
-/* Remet la ligne en flexbox propre (écrase les règles précédentes) */
-.gantt-left-row {
-  display: flex !important;
+/* Variables de grille */
+.gantt-left {
+  --gl-slot:   32px;
+  --gl-prev:   50px;
+  --gl-dates:  88px;
+  --gl-act:    52px;
+  --gl-tpl:    1fr var(--gl-slot) var(--gl-prev) var(--gl-dates) var(--gl-act);
+}
+.gantt-left.has-tracking {
+  --gl-tpl: 1fr var(--gl-slot) var(--gl-prev) 50px 50px var(--gl-dates) var(--gl-act);
+}
+
+/* Application à TOUTES les lignes et à l'en-tête */
+.gantt-left-row,
+.gantt-col-headers {
+  display: grid !important;
+  grid-template-columns: var(--gl-tpl);
   align-items: center;
   gap: 0;
-  padding: 0 0 0 6px;
-  overflow: hidden;
 }
 
-/* Groupe de droite : colonnes fixes alignées */
-.row-right {
+/* ── Cellule label (colonne 1) ── */
+.row-label-cell {
   display: flex;
   align-items: center;
-  flex-shrink: 0;
-  margin-left: auto;
+  min-width: 0;
+  overflow: hidden;
+  height: 100%;
+  padding: 0 2px 0 6px;
+}
+.row-label-cell .row-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+  flex: 1;
 }
 
-/* ── Cellules charges ── */
+/* ── Slot affectation (colonne 2) ── */
+.ch-col.ch-slot {
+  width: var(--gl-slot);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  height: 100%;
+  flex-shrink: 0;
+  border-left: 1px solid var(--border);
+  background: transparent;
+}
+
+/* ── Colonnes charges (colonnes 3, 4, 5) ── */
 .ch-col {
   display: flex;
   align-items: center;
@@ -894,68 +933,60 @@
   flex-shrink: 0;
 }
 
-.ch-prev { width: 48px; color: var(--accent);  background: rgba(236,114,6,.06); }
-.ch-pass { width: 48px; color: var(--blue);    background: rgba(114,182,236,.08); }
-.ch-rest { width: 48px; color: var(--green);   background: rgba(46,125,50,.08); }
-[data-theme="dark"] .ch-rest { background: rgba(67,233,123,.06); }
+.ch-prev { color: var(--accent);  background: rgba(236,114,6,.05); }
+.ch-pass { color: var(--blue);    background: rgba(114,182,236,.07); }
+.ch-rest { color: var(--green);   background: rgba(46,125,50,.07); }
+[data-theme="dark"] .ch-rest { background: rgba(67,233,123,.05); }
 
+/* ── Colonne dates (avant-dernière) ── */
 .ch-dates {
-  width: 90px;
+  width: var(--gl-dates);
   font-size: 10px;
   color: var(--muted);
   padding: 0 5px;
-  justify-content: center;
-  gap: 2px;
   border-left: 1px solid var(--border);
   flex-shrink: 0;
+  gap: 2px;
 }
-/* Quand dates masquées */
-.ch-dates.hidden { display: none; }
+.ch-empty      { opacity: 0.3; font-style: italic; }
+.ch-dates-empty{ visibility: hidden; }
+.ch-sm         { font-size: 9px !important; }
 
-.ch-empty { opacity: 0.3; font-style: italic; }
-.ch-dates-empty { visibility: hidden; }
-.ch-sm { font-size: 9px !important; }
-
-/* Actions (survolées) — dans .row-right, après les colonnes */
+/* ── Colonne actions (dernière) ── */
 .row-actions {
   display: none;
   align-items: center;
   gap: 2px;
-  padding: 0 4px;
-  flex-shrink: 0;
-  background: var(--surface);
+  padding: 0 3px;
+  height: 100%;
+  justify-content: flex-end;
   border-left: 1px solid var(--border);
 }
 .gantt-left-row:hover .row-actions { display: flex; }
 
-/* Remet les boutons en inline-flex dans row-actions */
-.row-actions .row-add-btn,
-.row-actions .row-del-btn,
-.row-actions .affect-btn {
-  display: inline-flex;
+/* Ghost pour l'en-tête */
+.row-actions-ghost {
+  display: flex;
+  visibility: hidden;
+  padding: 0 3px;
+  gap: 2px;
+  border-left: 1px solid transparent;
 }
 
-/* ── En-têtes colonnes (dans gantt-left-header) ── */
+/* ── En-tête colonnes ── */
 .gantt-col-headers {
-  display: flex;
-  align-items: center;
-  margin-left: auto;
-  flex-shrink: 0;
-}
-.ch-hdr-right {
-  display: flex;
-  flex-shrink: 0;
+  height: 18px;
+  background: var(--surface2);
+  border-bottom: 2px solid var(--border);
+  border-top: 1px solid var(--border);
 }
 .ch-col.ch-hdr {
   font-size: 8px;
-  opacity: 0.75;
-  color: #fff;
-  background: transparent;
-  border-color: rgba(255,255,255,.2);
-}
-[data-theme="dark"] .ch-col.ch-hdr {
-  color: var(--muted);
-  border-color: var(--border);
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  opacity: 0.8;
+  color: var(--text);
 }
 
 /* ── Ligne ressource détail ── */
@@ -964,7 +995,6 @@
   background: rgba(114,182,236,.04);
   border-bottom: 1px dashed var(--border);
   cursor: default;
-  padding-left: 0;
 }
 [data-theme="dark"] .gantt-left-row.is-res-detail {
   background: rgba(114,182,236,.03);
@@ -972,60 +1002,80 @@
 .gantt-left-row.is-res-detail:hover {
   background: rgba(114,182,236,.08) !important;
 }
-.rd-indent { flex-shrink: 0; }
-.rd-icon { font-size: 9px; opacity: .7; flex-shrink: 0; margin: 0 2px; }
-.rd-name { font-size: 10px !important; color: var(--muted) !important; font-style: italic; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rd-icon { font-size: 9px; opacity: .7; margin-right: 3px; flex-shrink: 0; }
+.rd-name {
+  font-size: 10px !important;
+  color: var(--muted) !important;
+  font-style: italic;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── Bouton affectation ── */
+.affect-btn {
+  display: none;
+  width: 28px;
+  height: 18px;
+  font-size: 10px;
+  font-family: 'Courier New', monospace;
+  font-weight: 700;
+  padding: 0 2px;
+  border-radius: 3px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  transition: all .12s;
+  white-space: nowrap;
+  line-height: 1;
+  justify-content: center;
+  align-items: center;
+}
+/* Quand une tâche a des ressources : bouton toujours visible */
+.affect-btn.has-res {
+  display: inline-flex !important;
+  border-color: rgba(114,182,236,.4);
+  color: var(--blue);
+}
+/* Au survol de la ligne : affiche aussi le bouton + */
+.gantt-left-row:hover .affect-btn { display: inline-flex; }
+.affect-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: rgba(236,114,6,.08);
+}
+.affect-btn.has-res:hover {
+  border-color: var(--blue);
+  background: rgba(114,182,236,.12);
+}
 
 /* ── Ligne ressource côté droit (barre vide pour l'alignement) ── */
 .gantt-row.is-res-row {
   height: 18px !important;
   background: rgba(114,182,236,.02);
   border-bottom: 1px dashed var(--border);
-  opacity: 0.8;
-}
-.gantt-bar-res {
-  position: absolute;
-  height: 6px;
-  top: 50%;
-  transform: translateY(-50%);
-  border-radius: 2px;
-  pointer-events: none;
 }
 
-/* ── Bouton affectation ressources ── */
-.affect-btn {
-  flex-shrink: 0;
-  width: 34px;
-  font-size: 10px;
-  font-family: 'Courier New', monospace;
-  font-weight: 700;
-  padding: 1px 4px;
-  border-radius: 3px;
-  border: 1px solid var(--border);
-  background: var(--surface2);
-  color: var(--muted);
-  cursor: pointer;
-  transition: all .12s;
-  white-space: nowrap;
-  line-height: 1.4;
-  display: none;
-  justify-content: center;
+/* ── Barre supérieure du Gantt (titre + toolbar sur la même ligne) ── */
+.gantt-topbar {
+  display: flex;
   align-items: center;
+  justify-content: space-between;
+  padding: 6px 4px 6px 0;
+  gap: 10px;
 }
-.gantt-left-row:hover .affect-btn { display: inline-flex; }
-.affect-btn.has-res {
-  display: inline-flex !important;
-  border-color: rgba(114,182,236,.5);
-  color: var(--blue);
-  background: rgba(114,182,236,.08);
+.gantt-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  flex-shrink: 0;
 }
-.affect-btn:hover { border-color: var(--accent); color: var(--accent); background: rgba(236,114,6,.08); }
-.affect-btn.has-res:hover { border-color: var(--blue); background: rgba(114,182,236,.15); }
 
 /* ══════════════════════════════════════════════════════════
    PANNEAU D'AFFECTATION
    ══════════════════════════════════════════════════════════ */
-
 .affect-totals {
   display: flex;
   gap: 8px;
@@ -1041,26 +1091,22 @@
   border-radius: 4px;
   font-weight: 600;
 }
-.affect-total-item.ch-prev { background: rgba(236,114,6,.1); color: var(--accent); }
+.affect-total-item.ch-prev { background: rgba(236,114,6,.1);    color: var(--accent); }
 .affect-total-item.ch-pass { background: rgba(114,182,236,.12); color: var(--blue); }
-.affect-total-item.ch-rest { background: rgba(46,125,50,.1); color: var(--green); }
+.affect-total-item.ch-rest { background: rgba(46,125,50,.1);    color: var(--green); }
 
 .affect-list { overflow-y: auto; flex: 1; }
-
 .affect-row {
   border-bottom: 1px solid var(--border);
   padding: 10px 14px;
-  transition: background .1s;
 }
 .affect-row:hover { background: rgba(236,114,6,.03); }
-
 .affect-row-main {
   display: flex;
   gap: 6px;
   align-items: center;
   margin-bottom: 6px;
 }
-
 .affect-select {
   flex: 1;
   font-family: Arial, sans-serif;
@@ -1072,50 +1118,33 @@
   padding: 5px 8px;
   outline: none;
   cursor: pointer;
-  transition: border-color .14s;
 }
 .affect-select:focus { border-color: var(--accent); }
-
 .affect-del-btn {
-  width: 24px;
-  height: 24px;
+  width: 24px; height: 24px;
   border-radius: 4px;
   border: 1px solid rgba(192,57,43,.25);
   background: rgba(192,57,43,.08);
   color: #c0392b;
   cursor: pointer;
-  font-size: 12px;
-  font-weight: 700;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  font-size: 12px; font-weight: 700;
+  display: flex; align-items: center; justify-content: center;
   flex-shrink: 0;
-  transition: all .12s;
 }
-.affect-del-btn:hover {
-  background: rgba(192,57,43,.2);
-}
-
+.affect-del-btn:hover { background: rgba(192,57,43,.2); }
 .affect-row-charges {
   display: grid;
   grid-template-columns: 1fr 1fr 1fr;
   gap: 6px;
 }
-.affect-charge-group {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
+.affect-charge-group { display: flex; flex-direction: column; gap: 2px; }
 .affect-ch-label {
-  font-size: 8px;
-  font-weight: 700;
-  letter-spacing: 0.8px;
-  text-transform: uppercase;
+  font-size: 8px; font-weight: 700;
+  letter-spacing: 0.8px; text-transform: uppercase;
 }
 .ch-prev-lbl { color: var(--accent); }
 .ch-pass-lbl { color: var(--blue); }
 .ch-rest-lbl { color: var(--green); }
-
 .affect-ch-input {
   font-family: 'Courier New', monospace;
   font-size: 12px;
@@ -1126,56 +1155,10 @@
   padding: 4px 6px;
   outline: none;
   width: 100%;
-  transition: border-color .14s;
 }
 .affect-ch-input:focus { border-color: var(--accent); }
-.affect-ch-input[readonly] {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
+.affect-ch-input[readonly] { opacity: 0.5; cursor: not-allowed; }
 .affect-empty {
-  padding: 30px;
-  text-align: center;
-  color: var(--muted);
-  font-size: 12px;
+  padding: 30px; text-align: center;
+  color: var(--muted); font-size: 12px;
 }
-
-/* Spacer dans l'en-tête pour aligner avec le bouton affectation */
-.ch-hdr-affect-spacer {
-  display: inline-flex;
-  width: 34px;
-  flex-shrink: 0;
-  border-left: 1px solid rgba(255,255,255,.1);
-}
-[data-theme="dark"] .ch-hdr-affect-spacer {
-  border-color: var(--border);
-}
-
-/* .gantt-col-headers hérite de .row-right pour l'alignement automatique */
-.gantt-col-headers.row-right {
-  background: transparent;
-  border-bottom: none;
-}
-
-/* ── Slot fixe pour le bouton affectation (présent sur toutes les lignes) ──
-   Garantit l'alignement parfait des colonnes charges/dates
-   quelle que soit la présence du bouton. ── */
-.row-affect-slot {
-  display: inline-flex;
-  width: 34px;
-  flex-shrink: 0;
-  align-items: center;
-  justify-content: center;
-  position: relative;
-}
-/* Le bouton dans le slot prend tout l'espace */
-.row-affect-slot .affect-btn {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  margin: 0;
-  border-radius: 3px;
-}
-/* Supprime l'ancien spacer (remplacé par row-affect-slot) */
-.ch-hdr-affect-spacer { display: none; }
