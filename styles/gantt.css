@@ -940,9 +940,9 @@
   flex-shrink: 0;
 }
 
-.ch-prev { color: var(--accent);  background: rgba(236,114,6,.05); }
-.ch-pass { color: var(--blue);    background: rgba(114,182,236,.07); }
-.ch-rest { color: var(--green);   background: rgba(46,125,50,.07); }
+.ch-prev { width: var(--gl-prev); color: var(--accent);  background: rgba(236,114,6,.05); }
+.ch-pass { width: var(--gl-prev); color: var(--blue);    background: rgba(114,182,236,.07); }
+.ch-rest { width: var(--gl-prev); color: var(--green);   background: rgba(46,125,50,.07); }
 [data-theme="dark"] .ch-rest { background: rgba(67,233,123,.05); }
 
 /* ── Colonne dates (avant-dernière) ── */
