@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>GANTT Portfolio — 4CAD Group</title>
+<title>Project Manager — 4CAD Group</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/pptxgenjs@3.12.0/dist/pptxgen.bundle.js"></script>
 <link rel="stylesheet" href="styles/main.css">
@@ -48,6 +48,7 @@ window._fbOnValue = (cb)   => onValue(_fbRef, snap => cb(snap.val()));</script>
     <button class="btn-theme" id="btnTheme" onclick="toggleTheme()">🌙 Sombre</button>
   </div>
 </header>
+
 <div id="tooltip" style="left: 1373px; top: 150px; display: none;"></div>
 <div id="colorPopup" style="display: none;">
   <div class="cp-title" id="cpTitle">Couleur</div>
@@ -139,6 +140,7 @@ window._fbOnValue = (cb)   => onValue(_fbRef, snap => cb(snap.val()));</script>
     </div>
   </div>
 </div>
+
 <div id="viewProjets">
 <div class="app-shell">
   <div class="nav-sidebar" id="navSidebar">
@@ -149,341 +151,36 @@ window._fbOnValue = (cb)   => onValue(_fbRef, snap => cb(snap.val()));</script>
     <button class="nav-new-btn" onclick="createNewProjectPrompt()">
       <span>+</span><span class="nav-btn-text">Nouveau client</span>
     </button>
-    <div class="nav-list" id="navList"><div class="nav-client">
-        <div class="nav-client-header" onclick="toggleNavClient('ABERDEEN')">
-          <span class="nav-client-chevron open">►</span>
-          <span class="nav-client-name" title="ABERDEEN">ABERDEEN</span>
-          <div class="nav-client-actions">
-            <button class="nav-action-btn" onclick="renameClient('ABERDEEN',event)" title="Renommer le client">✎</button>
-            <button class="nav-action-btn" onclick="addProjectToClient('ABERDEEN',event)" title="Nouveau projet">+</button>
-          </div>
-        </div>
-        <div class="nav-client-children"><div class="nav-item active" id="navItem_p_1773846774089_sr6s" onclick="switchToProject('p_1773846774089_sr6s')">
-        <div class="nav-item-dot" style="background: rgb(236, 114, 6); border-color: rgba(236, 114, 6, 0.25);"></div>
-        <div style="flex:1;min-width:0;overflow:hidden">
-          <div class="nav-item-name" title="ABERDEEN &amp; 4CAD">ABERDEEN &amp; 4CAD</div>
-          <div class="nav-item-meta">19 tâches</div>
-        </div>
-        <div class="nav-item-actions">
-          <button class="nav-action-btn" onclick="startRename('p_1773846774089_sr6s',event)" title="Renommer">✎</button>
-          <button class="nav-action-btn" onclick="duplicateProject('p_1773846774089_sr6s',event)" title="Dupliquer">❏</button>
-          <button class="nav-action-btn danger" onclick="deleteProject('p_1773846774089_sr6s',event)" title="Supprimer">🗑</button>
-        </div>
-      </div><div class="nav-item" id="navItem_p_1773846800922_etx1" onclick="switchToProject('p_1773846800922_etx1')">
-        <div class="nav-item-dot" style="background: rgb(114, 182, 236); border-color: rgba(114, 182, 236, 0.25);"></div>
-        <div style="flex:1;min-width:0;overflow:hidden">
-          <div class="nav-item-name" title="TST 1">TST 1</div>
-          <div class="nav-item-meta">10 tâches</div>
-        </div>
-        <div class="nav-item-actions">
-          <button class="nav-action-btn" onclick="startRename('p_1773846800922_etx1',event)" title="Renommer">✎</button>
-          <button class="nav-action-btn" onclick="duplicateProject('p_1773846800922_etx1',event)" title="Dupliquer">❏</button>
-          <button class="nav-action-btn danger" onclick="deleteProject('p_1773846800922_etx1',event)" title="Supprimer">🗑</button>
-        </div>
-      </div></div></div><div class="nav-client">
-        <div class="nav-client-header" onclick="toggleNavClient('AIR SUPPORT')">
-          <span class="nav-client-chevron open">►</span>
-          <span class="nav-client-name" title="AIR SUPPORT">AIR SUPPORT</span>
-          <div class="nav-client-actions">
-            <button class="nav-action-btn" onclick="renameClient('AIR SUPPORT',event)" title="Renommer le client">✎</button>
-            <button class="nav-action-btn" onclick="addProjectToClient('AIR SUPPORT',event)" title="Nouveau projet">+</button>
-          </div>
-        </div>
-        <div class="nav-client-children"><div class="nav-item" id="navItem_p_1773846788083_b629" onclick="switchToProject('p_1773846788083_b629')">
-        <div class="nav-item-dot" style="background: rgb(40, 64, 83); border-color: rgba(40, 64, 83, 0.25);"></div>
-        <div style="flex:1;min-width:0;overflow:hidden">
-          <div class="nav-item-name" title="TEST">TEST</div>
-          <div class="nav-item-meta">20 tâches</div>
-        </div>
-        <div class="nav-item-actions">
-          <button class="nav-action-btn" onclick="startRename('p_1773846788083_b629',event)" title="Renommer">✎</button>
-          <button class="nav-action-btn" onclick="duplicateProject('p_1773846788083_b629',event)" title="Dupliquer">❏</button>
-          <button class="nav-action-btn danger" onclick="deleteProject('p_1773846788083_b629',event)" title="Supprimer">🗑</button>
-        </div>
-      </div></div></div></div>
+    <div class="nav-list" id="navList"></div>
   </div>
   <div class="app-content">
     <main>
       <div class="gantt-topbar">
         <div class="section-title" style="margin-bottom:0;border-left:none;padding-left:0;">| DIAGRAMME DE GANTT</div>
         <div class="gantt-toolbar" id="ganttToolbar">
-        <button class="btn-ghost" id="btnJour" onclick="setView('jour')">Jour</button>
-        <button class="btn-ghost active" id="btnSemaine" onclick="setView('semaine')">Semaine</button>
-        <button class="btn-ghost" id="btnMois" onclick="setView('mois')">Mois</button>
-        <div class="sep"></div>
-        <div class="zoom-bar">
-          <button onclick="changeZoom(-1)">−</button>
-          <span id="zoomLevel">6</span><span style="font-size:8px;color:var(--muted);" id="zoomUnit">px/j</span>
-          <button onclick="changeZoom(1)">+</button>
-        </div>
-        <div class="sep"></div>
-        <label for="fileInput" style="cursor:pointer;padding:6px 12px;border:1px solid var(--border);border-radius:4px;font-size:12px;font-weight:600;background:var(--surface2);display:inline-flex;align-items:center;color:var(--text);">📂 Importer</label>
-        <input type="file" id="fileInput" accept=".xlsx,.xls,.csv,.xml" style="display:none">
-        <button class="btn-ghost" onclick="downloadModele()" title="Télécharger le modèle Excel d'import">📋 Modèle</button>
-        <button class="btn-ghost" onclick="exportPPTX()" style="color:var(--accent);border-color:var(--accent);">📌 PPTX</button>
+          <button class="btn-ghost" id="btnJour" onclick="setView('jour')">Jour</button>
+          <button class="btn-ghost active" id="btnSemaine" onclick="setView('semaine')">Semaine</button>
+          <button class="btn-ghost" id="btnMois" onclick="setView('mois')">Mois</button>
+          <div class="sep"></div>
+          <div class="zoom-bar">
+            <button onclick="changeZoom(-1)">−</button>
+            <span id="zoomLevel">6</span><span style="font-size:8px;color:var(--muted);" id="zoomUnit">px/j</span>
+            <button onclick="changeZoom(1)">+</button>
+          </div>
+          <div class="sep"></div>
+          <label for="fileInput" style="cursor:pointer;padding:6px 12px;border:1px solid var(--border);border-radius:4px;font-size:12px;font-weight:600;background:var(--surface2);display:inline-flex;align-items:center;color:var(--text);">📂 Importer</label>
+          <input type="file" id="fileInput" accept=".xlsx,.xls,.csv,.xml" style="display:none">
+          <button class="btn-ghost" onclick="downloadModele()" title="Télécharger le modèle Excel d'import">📋 Modèle</button>
+          <button class="btn-ghost" onclick="exportPPTX()" style="color:var(--accent);border-color:var(--accent);">📌 PPTX</button>
         </div>
       </div>
       <div class="gantt-card">
-        <div class="gantt-layout" id="ganttLayout"><div class="gantt-left" id="ganttLeftPanel" style="width:400px">
-    <div class="gantt-left-header">
-      <span class="lh-title lh-title-editable" onclick="startRenameLhTitle()" title="Cliquer pour renommer">ABERDEEN &amp; 4CAD</span>
-      <button class="toggle-dates-btn" id="toggleDatesBtn" onclick="toggleDates()">Masquer dates</button>
-    </div>
-    <div class="gantt-left-row is-projet" onclick="openEditPanel(0)">
-        <span class="toggle-btn" onclick="event.stopPropagation();toggleCollapse('P:ABERDEEN')">▾</span>
-        <span style="color: rgb(108, 99, 255); font-size: 9px; flex-shrink: 0;">■</span>
-        <span class="row-label" style="color: rgb(108, 99, 255);">ABERDEEN</span>
-        <span class="row-charge">27.5j</span>
-        <span class="row-dates">
-      <span>16/03</span><span class="d-sep">→</span><span>28/08</span>
-    </span>
-        <button class="row-add-btn" onclick="openAddAfter(0,event)" title="Ajouter une tâche dans ce projet">+</button>
-        <button class="row-del-btn" onclick="event.stopPropagation();deleteGanttProjet(event,this.dataset.proj)" data-proj="ABERDEEN" title="Supprimer ce projet">🗑</button>
-      </div><div class="gantt-left-row is-groupe" onclick="openEditPanel(1)">
-        <span style="width:7px;flex-shrink:0"></span>
-        <span class="toggle-btn" onclick="event.stopPropagation();toggleCollapse('G:ABERDEEN::Gestion')">▾</span>
-        <span style="color: rgb(140, 133, 255); font-size: 8px; flex-shrink: 0;">◆</span>
-        <span class="row-label" style="color: rgb(134, 127, 255);">Gestion</span>
-        <span class="row-charge">6j</span>
-        <span class="row-dates">
-      <span>16/03</span><span class="d-sep">→</span><span>21/08</span>
-    </span>
-        <button class="row-add-btn" onclick="openAddAfter(1,event)" title="Ajouter une tâche dans ce groupe">+</button>
-        <button class="row-del-btn" onclick="event.stopPropagation();deleteGanttGroupe(event,this.dataset.proj,this.dataset.grp)" data-proj="ABERDEEN" data-grp="Gestion" title="Supprimer ce groupe">🗑</button>
-      </div><div class="gantt-left-row is-tache" onclick="openEditPanel(2)">
-      <span style="width:22px;flex-shrink:0"></span>
-      <span style="color: var(--muted); font-size: 8px; flex-shrink: 0;">↳</span>
-      <span class="row-label">Gestion de projet</span>
-      <span class="row-charge">6j</span>
-      <span class="row-dates">
-      <span>16/03</span><span class="d-sep">→</span><span>21/08</span>
-    </span>
-      <button class="row-add-btn" onclick="openAddAfter(2,event)" title="Ajouter une tâche ici">+</button>
-      <button class="row-del-btn" onclick="event.stopPropagation();deleteGanttTache(event,this.dataset.idx)" data-idx="2" title="Supprimer cette tâche">🗑</button>
-    </div><div class="gantt-left-row is-groupe" onclick="openEditPanel(3)">
-        <span style="width:7px;flex-shrink:0"></span>
-        <span class="toggle-btn" onclick="event.stopPropagation();toggleCollapse('G:ABERDEEN::Phase 1')">▾</span>
-        <span style="color: rgb(140, 133, 255); font-size: 8px; flex-shrink: 0;">◆</span>
-        <span class="row-label" style="color: rgb(134, 127, 255);">Phase 1</span>
-        <span class="row-charge">4j</span>
-        <span class="row-dates">
-      <span>08/04</span><span class="d-sep">→</span><span>15/05</span>
-    </span>
-        <button class="row-add-btn" onclick="openAddAfter(3,event)" title="Ajouter une tâche dans ce groupe">+</button>
-        <button class="row-del-btn" onclick="event.stopPropagation();deleteGanttGroupe(event,this.dataset.proj,this.dataset.grp)" data-proj="ABERDEEN" data-grp="Phase 1" title="Supprimer ce groupe">🗑</button>
-      </div><div class="gantt-left-row is-tache" onclick="openEditPanel(4)">
-      <span style="width:22px;flex-shrink:0"></span>
-      <span style="color: var(--muted); font-size: 8px; flex-shrink: 0;">↳</span>
-      <span class="row-label">Installation du patch</span>
-      <span class="row-charge">3j</span>
-      <span class="row-dates">
-      <span>08/04</span><span class="d-sep">→</span><span>01/05</span>
-    </span>
-      <button class="row-add-btn" onclick="openAddAfter(4,event)" title="Ajouter une tâche ici">+</button>
-      <button class="row-del-btn" onclick="event.stopPropagation();deleteGanttTache(event,this.dataset.idx)" data-idx="4" title="Supprimer cette tâche">🗑</button>
-    </div><div class="gantt-left-row is-tache" onclick="openEditPanel(5)">
-      <span style="width:22px;flex-shrink:0"></span>
-      <span style="color: var(--muted); font-size: 8px; flex-shrink: 0;">↳</span>
-      <span class="row-label">Paramétrage propre LEG LUX</span>
-      <span class="row-charge">1j</span>
-      <span class="row-dates">
-      <span>05/05</span><span class="d-sep">→</span><span>15/05</span>
-    </span>
-      <button class="row-add-btn" onclick="openAddAfter(5,event)" title="Ajouter une tâche ici">+</button>
-      <button class="row-del-btn" onclick="event.stopPropagation();deleteGanttTache(event,this.dataset.idx)" data-idx="5" title="Supprimer cette tâche">🗑</button>
-    </div><div class="gantt-left-row is-groupe" onclick="openEditPanel(6)">
-        <span style="width:7px;flex-shrink:0"></span>
-        <span class="toggle-btn" onclick="event.stopPropagation();toggleCollapse('G:ABERDEEN::Recette')">▾</span>
-        <span style="color: rgb(140, 133, 255); font-size: 8px; flex-shrink: 0;">◆</span>
-        <span class="row-label" style="color: rgb(134, 127, 255);">Recette</span>
-        <span class="row-charge">11j</span>
-        <span class="row-dates">
-      <span>20/05</span><span class="d-sep">→</span><span>26/06</span>
-    </span>
-        <button class="row-add-btn" onclick="openAddAfter(6,event)" title="Ajouter une tâche dans ce groupe">+</button>
-        <button class="row-del-btn" onclick="event.stopPropagation();deleteGanttGroupe(event,this.dataset.proj,this.dataset.grp)" data-proj="ABERDEEN" data-grp="Recette" title="Supprimer ce groupe">🗑</button>
-      </div><div class="gantt-left-row is-tache" onclick="openEditPanel(7)">
-      <span style="width:22px;flex-shrink:0"></span>
-      <span style="color: var(--muted); font-size: 8px; flex-shrink: 0;">↳</span>
-      <span class="row-label">Recette interne</span>
-      <span class="row-charge">2.5j</span>
-      <span class="row-dates">
-      <span>20/05</span><span class="d-sep">→</span><span>29/05</span>
-    </span>
-      <button class="row-add-btn" onclick="openAddAfter(7,event)" title="Ajouter une tâche ici">+</button>
-      <button class="row-del-btn" onclick="event.stopPropagation();deleteGanttTache(event,this.dataset.idx)" data-idx="7" title="Supprimer cette tâche">🗑</button>
-    </div><div class="gantt-left-row is-tache" onclick="openEditPanel(8)">
-      <span style="width:22px;flex-shrink:0"></span>
-      <span style="color: var(--muted); font-size: 8px; flex-shrink: 0;">↳</span>
-      <span class="row-label">Revue de paramétrage et document</span>
-      <span class="row-charge">1j</span>
-      <span class="row-dates">
-      <span>20/05</span><span class="d-sep">→</span><span>29/05</span>
-    </span>
-      <button class="row-add-btn" onclick="openAddAfter(8,event)" title="Ajouter une tâche ici">+</button>
-      <button class="row-del-btn" onclick="event.stopPropagation();deleteGanttTache(event,this.dataset.idx)" data-idx="8" title="Supprimer cette tâche">🗑</button>
-    </div><div class="gantt-left-row is-tache" onclick="openEditPanel(9)">
-      <span style="width:22px;flex-shrink:0"></span>
-      <span style="color: var(--muted); font-size: 8px; flex-shrink: 0;">↳</span>
-      <span class="row-label">Formation</span>
-      <span class="row-charge">1.5j</span>
-      <span class="row-dates">
-      <span>03/06</span><span class="d-sep">→</span><span>04/06</span>
-    </span>
-      <button class="row-add-btn" onclick="openAddAfter(9,event)" title="Ajouter une tâche ici">+</button>
-      <button class="row-del-btn" onclick="event.stopPropagation();deleteGanttTache(event,this.dataset.idx)" data-idx="9" title="Supprimer cette tâche">🗑</button>
-    </div><div class="gantt-left-row is-tache" onclick="openEditPanel(10)">
-      <span style="width:22px;flex-shrink:0"></span>
-      <span style="color: var(--muted); font-size: 8px; flex-shrink: 0;">↳</span>
-      <span class="row-label">Assistance recette</span>
-      <span class="row-charge">6j</span>
-      <span class="row-dates">
-      <span>08/06</span><span class="d-sep">→</span><span>26/06</span>
-    </span>
-      <button class="row-add-btn" onclick="openAddAfter(10,event)" title="Ajouter une tâche ici">+</button>
-      <button class="row-del-btn" onclick="event.stopPropagation();deleteGanttTache(event,this.dataset.idx)" data-idx="10" title="Supprimer cette tâche">🗑</button>
-    </div><div class="gantt-left-row is-groupe" onclick="openEditPanel(11)">
-        <span style="width:7px;flex-shrink:0"></span>
-        <span class="toggle-btn" onclick="event.stopPropagation();toggleCollapse('G:ABERDEEN::PROD')">▾</span>
-        <span style="color: rgb(140, 133, 255); font-size: 8px; flex-shrink: 0;">◆</span>
-        <span class="row-label" style="color: rgb(134, 127, 255);">PROD</span>
-        <span class="row-charge">6.5j</span>
-        <span class="row-dates">
-      <span>15/07</span><span class="d-sep">→</span><span>28/08</span>
-    </span>
-        <button class="row-add-btn" onclick="openAddAfter(11,event)" title="Ajouter une tâche dans ce groupe">+</button>
-        <button class="row-del-btn" onclick="event.stopPropagation();deleteGanttGroupe(event,this.dataset.proj,this.dataset.grp)" data-proj="ABERDEEN" data-grp="PROD" title="Supprimer ce groupe">🗑</button>
-      </div><div class="gantt-left-row is-tache" onclick="openEditPanel(12)">
-      <span style="width:22px;flex-shrink:0"></span>
-      <span style="color: var(--muted); font-size: 8px; flex-shrink: 0;">↳</span>
-      <span class="row-label">Paramétrage dossier PROD</span>
-      <span class="row-charge">0.5j</span>
-      <span class="row-dates">
-      <span>15/07</span><span class="d-sep">→</span><span>17/07</span>
-    </span>
-      <button class="row-add-btn" onclick="openAddAfter(12,event)" title="Ajouter une tâche ici">+</button>
-      <button class="row-del-btn" onclick="event.stopPropagation();deleteGanttTache(event,this.dataset.idx)" data-idx="12" title="Supprimer cette tâche">🗑</button>
-    </div><div class="gantt-left-row is-tache" onclick="openEditPanel(13)">
-      <span style="width:22px;flex-shrink:0"></span>
-      <span style="color: var(--muted); font-size: 8px; flex-shrink: 0;">↳</span>
-      <span class="row-label">Assistance post-démarrage</span>
-      <span class="row-charge">6j</span>
-      <span class="row-dates">
-      <span>27/07</span><span class="d-sep">→</span><span>28/08</span>
-    </span>
-      <button class="row-add-btn" onclick="openAddAfter(13,event)" title="Ajouter une tâche ici">+</button>
-      <button class="row-del-btn" onclick="event.stopPropagation();deleteGanttTache(event,this.dataset.idx)" data-idx="13" title="Supprimer cette tâche">🗑</button>
-    </div>
-    <div class="gantt-add-row" onclick="openEditPanel(null)">
-      <span class="add-plus">+</span> Ajouter une tâche
-    </div>
-    <div class="gantt-add-row" onclick="openJalonPanel()" style="opacity:.8">
-      <span class="add-plus" style="color:var(--accent)">◆</span> Ajouter un jalon
-    </div>
-    <div class="resize-handle" id="resizeHandle"></div>
-  </div><div class="gantt-right" id="ganttRight" style="cursor: grab;">
-    <div class="gantt-right-inner">
-      <div class="gantt-header-row">
-        <div class="gantt-months-strip" style="width:1002px"><div class="gantt-month-cell" style="width:96px">Mar 2026</div><div class="gantt-month-cell" style="width:180px">Avr 2026</div><div class="gantt-month-cell" style="width:186px">Mai 2026</div><div class="gantt-month-cell" style="width:180px">Jun 2026</div><div class="gantt-month-cell" style="width:186px">Jul 2026</div><div class="gantt-month-cell" style="width:174px">Aoû 2026</div></div>
-        <div class="gantt-sub-strip" style="width:1002px"><div class="gantt-sub-cell" style="width:42px">16/03</div><div class="gantt-sub-cell" style="width:42px">23/03</div><div class="gantt-sub-cell" style="width:42px">30/03</div><div class="gantt-sub-cell" style="width:42px">06/04</div><div class="gantt-sub-cell" style="width:42px">13/04</div><div class="gantt-sub-cell" style="width:42px">20/04</div><div class="gantt-sub-cell" style="width:42px">27/04</div><div class="gantt-sub-cell" style="width:42px">04/05</div><div class="gantt-sub-cell" style="width:42px">11/05</div><div class="gantt-sub-cell" style="width:42px">18/05</div><div class="gantt-sub-cell" style="width:42px">25/05</div><div class="gantt-sub-cell" style="width:42px">01/06</div><div class="gantt-sub-cell" style="width:42px">08/06</div><div class="gantt-sub-cell" style="width:42px">15/06</div><div class="gantt-sub-cell" style="width:42px">22/06</div><div class="gantt-sub-cell" style="width:42px">29/06</div><div class="gantt-sub-cell" style="width:42px">06/07</div><div class="gantt-sub-cell" style="width:42px">13/07</div><div class="gantt-sub-cell" style="width:42px">20/07</div><div class="gantt-sub-cell" style="width:42px">27/07</div><div class="gantt-sub-cell" style="width:42px">03/08</div><div class="gantt-sub-cell" style="width:42px">10/08</div><div class="gantt-sub-cell" style="width:42px">17/08</div><div class="gantt-sub-cell" style="width:42px">24/08</div></div>
-      </div><div class="gantt-row is-projet" style="width:1002px">
-      <div class="gantt-col-line month" style="left:0px"></div><div class="gantt-col-line month" style="left:96px"></div><div class="gantt-col-line month" style="left:276px"></div><div class="gantt-col-line month" style="left:462px"></div><div class="gantt-col-line month" style="left:642px"></div><div class="gantt-col-line month" style="left:828px"></div><div class="gantt-col-line" style="left:0px"></div><div class="gantt-col-line" style="left:42px"></div><div class="gantt-col-line" style="left:84px"></div><div class="gantt-col-line" style="left:126px"></div><div class="gantt-col-line" style="left:168px"></div><div class="gantt-col-line" style="left:210px"></div><div class="gantt-col-line" style="left:252px"></div><div class="gantt-col-line" style="left:294px"></div><div class="gantt-col-line" style="left:336px"></div><div class="gantt-col-line" style="left:378px"></div><div class="gantt-col-line" style="left:420px"></div><div class="gantt-col-line" style="left:462px"></div><div class="gantt-col-line" style="left:504px"></div><div class="gantt-col-line" style="left:546px"></div><div class="gantt-col-line" style="left:588px"></div><div class="gantt-col-line" style="left:630px"></div><div class="gantt-col-line" style="left:672px"></div><div class="gantt-col-line" style="left:714px"></div><div class="gantt-col-line" style="left:756px"></div><div class="gantt-col-line" style="left:798px"></div><div class="gantt-col-line" style="left:840px"></div><div class="gantt-col-line" style="left:882px"></div><div class="gantt-col-line" style="left:924px"></div><div class="gantt-col-line" style="left:966px"></div><div class="today-line" style="left:12px"></div><svg class="bracket-bar" style="left:0px;top:0;cursor:pointer" width="996" height="30" overflow="visible" onclick="openEditPanel(0)" onmouseenter="showTip(event," aberdeen","","","16="" 03="" 2026","28="" 08="" 2026",27.5)"="" onmousemove="moveTip(event)" onmouseleave="hideTip()">
-        <!-- spine -->
-        <rect class="b-spine" x="0" y="5" width="996" height="6" rx="2" fill="#6c63ff" opacity="0.85" style=""></rect>
-        <!-- left hook -->
-        <path class="b-hook" d="M0,5 L0,19 L5,19" fill="none" stroke="#6c63ff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" opacity="0.85" style=""></path>
-        <!-- right hook -->
-        <path class="b-hook" d="M996,5 L996,19 L991,19" fill="none" stroke="#6c63ff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" opacity="0.85" style=""></path>
-        <!-- diamond left cap -->
-        <polygon points="-3,8 0,5 3,8 0,11" fill="#6c63ff" opacity="0.9" style=""></polygon>
-        <!-- diamond right cap -->
-        <polygon points="993,8 996,5 999,8 996,11" fill="#6c63ff" opacity="0.9" style=""></polygon>
-        <text x="498" y="8" text-anchor="middle" dominant-baseline="middle" font-family="'DM Mono',monospace" font-size="10" font-weight="700" fill="#fff" class="bracket-lbl" style="">27.5j</text>
-      </svg>
-    </div><div class="gantt-row is-groupe" style="width:1002px">
-      <div class="gantt-col-line month" style="left:0px"></div><div class="gantt-col-line month" style="left:96px"></div><div class="gantt-col-line month" style="left:276px"></div><div class="gantt-col-line month" style="left:462px"></div><div class="gantt-col-line month" style="left:642px"></div><div class="gantt-col-line month" style="left:828px"></div><div class="gantt-col-line" style="left:0px"></div><div class="gantt-col-line" style="left:42px"></div><div class="gantt-col-line" style="left:84px"></div><div class="gantt-col-line" style="left:126px"></div><div class="gantt-col-line" style="left:168px"></div><div class="gantt-col-line" style="left:210px"></div><div class="gantt-col-line" style="left:252px"></div><div class="gantt-col-line" style="left:294px"></div><div class="gantt-col-line" style="left:336px"></div><div class="gantt-col-line" style="left:378px"></div><div class="gantt-col-line" style="left:420px"></div><div class="gantt-col-line" style="left:462px"></div><div class="gantt-col-line" style="left:504px"></div><div class="gantt-col-line" style="left:546px"></div><div class="gantt-col-line" style="left:588px"></div><div class="gantt-col-line" style="left:630px"></div><div class="gantt-col-line" style="left:672px"></div><div class="gantt-col-line" style="left:714px"></div><div class="gantt-col-line" style="left:756px"></div><div class="gantt-col-line" style="left:798px"></div><div class="gantt-col-line" style="left:840px"></div><div class="gantt-col-line" style="left:882px"></div><div class="gantt-col-line" style="left:924px"></div><div class="gantt-col-line" style="left:966px"></div><div class="today-line" style="left:12px"></div><svg class="bracket-bar" style="left:0px;top:0;cursor:pointer" width="954" height="30" overflow="visible" onclick="openEditPanel(1)" onmouseenter="showTip(event," aberdeen","gestion","","16="" 03="" 2026","21="" 08="" 2026",6)"="" onmousemove="moveTip(event)" onmouseleave="hideTip()">
-        <!-- spine -->
-        <rect class="b-spine" x="0" y="8" width="954" height="4" rx="2" fill="#958fff" opacity="0.75" style=""></rect>
-        <!-- left hook -->
-        <path class="b-hook" d="M0,8 L0,18 L4,18" fill="none" stroke="#958fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" opacity="0.75" style=""></path>
-        <!-- right hook -->
-        <path class="b-hook" d="M954,8 L954,18 L950,18" fill="none" stroke="#958fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" opacity="0.75" style=""></path>
-        <text x="477" y="10" text-anchor="middle" dominant-baseline="middle" font-family="'DM Mono',monospace" font-size="10" font-weight="700" fill="#fff" class="bracket-lbl" style="">6j</text>
-      </svg>
-    </div><div class="gantt-row" style="width:1002px">
-      <div class="gantt-col-line month" style="left:0px"></div><div class="gantt-col-line month" style="left:96px"></div><div class="gantt-col-line month" style="left:276px"></div><div class="gantt-col-line month" style="left:462px"></div><div class="gantt-col-line month" style="left:642px"></div><div class="gantt-col-line month" style="left:828px"></div><div class="gantt-col-line" style="left:0px"></div><div class="gantt-col-line" style="left:42px"></div><div class="gantt-col-line" style="left:84px"></div><div class="gantt-col-line" style="left:126px"></div><div class="gantt-col-line" style="left:168px"></div><div class="gantt-col-line" style="left:210px"></div><div class="gantt-col-line" style="left:252px"></div><div class="gantt-col-line" style="left:294px"></div><div class="gantt-col-line" style="left:336px"></div><div class="gantt-col-line" style="left:378px"></div><div class="gantt-col-line" style="left:420px"></div><div class="gantt-col-line" style="left:462px"></div><div class="gantt-col-line" style="left:504px"></div><div class="gantt-col-line" style="left:546px"></div><div class="gantt-col-line" style="left:588px"></div><div class="gantt-col-line" style="left:630px"></div><div class="gantt-col-line" style="left:672px"></div><div class="gantt-col-line" style="left:714px"></div><div class="gantt-col-line" style="left:756px"></div><div class="gantt-col-line" style="left:798px"></div><div class="gantt-col-line" style="left:840px"></div><div class="gantt-col-line" style="left:882px"></div><div class="gantt-col-line" style="left:924px"></div><div class="gantt-col-line" style="left:966px"></div><div class="today-line" style="left:12px"></div><div class="gantt-bar" style="left: 0px; width: 954px; background: rgb(108, 99, 255);" onclick="openEditPanel(2)" onmouseenter="showTip(event," aberdeen","gestion","gestion="" de="" projet","16="" 03="" 2026","21="" 08="" 2026",6)"="" onmousemove="moveTip(event)" onmouseleave="hideTip()">
-        <span class="bar-lbl">6j</span>
-      </div>
-    </div><div class="gantt-row is-groupe" style="width:1002px">
-      <div class="gantt-col-line month" style="left:0px"></div><div class="gantt-col-line month" style="left:96px"></div><div class="gantt-col-line month" style="left:276px"></div><div class="gantt-col-line month" style="left:462px"></div><div class="gantt-col-line month" style="left:642px"></div><div class="gantt-col-line month" style="left:828px"></div><div class="gantt-col-line" style="left:0px"></div><div class="gantt-col-line" style="left:42px"></div><div class="gantt-col-line" style="left:84px"></div><div class="gantt-col-line" style="left:126px"></div><div class="gantt-col-line" style="left:168px"></div><div class="gantt-col-line" style="left:210px"></div><div class="gantt-col-line" style="left:252px"></div><div class="gantt-col-line" style="left:294px"></div><div class="gantt-col-line" style="left:336px"></div><div class="gantt-col-line" style="left:378px"></div><div class="gantt-col-line" style="left:420px"></div><div class="gantt-col-line" style="left:462px"></div><div class="gantt-col-line" style="left:504px"></div><div class="gantt-col-line" style="left:546px"></div><div class="gantt-col-line" style="left:588px"></div><div class="gantt-col-line" style="left:630px"></div><div class="gantt-col-line" style="left:672px"></div><div class="gantt-col-line" style="left:714px"></div><div class="gantt-col-line" style="left:756px"></div><div class="gantt-col-line" style="left:798px"></div><div class="gantt-col-line" style="left:840px"></div><div class="gantt-col-line" style="left:882px"></div><div class="gantt-col-line" style="left:924px"></div><div class="gantt-col-line" style="left:966px"></div><div class="today-line" style="left:12px"></div><svg class="bracket-bar" style="left:138px;top:0;cursor:pointer" width="228" height="30" overflow="visible" onclick="openEditPanel(3)" onmouseenter="showTip(event," aberdeen","phase="" 1","","08="" 04="" 2026","15="" 05="" 2026",4)"="" onmousemove="moveTip(event)" onmouseleave="hideTip()">
-        <!-- spine -->
-        <rect class="b-spine" x="0" y="8" width="228" height="4" rx="2" fill="#958fff" opacity="0.75" style=""></rect>
-        <!-- left hook -->
-        <path class="b-hook" d="M0,8 L0,18 L4,18" fill="none" stroke="#958fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" opacity="0.75" style=""></path>
-        <!-- right hook -->
-        <path class="b-hook" d="M228,8 L228,18 L224,18" fill="none" stroke="#958fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" opacity="0.75" style=""></path>
-        <text x="114" y="10" text-anchor="middle" dominant-baseline="middle" font-family="'DM Mono',monospace" font-size="10" font-weight="700" fill="#fff" class="bracket-lbl" style="">4j</text>
-      </svg>
-    </div><div class="gantt-row" style="width:1002px">
-      <div class="gantt-col-line month" style="left:0px"></div><div class="gantt-col-line month" style="left:96px"></div><div class="gantt-col-line month" style="left:276px"></div><div class="gantt-col-line month" style="left:462px"></div><div class="gantt-col-line month" style="left:642px"></div><div class="gantt-col-line month" style="left:828px"></div><div class="gantt-col-line" style="left:0px"></div><div class="gantt-col-line" style="left:42px"></div><div class="gantt-col-line" style="left:84px"></div><div class="gantt-col-line" style="left:126px"></div><div class="gantt-col-line" style="left:168px"></div><div class="gantt-col-line" style="left:210px"></div><div class="gantt-col-line" style="left:252px"></div><div class="gantt-col-line" style="left:294px"></div><div class="gantt-col-line" style="left:336px"></div><div class="gantt-col-line" style="left:378px"></div><div class="gantt-col-line" style="left:420px"></div><div class="gantt-col-line" style="left:462px"></div><div class="gantt-col-line" style="left:504px"></div><div class="gantt-col-line" style="left:546px"></div><div class="gantt-col-line" style="left:588px"></div><div class="gantt-col-line" style="left:630px"></div><div class="gantt-col-line" style="left:672px"></div><div class="gantt-col-line" style="left:714px"></div><div class="gantt-col-line" style="left:756px"></div><div class="gantt-col-line" style="left:798px"></div><div class="gantt-col-line" style="left:840px"></div><div class="gantt-col-line" style="left:882px"></div><div class="gantt-col-line" style="left:924px"></div><div class="gantt-col-line" style="left:966px"></div><div class="today-line" style="left:12px"></div><div class="gantt-bar" style="left: 138px; width: 144px; background: rgb(108, 99, 255);" onclick="openEditPanel(4)" onmouseenter="showTip(event," aberdeen","phase="" 1","installation="" du="" patch","08="" 04="" 2026","01="" 05="" 2026",3)"="" onmousemove="moveTip(event)" onmouseleave="hideTip()">
-        <span class="bar-lbl">3j</span>
-      </div>
-    </div><div class="gantt-row" style="width:1002px">
-      <div class="gantt-col-line month" style="left:0px"></div><div class="gantt-col-line month" style="left:96px"></div><div class="gantt-col-line month" style="left:276px"></div><div class="gantt-col-line month" style="left:462px"></div><div class="gantt-col-line month" style="left:642px"></div><div class="gantt-col-line month" style="left:828px"></div><div class="gantt-col-line" style="left:0px"></div><div class="gantt-col-line" style="left:42px"></div><div class="gantt-col-line" style="left:84px"></div><div class="gantt-col-line" style="left:126px"></div><div class="gantt-col-line" style="left:168px"></div><div class="gantt-col-line" style="left:210px"></div><div class="gantt-col-line" style="left:252px"></div><div class="gantt-col-line" style="left:294px"></div><div class="gantt-col-line" style="left:336px"></div><div class="gantt-col-line" style="left:378px"></div><div class="gantt-col-line" style="left:420px"></div><div class="gantt-col-line" style="left:462px"></div><div class="gantt-col-line" style="left:504px"></div><div class="gantt-col-line" style="left:546px"></div><div class="gantt-col-line" style="left:588px"></div><div class="gantt-col-line" style="left:630px"></div><div class="gantt-col-line" style="left:672px"></div><div class="gantt-col-line" style="left:714px"></div><div class="gantt-col-line" style="left:756px"></div><div class="gantt-col-line" style="left:798px"></div><div class="gantt-col-line" style="left:840px"></div><div class="gantt-col-line" style="left:882px"></div><div class="gantt-col-line" style="left:924px"></div><div class="gantt-col-line" style="left:966px"></div><div class="today-line" style="left:12px"></div><div class="gantt-bar" style="left: 300px; width: 66px; background: rgb(108, 99, 255);" onclick="openEditPanel(5)" onmouseenter="showTip(event," aberdeen","phase="" 1","paramétrage="" propre="" leg="" lux","05="" 05="" 2026","15="" 2026",1)"="" onmousemove="moveTip(event)" onmouseleave="hideTip()">
-        <span class="bar-lbl">1j</span>
-      </div>
-    </div><div class="gantt-row is-groupe" style="width:1002px">
-      <div class="gantt-col-line month" style="left:0px"></div><div class="gantt-col-line month" style="left:96px"></div><div class="gantt-col-line month" style="left:276px"></div><div class="gantt-col-line month" style="left:462px"></div><div class="gantt-col-line month" style="left:642px"></div><div class="gantt-col-line month" style="left:828px"></div><div class="gantt-col-line" style="left:0px"></div><div class="gantt-col-line" style="left:42px"></div><div class="gantt-col-line" style="left:84px"></div><div class="gantt-col-line" style="left:126px"></div><div class="gantt-col-line" style="left:168px"></div><div class="gantt-col-line" style="left:210px"></div><div class="gantt-col-line" style="left:252px"></div><div class="gantt-col-line" style="left:294px"></div><div class="gantt-col-line" style="left:336px"></div><div class="gantt-col-line" style="left:378px"></div><div class="gantt-col-line" style="left:420px"></div><div class="gantt-col-line" style="left:462px"></div><div class="gantt-col-line" style="left:504px"></div><div class="gantt-col-line" style="left:546px"></div><div class="gantt-col-line" style="left:588px"></div><div class="gantt-col-line" style="left:630px"></div><div class="gantt-col-line" style="left:672px"></div><div class="gantt-col-line" style="left:714px"></div><div class="gantt-col-line" style="left:756px"></div><div class="gantt-col-line" style="left:798px"></div><div class="gantt-col-line" style="left:840px"></div><div class="gantt-col-line" style="left:882px"></div><div class="gantt-col-line" style="left:924px"></div><div class="gantt-col-line" style="left:966px"></div><div class="today-line" style="left:12px"></div><svg class="bracket-bar" style="left:390px;top:0;cursor:pointer" width="228" height="30" overflow="visible" onclick="openEditPanel(6)" onmouseenter="showTip(event," aberdeen","recette","","20="" 05="" 2026","26="" 06="" 2026",11)"="" onmousemove="moveTip(event)" onmouseleave="hideTip()">
-        <!-- spine -->
-        <rect class="b-spine" x="0" y="8" width="228" height="4" rx="2" fill="#958fff" opacity="0.75" style=""></rect>
-        <!-- left hook -->
-        <path class="b-hook" d="M0,8 L0,18 L4,18" fill="none" stroke="#958fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" opacity="0.75" style=""></path>
-        <!-- right hook -->
-        <path class="b-hook" d="M228,8 L228,18 L224,18" fill="none" stroke="#958fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" opacity="0.75" style=""></path>
-        <text x="114" y="10" text-anchor="middle" dominant-baseline="middle" font-family="'DM Mono',monospace" font-size="10" font-weight="700" fill="#fff" class="bracket-lbl" style="">11j</text>
-      </svg>
-    </div><div class="gantt-row" style="width:1002px">
-      <div class="gantt-col-line month" style="left:0px"></div><div class="gantt-col-line month" style="left:96px"></div><div class="gantt-col-line month" style="left:276px"></div><div class="gantt-col-line month" style="left:462px"></div><div class="gantt-col-line month" style="left:642px"></div><div class="gantt-col-line month" style="left:828px"></div><div class="gantt-col-line" style="left:0px"></div><div class="gantt-col-line" style="left:42px"></div><div class="gantt-col-line" style="left:84px"></div><div class="gantt-col-line" style="left:126px"></div><div class="gantt-col-line" style="left:168px"></div><div class="gantt-col-line" style="left:210px"></div><div class="gantt-col-line" style="left:252px"></div><div class="gantt-col-line" style="left:294px"></div><div class="gantt-col-line" style="left:336px"></div><div class="gantt-col-line" style="left:378px"></div><div class="gantt-col-line" style="left:420px"></div><div class="gantt-col-line" style="left:462px"></div><div class="gantt-col-line" style="left:504px"></div><div class="gantt-col-line" style="left:546px"></div><div class="gantt-col-line" style="left:588px"></div><div class="gantt-col-line" style="left:630px"></div><div class="gantt-col-line" style="left:672px"></div><div class="gantt-col-line" style="left:714px"></div><div class="gantt-col-line" style="left:756px"></div><div class="gantt-col-line" style="left:798px"></div><div class="gantt-col-line" style="left:840px"></div><div class="gantt-col-line" style="left:882px"></div><div class="gantt-col-line" style="left:924px"></div><div class="gantt-col-line" style="left:966px"></div><div class="today-line" style="left:12px"></div><div class="gantt-bar" style="left: 390px; width: 60px; background: rgb(108, 99, 255);" onclick="openEditPanel(7)" onmouseenter="showTip(event," aberdeen","recette","recette="" interne","20="" 05="" 2026","29="" 2026",2.5)"="" onmousemove="moveTip(event)" onmouseleave="hideTip()">
-        <span class="bar-lbl">2.5j</span>
-      </div>
-    </div><div class="gantt-row" style="width:1002px">
-      <div class="gantt-col-line month" style="left:0px"></div><div class="gantt-col-line month" style="left:96px"></div><div class="gantt-col-line month" style="left:276px"></div><div class="gantt-col-line month" style="left:462px"></div><div class="gantt-col-line month" style="left:642px"></div><div class="gantt-col-line month" style="left:828px"></div><div class="gantt-col-line" style="left:0px"></div><div class="gantt-col-line" style="left:42px"></div><div class="gantt-col-line" style="left:84px"></div><div class="gantt-col-line" style="left:126px"></div><div class="gantt-col-line" style="left:168px"></div><div class="gantt-col-line" style="left:210px"></div><div class="gantt-col-line" style="left:252px"></div><div class="gantt-col-line" style="left:294px"></div><div class="gantt-col-line" style="left:336px"></div><div class="gantt-col-line" style="left:378px"></div><div class="gantt-col-line" style="left:420px"></div><div class="gantt-col-line" style="left:462px"></div><div class="gantt-col-line" style="left:504px"></div><div class="gantt-col-line" style="left:546px"></div><div class="gantt-col-line" style="left:588px"></div><div class="gantt-col-line" style="left:630px"></div><div class="gantt-col-line" style="left:672px"></div><div class="gantt-col-line" style="left:714px"></div><div class="gantt-col-line" style="left:756px"></div><div class="gantt-col-line" style="left:798px"></div><div class="gantt-col-line" style="left:840px"></div><div class="gantt-col-line" style="left:882px"></div><div class="gantt-col-line" style="left:924px"></div><div class="gantt-col-line" style="left:966px"></div><div class="today-line" style="left:12px"></div><div class="gantt-bar" style="left: 390px; width: 60px; background: rgb(108, 99, 255);" onclick="openEditPanel(8)" onmouseenter="showTip(event," aberdeen","recette","revue="" de="" paramétrage="" et="" document","20="" 05="" 2026","29="" 2026",1)"="" onmousemove="moveTip(event)" onmouseleave="hideTip()">
-        <span class="bar-lbl">1j</span>
-      </div>
-    </div><div class="gantt-row" style="width:1002px">
-      <div class="gantt-col-line month" style="left:0px"></div><div class="gantt-col-line month" style="left:96px"></div><div class="gantt-col-line month" style="left:276px"></div><div class="gantt-col-line month" style="left:462px"></div><div class="gantt-col-line month" style="left:642px"></div><div class="gantt-col-line month" style="left:828px"></div><div class="gantt-col-line" style="left:0px"></div><div class="gantt-col-line" style="left:42px"></div><div class="gantt-col-line" style="left:84px"></div><div class="gantt-col-line" style="left:126px"></div><div class="gantt-col-line" style="left:168px"></div><div class="gantt-col-line" style="left:210px"></div><div class="gantt-col-line" style="left:252px"></div><div class="gantt-col-line" style="left:294px"></div><div class="gantt-col-line" style="left:336px"></div><div class="gantt-col-line" style="left:378px"></div><div class="gantt-col-line" style="left:420px"></div><div class="gantt-col-line" style="left:462px"></div><div class="gantt-col-line" style="left:504px"></div><div class="gantt-col-line" style="left:546px"></div><div class="gantt-col-line" style="left:588px"></div><div class="gantt-col-line" style="left:630px"></div><div class="gantt-col-line" style="left:672px"></div><div class="gantt-col-line" style="left:714px"></div><div class="gantt-col-line" style="left:756px"></div><div class="gantt-col-line" style="left:798px"></div><div class="gantt-col-line" style="left:840px"></div><div class="gantt-col-line" style="left:882px"></div><div class="gantt-col-line" style="left:924px"></div><div class="gantt-col-line" style="left:966px"></div><div class="today-line" style="left:12px"></div><div class="gantt-bar" style="left: 474px; width: 12px; background: rgb(108, 99, 255);" onclick="openEditPanel(9)" onmouseenter="showTip(event," aberdeen","recette","formation","03="" 06="" 2026","04="" 2026",1.5)"="" onmousemove="moveTip(event)" onmouseleave="hideTip()">
-        <span class="bar-lbl">1.5j</span>
-      </div>
-    </div><div class="gantt-row" style="width:1002px">
-      <div class="gantt-col-line month" style="left:0px"></div><div class="gantt-col-line month" style="left:96px"></div><div class="gantt-col-line month" style="left:276px"></div><div class="gantt-col-line month" style="left:462px"></div><div class="gantt-col-line month" style="left:642px"></div><div class="gantt-col-line month" style="left:828px"></div><div class="gantt-col-line" style="left:0px"></div><div class="gantt-col-line" style="left:42px"></div><div class="gantt-col-line" style="left:84px"></div><div class="gantt-col-line" style="left:126px"></div><div class="gantt-col-line" style="left:168px"></div><div class="gantt-col-line" style="left:210px"></div><div class="gantt-col-line" style="left:252px"></div><div class="gantt-col-line" style="left:294px"></div><div class="gantt-col-line" style="left:336px"></div><div class="gantt-col-line" style="left:378px"></div><div class="gantt-col-line" style="left:420px"></div><div class="gantt-col-line" style="left:462px"></div><div class="gantt-col-line" style="left:504px"></div><div class="gantt-col-line" style="left:546px"></div><div class="gantt-col-line" style="left:588px"></div><div class="gantt-col-line" style="left:630px"></div><div class="gantt-col-line" style="left:672px"></div><div class="gantt-col-line" style="left:714px"></div><div class="gantt-col-line" style="left:756px"></div><div class="gantt-col-line" style="left:798px"></div><div class="gantt-col-line" style="left:840px"></div><div class="gantt-col-line" style="left:882px"></div><div class="gantt-col-line" style="left:924px"></div><div class="gantt-col-line" style="left:966px"></div><div class="today-line" style="left:12px"></div><div class="gantt-bar" style="left: 504px; width: 114px; background: rgb(108, 99, 255);" onclick="openEditPanel(10)" onmouseenter="showTip(event," aberdeen","recette","assistance="" recette","08="" 06="" 2026","26="" 2026",6)"="" onmousemove="moveTip(event)" onmouseleave="hideTip()">
-        <span class="bar-lbl">6j</span>
-      </div>
-    </div><div class="gantt-row is-groupe" style="width:1002px">
-      <div class="gantt-col-line month" style="left:0px"></div><div class="gantt-col-line month" style="left:96px"></div><div class="gantt-col-line month" style="left:276px"></div><div class="gantt-col-line month" style="left:462px"></div><div class="gantt-col-line month" style="left:642px"></div><div class="gantt-col-line month" style="left:828px"></div><div class="gantt-col-line" style="left:0px"></div><div class="gantt-col-line" style="left:42px"></div><div class="gantt-col-line" style="left:84px"></div><div class="gantt-col-line" style="left:126px"></div><div class="gantt-col-line" style="left:168px"></div><div class="gantt-col-line" style="left:210px"></div><div class="gantt-col-line" style="left:252px"></div><div class="gantt-col-line" style="left:294px"></div><div class="gantt-col-line" style="left:336px"></div><div class="gantt-col-line" style="left:378px"></div><div class="gantt-col-line" style="left:420px"></div><div class="gantt-col-line" style="left:462px"></div><div class="gantt-col-line" style="left:504px"></div><div class="gantt-col-line" style="left:546px"></div><div class="gantt-col-line" style="left:588px"></div><div class="gantt-col-line" style="left:630px"></div><div class="gantt-col-line" style="left:672px"></div><div class="gantt-col-line" style="left:714px"></div><div class="gantt-col-line" style="left:756px"></div><div class="gantt-col-line" style="left:798px"></div><div class="gantt-col-line" style="left:840px"></div><div class="gantt-col-line" style="left:882px"></div><div class="gantt-col-line" style="left:924px"></div><div class="gantt-col-line" style="left:966px"></div><div class="today-line" style="left:12px"></div><svg class="bracket-bar" style="left:726px;top:0;cursor:pointer" width="270" height="30" overflow="visible" onclick="openEditPanel(11)" onmouseenter="showTip(event," aberdeen","prod","","15="" 07="" 2026","28="" 08="" 2026",6.5)"="" onmousemove="moveTip(event)" onmouseleave="hideTip()">
-        <!-- spine -->
-        <rect class="b-spine" x="0" y="8" width="270" height="4" rx="2" fill="#958fff" opacity="0.75" style=""></rect>
-        <!-- left hook -->
-        <path class="b-hook" d="M0,8 L0,18 L4,18" fill="none" stroke="#958fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" opacity="0.75" style=""></path>
-        <!-- right hook -->
-        <path class="b-hook" d="M270,8 L270,18 L266,18" fill="none" stroke="#958fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" opacity="0.75" style=""></path>
-        <text x="135" y="10" text-anchor="middle" dominant-baseline="middle" font-family="'DM Mono',monospace" font-size="10" font-weight="700" fill="#fff" class="bracket-lbl" style="">6.5j</text>
-      </svg>
-    </div><div class="gantt-row" style="width:1002px">
-      <div class="gantt-col-line month" style="left:0px"></div><div class="gantt-col-line month" style="left:96px"></div><div class="gantt-col-line month" style="left:276px"></div><div class="gantt-col-line month" style="left:462px"></div><div class="gantt-col-line month" style="left:642px"></div><div class="gantt-col-line month" style="left:828px"></div><div class="gantt-col-line" style="left:0px"></div><div class="gantt-col-line" style="left:42px"></div><div class="gantt-col-line" style="left:84px"></div><div class="gantt-col-line" style="left:126px"></div><div class="gantt-col-line" style="left:168px"></div><div class="gantt-col-line" style="left:210px"></div><div class="gantt-col-line" style="left:252px"></div><div class="gantt-col-line" style="left:294px"></div><div class="gantt-col-line" style="left:336px"></div><div class="gantt-col-line" style="left:378px"></div><div class="gantt-col-line" style="left:420px"></div><div class="gantt-col-line" style="left:462px"></div><div class="gantt-col-line" style="left:504px"></div><div class="gantt-col-line" style="left:546px"></div><div class="gantt-col-line" style="left:588px"></div><div class="gantt-col-line" style="left:630px"></div><div class="gantt-col-line" style="left:672px"></div><div class="gantt-col-line" style="left:714px"></div><div class="gantt-col-line" style="left:756px"></div><div class="gantt-col-line" style="left:798px"></div><div class="gantt-col-line" style="left:840px"></div><div class="gantt-col-line" style="left:882px"></div><div class="gantt-col-line" style="left:924px"></div><div class="gantt-col-line" style="left:966px"></div><div class="today-line" style="left:12px"></div><div class="gantt-bar" style="left: 726px; width: 18px; background: rgb(108, 99, 255);" onclick="openEditPanel(12)" onmouseenter="showTip(event," aberdeen","prod","paramétrage="" dossier="" prod","15="" 07="" 2026","17="" 2026",0.5)"="" onmousemove="moveTip(event)" onmouseleave="hideTip()">
-        <span class="bar-lbl">0.5j</span>
-      </div>
-    </div><div class="gantt-row" style="width:1002px">
-      <div class="gantt-col-line month" style="left:0px"></div><div class="gantt-col-line month" style="left:96px"></div><div class="gantt-col-line month" style="left:276px"></div><div class="gantt-col-line month" style="left:462px"></div><div class="gantt-col-line month" style="left:642px"></div><div class="gantt-col-line month" style="left:828px"></div><div class="gantt-col-line" style="left:0px"></div><div class="gantt-col-line" style="left:42px"></div><div class="gantt-col-line" style="left:84px"></div><div class="gantt-col-line" style="left:126px"></div><div class="gantt-col-line" style="left:168px"></div><div class="gantt-col-line" style="left:210px"></div><div class="gantt-col-line" style="left:252px"></div><div class="gantt-col-line" style="left:294px"></div><div class="gantt-col-line" style="left:336px"></div><div class="gantt-col-line" style="left:378px"></div><div class="gantt-col-line" style="left:420px"></div><div class="gantt-col-line" style="left:462px"></div><div class="gantt-col-line" style="left:504px"></div><div class="gantt-col-line" style="left:546px"></div><div class="gantt-col-line" style="left:588px"></div><div class="gantt-col-line" style="left:630px"></div><div class="gantt-col-line" style="left:672px"></div><div class="gantt-col-line" style="left:714px"></div><div class="gantt-col-line" style="left:756px"></div><div class="gantt-col-line" style="left:798px"></div><div class="gantt-col-line" style="left:840px"></div><div class="gantt-col-line" style="left:882px"></div><div class="gantt-col-line" style="left:924px"></div><div class="gantt-col-line" style="left:966px"></div><div class="today-line" style="left:12px"></div><div class="gantt-bar" style="left: 798px; width: 198px; background: rgb(108, 99, 255);" onclick="openEditPanel(13)" onmouseenter="showTip(event," aberdeen","prod","assistance="" post-démarrage","27="" 07="" 2026","28="" 08="" 2026",6)"="" onmousemove="moveTip(event)" onmouseleave="hideTip()">
-        <span class="bar-lbl">6j</span>
-      </div>
-    </div>
-      <div class="gantt-click-zone" style="width:1002px" onclick="openEditPanel(null)" title="Cliquer pour ajouter une tâche"></div>
-    </div></div></div>
-        <div class="legend" id="legend"><div class="legend-item" onclick="openColorPicker(event,'ABERDEEN')"><div class="legend-dot" style="background: rgb(108, 99, 255);"></div>ABERDEEN</div></div>
+        <div class="gantt-layout" id="ganttLayout"></div>
+        <div class="legend" id="legend"></div>
       </div>
     </main>
   </div>
-</div><!-- /.app-shell -->
+</div>
 </div><!-- /#viewProjets -->
 
 <div id="viewRessources" style="display:none; height:calc(100vh - var(--header-h)); overflow:hidden;">

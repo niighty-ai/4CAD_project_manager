@@ -233,7 +233,7 @@ function renderGantt(){
       <button class="row-del-btn" onclick="event.stopPropagation();deleteGanttTache(event,this.dataset.idx)" data-idx="${realIdx}" title="Supprimer cette tâche">&#128465;</button>
     </div>${resRows}`;
   }).join('');
-  const activeProj = portfolio.find  const activeProj = portfolio.find(p=>p.id===activeProjectId);
+  const activeProj = portfolio.find(p=>p.id===activeProjectId);
   const lhTitle = activeProj ? escH(activeProj.name) : 'Projet / Groupe / Tache';
   /* Détermine si des tâches visibles ont des données de suivi → affiche les en-têtes de colonnes */
   const hasTracking = visible.some(r => r._type==='tache' &&
