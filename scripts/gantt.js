@@ -192,7 +192,7 @@ function renderGantt(){
   /* ── En-têtes colonnes ── */
   function headerCols() {
     // Spacer pour le bouton affectation (toujours présent pour alignement)
-    const affectSpacer = `<span class="ch-hdr-affect-spacer"></span>`;
+    const affectSpacer = `<span class="row-affect-slot"></span>`;
     if (!hasTracking) return affectSpacer + `<span class="ch-col ch-hdr ch-prev">Chg</span><span class="ch-col ch-dates ch-hdr">Début → Fin</span>`;
     return affectSpacer +
            `<span class="ch-col ch-hdr ch-prev">Prév.</span>` +
@@ -230,7 +230,7 @@ function renderGantt(){
         <span style="color:${c};font-size:9px;flex-shrink:0;margin-right:3px">■</span>
         <span class="row-label" style="color:${c}">${escH(r.projet)}</span>
         <div class="row-right">
-          ${chargeCols(r)}${dc}${acts}
+          <span class="row-affect-slot"></span>${chargeCols(r)}${dc}${acts}
         </div>
       </div>`;
     }
@@ -253,7 +253,7 @@ function renderGantt(){
         <span style="color:${col};font-size:${9-depth}px;flex-shrink:0;margin-right:3px">${icon}</span>
         <span class="row-label" style="color:${col};font-weight:${depth===1?700:600}">${escH(nomGroupe)}</span>
         <div class="row-right">
-          ${chargeCols(r)}${dc}${acts}
+          <span class="row-affect-slot"></span>${chargeCols(r)}${dc}${acts}
         </div>
       </div>`;
     }
@@ -266,7 +266,7 @@ function renderGantt(){
         <span class="jalon-diamond" style="background:${jColor}"></span>
         <span class="row-label" style="color:${jColor}">${escH(r.nom||'—')}</span>
         <div class="row-right">
-          <span class="ch-col ch-prev ch-empty">—</span>
+          <span class="row-affect-slot"></span><span class="ch-col ch-prev ch-empty">—</span>
           ${hasTracking?'<span class="ch-col ch-pass ch-empty">—</span><span class="ch-col ch-rest ch-empty">—</span>':''}
           ${dc}${acts}
         </div>
@@ -293,8 +293,7 @@ function renderGantt(){
       <span style="color:var(--muted);font-size:8px;flex-shrink:0;margin-right:2px">↳</span>
       <span class="row-label">${escH(r.tache||'—')}</span>
       <div class="row-right">
-        ${hasAsgn ? aBtn : ''}
-        ${chargeCols(r)}${dc}${acts}
+        <span class="row-affect-slot">${hasAsgn ? aBtn : ''}</span>${chargeCols(r)}${dc}${acts}
       </div>
     </div>${resRows}`;
   }).join('');

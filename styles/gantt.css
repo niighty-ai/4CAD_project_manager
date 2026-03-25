@@ -1008,12 +1008,12 @@
   transition: all .12s;
   white-space: nowrap;
   line-height: 1.4;
-  display: none; /* révélé dans .row-actions au hover */
+  display: none;
   justify-content: center;
   align-items: center;
 }
+.gantt-left-row:hover .affect-btn { display: inline-flex; }
 .affect-btn.has-res {
-  /* Quand ressources présentes : toujours visible (pas seulement au hover) */
   display: inline-flex !important;
   border-color: rgba(114,182,236,.5);
   color: var(--blue);
@@ -1157,3 +1157,25 @@
   background: transparent;
   border-bottom: none;
 }
+
+/* ── Slot fixe pour le bouton affectation (présent sur toutes les lignes) ──
+   Garantit l'alignement parfait des colonnes charges/dates
+   quelle que soit la présence du bouton. ── */
+.row-affect-slot {
+  display: inline-flex;
+  width: 34px;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+/* Le bouton dans le slot prend tout l'espace */
+.row-affect-slot .affect-btn {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  margin: 0;
+  border-radius: 3px;
+}
+/* Supprime l'ancien spacer (remplacé par row-affect-slot) */
+.ch-hdr-affect-spacer { display: none; }
