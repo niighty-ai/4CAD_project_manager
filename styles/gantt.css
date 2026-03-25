@@ -903,6 +903,7 @@
   overflow: hidden;
   height: 100%;
   padding: 0 2px 0 6px;
+  position: relative;
 }
 .row-label-cell .row-label {
   overflow: hidden;
@@ -964,15 +965,14 @@
   display: none;
   align-items: center;
   gap: 2px;
-  padding: 0 4px;
-  /* Overlay absolu sur la cellule label — côté gauche */
+  padding: 1px 3px;
   position: absolute;
-  left: 0;
+  right: 0;
   top: 0;
   bottom: 0;
-  background: linear-gradient(to right, var(--surface) 80%, transparent 100%);
-  z-index: 5;
-  pointer-events: auto;
+  background: var(--surface);
+  border-left: 1px solid var(--border);
+  z-index: 6;
 }
 .gantt-left-row { position: relative; }
 .gantt-left-row:hover .row-actions { display: flex; }
@@ -995,8 +995,7 @@
   font-weight: 700;
   letter-spacing: 0.5px;
   text-transform: uppercase;
-  opacity: 0.75;
-  color: #fff;
+  color: rgba(255,255,255,.9);
   background: transparent;
   border-left-color: rgba(255,255,255,.2);
 }
@@ -1006,14 +1005,8 @@
 }
 
 .ch-hdr-label {
-  font-size: 8px;
-  font-weight: 700;
-  letter-spacing: 0.5px;
-  text-transform: uppercase;
-  color: var(--muted);
-  padding: 0 6px;
-  white-space: nowrap;
-  overflow: hidden;
+  flex: 1;
+  min-width: 0;
 }
 .ch-col.ch-hdr {
   font-size: 8px;
@@ -1049,7 +1042,7 @@
 
 /* ── Bouton affectation ── */
 .affect-btn {
-  display: none;
+  display: inline-flex;
   width: 28px;
   height: 18px;
   font-size: 10px;
