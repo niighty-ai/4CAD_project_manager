@@ -801,8 +801,6 @@
   border-bottom: 1px dashed var(--border);
   font-size: 10px;
   font-family: Arial, sans-serif;
-  gap: 4px;
-  box-sizing: border-box;
   cursor: default;
 }
 
@@ -982,7 +980,6 @@
 
 /* ── En-têtes colonnes — intégrés dans gantt-left-header ── */
 .gantt-col-headers {
-  /* Standalone grid row — same template as data rows → perfect alignment */
   height: 20px;
   background: var(--surface2);
   border-bottom: 2px solid var(--border);
@@ -991,7 +988,6 @@
 .gantt-left-row.gantt-col-headers:hover {
   background: var(--surface2) !important;
 }
-/* Matching spacer on the right panel */
 .gantt-col-hdr-spacer {
   height: 20px;
   background: var(--surface2);
@@ -999,7 +995,7 @@
   flex-shrink: 0;
 }
 .ch-hdr-label {
-  /* placeholder for col 1 (1fr) in the header row — no visible content */
+  /* placeholder col 1 dans la ligne en-tête */
 }
 .ch-col.ch-hdr {
   font-size: 8px;
@@ -1154,6 +1150,12 @@
   flex-shrink: 0;
 }
 .affect-del-btn:hover { background: rgba(192,57,43,.2); }
+.affect-row-dates {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  margin-bottom: 6px;
+}
 .affect-row-charges {
   display: grid;
   grid-template-columns: 1fr 1fr 1fr;
