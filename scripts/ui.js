@@ -1078,6 +1078,8 @@ function renderAffectList(r) {
       return `<option value="${escH(res.id)}" ${sel}>${escH(name)}</option>`;
     }).join('');
 
+    const aDebut = a.debut instanceof Date ? toInput(a.debut) : (a.debut ? String(a.debut).slice(0,10) : '');
+    const aFin   = a.fin   instanceof Date ? toInput(a.fin)   : (a.fin   ? String(a.fin).slice(0,10)   : '');
     return `<div class="affect-row" data-asgn="${i}">
       <div class="affect-row-main">
         <select class="affect-select" onchange="affectChangeRes(${i},this.value)">
@@ -1085,6 +1087,18 @@ function renderAffectList(r) {
           ${resOpts}
         </select>
         <button class="affect-del-btn" onclick="affectDelRow(${i})" title="Supprimer">✕</button>
+      </div>
+      <div class="affect-row-dates">
+        <div class="affect-charge-group">
+          <label class="affect-ch-label ch-prev-lbl">Début</label>
+          <input type="date" class="affect-ch-input" value="${aDebut}"
+            onchange="affectChangeDate(${i},'debut',this.value)">
+        </div>
+        <div class="affect-charge-group">
+          <label class="affect-ch-label ch-rest-lbl">Fin</label>
+          <input type="date" class="affect-ch-input" value="${aFin}"
+            onchange="affectChangeDate(${i},'fin',this.value)">
+        </div>
       </div>
       <div class="affect-row-charges">
         <div class="affect-charge-group">
@@ -1139,6 +1153,28 @@ function affectChangeCharge(idx, field, val) {
   saveAndRefreshAffect(r);
 }
 
+function affectChangeDate(idx, field, val) {
+  const r = rows[affectRowIdx];
+  if (!r || !r.assignments) return;
+  if (val) {
+    const d = new Date(val);
+    d.setHours(0,0,0,0);
+    r.assignments[idx][field] = d;
+  } else {
+    r.assignments[idx][field] = null;
+  }
+  _recalcTaskDates(r);
+  saveAndRefreshAffect(r);
+}
+
+function _recalcTaskDates(r) {
+  const asgns = r.assignments || [];
+  const debuts = asgns.map(a => a.debut instanceof Date ? a.debut : (a.debut ? new Date(a.debut) : null)).filter(Boolean);
+  const fins   = asgns.map(a => a.fin   instanceof Date ? a.fin   : (a.fin   ? new Date(a.fin)   : null)).filter(Boolean);
+  if (debuts.length) { const d = new Date(Math.min(...debuts.map(x=>x.getTime()))); d.setHours(0,0,0,0); r.debut = d; }
+  if (fins.length)   { const d = new Date(Math.max(...fins.map(x=>x.getTime())));   d.setHours(0,0,0,0); r.fin   = d; }
+}
+
 function affectDelRow(idx) {
   const r = rows[affectRowIdx];
   if (!r || !r.assignments) return;
@@ -1160,6 +1196,7 @@ function affectAddRow() {
 }
 
 function saveAndRefreshAffect(r) {
+  if (typeof _recalcTaskDates === 'function') _recalcTaskDates(r);
   sortRows();
   saveCurrentProject();
   renderAffectList(r);
