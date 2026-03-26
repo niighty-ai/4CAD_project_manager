@@ -527,8 +527,9 @@ function renderChart(layout,legend,visible,minD0,maxD0,today,leftHTML,mode,hasTr
         const a=(r.assignments||[])[ri];
         let miniBar='';
         if(a){
-          const aDebut = (a.debut instanceof Date) ? a.debut : (a.debut ? new Date(a.debut) : r.debut);
-          const aFin   = (a.fin   instanceof Date) ? a.fin   : (a.fin   ? new Date(a.fin)   : r.fin);
+          const _mkMidnight = d => { const x = d instanceof Date ? new Date(d) : new Date(d); x.setHours(0,0,0,0); return x; };
+          const aDebut = _mkMidnight(a.debut || r.debut);
+          const aFin   = _mkMidnight(a.fin   || r.fin);
           let aLeft, aWidth;
           if(mode==='mois'){
             aLeft  = xOf(aDebut);
