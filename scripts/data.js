@@ -95,10 +95,20 @@ function _serializePortfolio(data){
     id:p.id, name:p.name, client:p.client||'', folder:p.folder||'',
     rows: (p.rows||[])
       .filter(r=>r._type!=='jalon')
-      .map(r=>{const{_srcPid,...rest}=r;return{...rest,
-        debut:r.debut?r.debut.toISOString():null,
-        fin:r.fin?r.fin.toISOString():null
-      };}),
+      .map(r=>{
+        const{_srcPid,...rest}=r;
+        // Serialize assignment dates to ISO strings
+        const assignments = (rest.assignments||[]).map(a=>({
+          ...a,
+          debut: a.debut instanceof Date ? a.debut.toISOString() : (a.debut||null),
+          fin:   a.fin   instanceof Date ? a.fin.toISOString()   : (a.fin  ||null),
+        }));
+        return{...rest,
+          debut:r.debut?r.debut.toISOString():null,
+          fin:r.fin?r.fin.toISOString():null,
+          assignments,
+        };
+      }),
     jalons: (p.jalons||[]).map(j=>{const{_srcPid,...rest}=j;return{...rest,
       date:j.date?j.date.toISOString():null
     };}),
@@ -140,7 +150,12 @@ function _deserializePortfolio(data){
     rows: (p.rows||[]).filter(r=>r._type!=='jalon').map(r=>({
       ...r,
       debut: r.debut ? new Date(r.debut) : null,
-      fin:   r.fin   ? new Date(r.fin)   : null
+      fin:   r.fin   ? new Date(r.fin)   : null,
+      assignments: (r.assignments||[]).map(a=>({
+        ...a,
+        debut: a.debut ? new Date(a.debut) : null,
+        fin:   a.fin   ? new Date(a.fin)   : null,
+      })),
     })),
     jalons: (p.jalons||[]).map(j=>({
       ...j,
@@ -560,7 +575,6 @@ function migrateFirebaseData(data){
     rows: (p.rows||[]).filter(r=>r._type!=='jalon').map(r=>{
       const niveaux = r.niveaux ? r.niveaux : (r.groupe ? [r.groupe] : []);
       return {
-        // Préserve TOUS les champs (assignments, chargePassee, chargeRestante, etc.)
         ...r,
         _type:  r._type  || 'tache',
         projet: r.projet || '',
@@ -571,7 +585,13 @@ function migrateFirebaseData(data){
         charge: r.charge != null ? r.charge : null,
         chargePassee:   r.chargePassee   ?? null,
         chargeRestante: r.chargeRestante ?? null,
-        assignments:    Array.isArray(r.assignments) ? r.assignments : []
+        xmlUid: r.xmlUid || null,
+        xmlId:  r.xmlId  || null,
+        assignments: (Array.isArray(r.assignments) ? r.assignments : []).map(a=>({
+          ...a,
+          debut: a.debut ? new Date(a.debut) : null,
+          fin:   a.fin   ? new Date(a.fin)   : null,
+        }))
       };
     })
   })));
