@@ -171,16 +171,24 @@ function renderGantt(){
     if (!asgns || !asgns.length) return '';
     const resKey = collapseResKey(realIdx);
     if (collapsedRes[resKey]) return '';
-    return asgns.map(a =>
-      `<div class="gantt-left-row is-res-detail">
+    return asgns.map((a,ai) => {
+      const dRes = a.debut  instanceof Date ? a.debut  : (a.debut  ? new Date(a.debut)  : null);
+      const fRes = a.fin    instanceof Date ? a.fin    : (a.fin    ? new Date(a.fin)    : null);
+      const datesTxt = (dRes && fRes)
+        ? `<span class="ch-col ch-dates" style="font-size:9px">${fmtShort(dRes)}<span class="d-sep">→</span>${fmtShort(fRes)}</span>`
+        : `<span class="ch-col ch-dates ch-dates-empty"></span>`;
+      return `<div class="gantt-left-row is-res-detail" onclick="event.stopPropagation();openAffectPanel(${realIdx})" style="cursor:pointer" title="Cliquer pour gérer les affectations">
         <span class="row-label-cell" style="padding-left:${indent+20}px">
           <span class="rd-icon">👤</span>
           <span class="rd-name">${escH(a.resourceNom||'?')}</span>
         </span>
         <span class="ch-col ch-slot"></span>
-        ${chargeColsRes(a)}
-      </div>`
-    ).join('');
+        ${!hasTracking
+          ? chCell(a.charge,'ch-prev') + datesTxt
+          : chCell(a.charge,'ch-prev') + chCell(a.chargePassee,'ch-pass') + chCell(a.chargeRestante,'ch-rest') + datesTxt
+        }
+      </div>`;
+    }).join('');
   }
 
   /* ── Bouton affectation sur chaque tâche ── */
