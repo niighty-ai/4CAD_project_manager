@@ -415,6 +415,14 @@
   border-radius:1px
 }
 
+.gantt-bar-res {
+  position:absolute;
+  height:6px;
+  top:50%;
+  transform:translateY(-50%);
+  border-radius:2px;
+  pointer-events:none;
+}
 .gantt-bar {
   position:absolute;
   height:18px;
