@@ -297,8 +297,7 @@ function renderGantt(){
       <span class="lh-title lh-title-editable" onclick="startRenameLhTitle()" title="Cliquer pour renommer">${lhTitle}</span>
     </div>
     <div class="gantt-left-row gantt-col-headers">
-      <span class="ch-hdr-label"></span>
-      ${headerCols()}
+      <span class="ch-hdr-label"></span>${headerCols()}
     </div>
     ${leftRows}
     <div style="display:flex;border-top:1px solid var(--border)">
@@ -406,8 +405,7 @@ function renderChart(layout,legend,visible,minD0,maxD0,today,leftHTML,mode,hasTr
   const todayX=xOf(today);
   const todayOk=today>=minD&&today<=maxD;
   const ROW_H=22; 
-  /* Spacer 22px pour aligner avec la ligne gantt-col-headers du panneau gauche */
-  const colHdrSpacer = `<div class="gantt-col-hdr-spacer" style="width:${totalW}px"></div>`;
+  const colHdrSpacer=`<div class="gantt-col-hdr-spacer" style="width:${totalW}px"></div>`;
   const rowsHTML=visible.map(r=>{
     const c=getColor(r.projet);
     const isProj=r._type==='projet';
