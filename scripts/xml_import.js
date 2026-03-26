@@ -63,11 +63,13 @@ function parseMSProjectXML(xmlText, projectName) {
       if (!existing.profession && profession) {
         existing.profession = profession;
       }
+      // Stocke le xmlUid pour le lien fort avec MS Project
+      if (!existing.xmlUid) existing.xmlUid = uid;
       uidToAppId[uid] = existing.id;
     } else {
       // Création d'une nouvelle ressource
       const newId = genResId();
-      const newRes = { id: newId, nom, prenom, profession };
+      const newRes = { id: newId, nom, prenom, profession, xmlUid: uid };
       if (typeof resources !== 'undefined') {
         resources.push(newRes);
       }
@@ -97,11 +99,18 @@ function parseMSProjectXML(xmlText, projectName) {
     if (!uidToAppId[resourceUID]) continue;
 
     if (!taskAssignments[taskUID]) taskAssignments[taskUID] = [];
+    const asgStart = getVal(a, 'Start');
+    const asgFinish = getVal(a, 'Finish');
+    const mkDateA = s => { if (!s) return null; const d = new Date(s); d.setHours(0,0,0,0); return d; };
     taskAssignments[taskUID].push({
+      xmlUid:        getVal(a, 'UID'),
       resourceUID,
       work:          parsePTtoDays(workStr),
       actualWork:    parsePTtoDays(actualStr),
       remainingWork: parsePTtoDays(remainStr),
+      debut:         mkDateA(asgStart),
+      fin:           mkDateA(asgFinish),
+      percentComplete: parseFloat(getVal(a, 'PercentWorkComplete') || '0') || 0,
     });
   }
 
@@ -152,11 +161,15 @@ function parseMSProjectXML(xmlText, projectName) {
           ? [res.prenom, res.nom].filter(Boolean).join(' ')
           : '?';
         return {
+          xmlUid:         a.xmlUid || null,
           resourceId:     appId,
           resourceNom,
           charge:         a.work          != null ? Math.round(a.work          * 10000) / 10000 : null,
           chargePassee:   a.actualWork    != null ? Math.round(a.actualWork    * 10000) / 10000 : null,
           chargeRestante: a.remainingWork != null ? Math.round(a.remainingWork * 10000) / 10000 : null,
+          debut:          a.debut  || null,
+          fin:            a.fin    || null,
+          percentComplete: a.percentComplete || 0,
         };
       });
     } else {
@@ -165,7 +178,8 @@ function parseMSProjectXML(xmlText, projectName) {
       charge = parsePTtoDays(workStr);
     }
 
-    tasks.push({ uid, name, depth, isSummary, isMilestone, start, finish,
+    const taskId = getVal(el, 'ID');
+    tasks.push({ uid, id: taskId, name, depth, isSummary, isMilestone, start, finish,
                  charge, chargePassee, chargeRestante, assignments });
   }
 
@@ -208,6 +222,8 @@ function parseMSProjectXML(xmlText, projectName) {
       chargePassee:   t.chargePassee,
       chargeRestante: t.chargeRestante,
       assignments:    t.assignments,
+      xmlUid:         t.uid,          // lien fort avec MS Project Task.UID
+      xmlId:          t.id,           // ordre d'affichage MS Project
     });
   }
 
