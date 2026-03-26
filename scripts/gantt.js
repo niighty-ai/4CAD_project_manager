@@ -295,7 +295,10 @@ function renderGantt(){
   const leftHTML=`<div class="gantt-left${hasTracking?' has-tracking':''}" id="ganttLeftPanel" style="width:${labelW}px">
     <div class="gantt-left-header">
       <span class="lh-title lh-title-editable" onclick="startRenameLhTitle()" title="Cliquer pour renommer">${lhTitle}</span>
-      <div class="gantt-col-headers"><span class="ch-hdr-label"></span>${headerCols()}</div>
+    </div>
+    <div class="gantt-left-row gantt-col-headers">
+      <span class="ch-hdr-label"></span>
+      ${headerCols()}
     </div>
     ${leftRows}
     <div style="display:flex;border-top:1px solid var(--border)">
@@ -403,6 +406,8 @@ function renderChart(layout,legend,visible,minD0,maxD0,today,leftHTML,mode,hasTr
   const todayX=xOf(today);
   const todayOk=today>=minD&&today<=maxD;
   const ROW_H=22; 
+  /* Spacer 22px pour aligner avec la ligne gantt-col-headers du panneau gauche */
+  const colHdrSpacer = `<div class="gantt-col-hdr-spacer" style="width:${totalW}px"></div>`;
   const rowsHTML=visible.map(r=>{
     const c=getColor(r.projet);
     const isProj=r._type==='projet';
@@ -533,7 +538,7 @@ function renderChart(layout,legend,visible,minD0,maxD0,today,leftHTML,mode,hasTr
       <div class="gantt-header-row" ${headerH}>
         <div class="gantt-months-strip" style="width:${totalW}px${mode==='mois'?';height:100%;align-items:center':''}">${topCells}</div>
         ${subRow}
-      </div>${rowsHTML}
+      </div>${colHdrSpacer}${rowsHTML}
       <div class="gantt-click-zone" style="width:${totalW}px" onclick="openEditPanel(null)" title="Cliquer pour ajouter une tâche"></div>
     </div></div>`;
   initDrag(document.getElementById('ganttRight'));
