@@ -171,24 +171,16 @@ function renderGantt(){
     if (!asgns || !asgns.length) return '';
     const resKey = collapseResKey(realIdx);
     if (collapsedRes[resKey]) return '';
-    return asgns.map((a,ai) => {
-      const dRes = a.debut  instanceof Date ? a.debut  : (a.debut  ? new Date(a.debut)  : null);
-      const fRes = a.fin    instanceof Date ? a.fin    : (a.fin    ? new Date(a.fin)    : null);
-      const datesTxt = (dRes && fRes)
-        ? `<span class="ch-col ch-dates" style="font-size:9px">${fmtShort(dRes)}<span class="d-sep">→</span>${fmtShort(fRes)}</span>`
-        : `<span class="ch-col ch-dates ch-dates-empty"></span>`;
-      return `<div class="gantt-left-row is-res-detail" onclick="event.stopPropagation();openAffectPanel(${realIdx})" style="cursor:pointer" title="Cliquer pour gérer les affectations">
+    return asgns.map(a =>
+      `<div class="gantt-left-row is-res-detail">
         <span class="row-label-cell" style="padding-left:${indent+20}px">
           <span class="rd-icon">👤</span>
           <span class="rd-name">${escH(a.resourceNom||'?')}</span>
         </span>
         <span class="ch-col ch-slot"></span>
-        ${!hasTracking
-          ? chCell(a.charge,'ch-prev') + datesTxt
-          : chCell(a.charge,'ch-prev') + chCell(a.chargePassee,'ch-pass') + chCell(a.chargeRestante,'ch-rest') + datesTxt
-        }
-      </div>`;
-    }).join('');
+        ${chargeColsRes(a)}
+      </div>`
+    ).join('');
   }
 
   /* ── Bouton affectation sur chaque tâche ── */
@@ -303,9 +295,7 @@ function renderGantt(){
   const leftHTML=`<div class="gantt-left${hasTracking?' has-tracking':''}" id="ganttLeftPanel" style="width:${labelW}px">
     <div class="gantt-left-header">
       <span class="lh-title lh-title-editable" onclick="startRenameLhTitle()" title="Cliquer pour renommer">${lhTitle}</span>
-    </div>
-    <div class="gantt-left-row gantt-col-headers">
-      <span class="ch-hdr-label"></span>${headerCols()}
+      <div class="gantt-col-headers"><span class="ch-hdr-label"></span>${headerCols()}</div>
     </div>
     ${leftRows}
     <div style="display:flex;border-top:1px solid var(--border)">
@@ -413,7 +403,6 @@ function renderChart(layout,legend,visible,minD0,maxD0,today,leftHTML,mode,hasTr
   const todayX=xOf(today);
   const todayOk=today>=minD&&today<=maxD;
   const ROW_H=22; 
-  const colHdrSpacer=`<div class="gantt-col-hdr-spacer" style="width:${totalW}px"></div>`;
   const rowsHTML=visible.map(r=>{
     const c=getColor(r.projet);
     const isProj=r._type==='projet';
@@ -527,9 +516,19 @@ function renderChart(layout,legend,visible,minD0,maxD0,today,leftHTML,mode,hasTr
         const a=(r.assignments||[])[ri];
         let miniBar='';
         if(a){
-          const aCharge=a.charge||r.charge;
-          const aLeft=left;
-          const aWidth=width;
+          /* Utilise les dates propres de l'assignment si disponibles,
+             sinon repli sur les dates de la tâche parente */
+          const aDebut = (a.debut instanceof Date) ? a.debut : (a.debut ? new Date(a.debut) : r.debut);
+          const aFin   = (a.fin   instanceof Date) ? a.fin   : (a.fin   ? new Date(a.fin)   : r.fin);
+          let aLeft, aWidth;
+          if(mode==='mois'){
+            aLeft  = xOf(aDebut);
+            const aRightX = xOf(aFin)+dayWidth/30;
+            aWidth = Math.max(dayWidth*0.05, aRightX-aLeft);
+          } else {
+            aLeft  = xOf(aDebut);
+            aWidth = Math.max(dayWidth, diff(aDebut,aFin)*dayWidth+dayWidth);
+          }
           miniBar=`<div class="gantt-bar-res" style="left:${aLeft}px;width:${aWidth}px;background:${c2}33;border:1px solid ${c2}88"></div>`;
         }
         rightRows+=`<div class="gantt-row is-res-row" style="width:${totalW}px">${colsBase}${miniBar}</div>`;
@@ -544,7 +543,7 @@ function renderChart(layout,legend,visible,minD0,maxD0,today,leftHTML,mode,hasTr
       <div class="gantt-header-row" ${headerH}>
         <div class="gantt-months-strip" style="width:${totalW}px${mode==='mois'?';height:100%;align-items:center':''}">${topCells}</div>
         ${subRow}
-      </div>${colHdrSpacer}${rowsHTML}
+      </div>${rowsHTML}
       <div class="gantt-click-zone" style="width:${totalW}px" onclick="openEditPanel(null)" title="Cliquer pour ajouter une tâche"></div>
     </div></div>`;
   initDrag(document.getElementById('ganttRight'));
