@@ -130,43 +130,21 @@
   width:100%
 }
 
-.toggle-dates-btn {
-  flex-shrink:0;
-  padding:3px 7px;
-  font-size:9px;
-  font-weight:700;
-  font-family:'Courier New',monospace;
-  background:rgba(255,255,255,.12);
-  border:1px solid rgba(255,255,255,.25);
-  border-radius:4px;
-  cursor:pointer;
-  color:#fff;
-  transition:all .14s;
-  white-space:nowrap
-}
 
-.toggle-dates-btn:hover {
-  background:rgba(236,114,6,.3);
-  border-color:var(--accent)
-}
 
-.toggle-dates-btn.hidden-dates {
-  background:rgba(236,114,6,.25);
-  border-color:var(--accent)
-}
 
-[data-theme="dark"] .toggle-dates-btn {
-  background:rgba(255,255,255,.06);
-  border-color:var(--border);
-  color:var(--muted)
-}
-
+[data-theme="dark"] 
 .gantt-left-row {
   height:var(--row-h);
+  display:grid;
+  grid-template-columns:var(--gl-tpl);
+  align-items:center;
+  gap:0;
   border-bottom:1px solid var(--border);
   font-size:11px;
   overflow:hidden;
-  transition:background .1s
+  transition:background .1s;
+  position:relative
 }
 
 .gantt-left-row.is-projet {
@@ -854,48 +832,45 @@
 }
 
 
+
 /* ══════════════════════════════════════════════════════════
-   PANNEAU GAUCHE — CSS GRID (colonnes parfaitement alignées)
-   
-   Template de base (sans tracking) :
-     [label 1fr] [slot 32px] [prev 50px] [dates 88px] [actions]
-   
-   Template avec tracking :
-     [label 1fr] [slot 32px] [prev 50px] [pass 50px] [rest 50px] [dates 88px] [actions]
-   
-   TOUTES les lignes (.gantt-left-row) et l'en-tête utilisent
-   le MÊME template → alignement garanti.
+   COLONNES FIXES — CSS GRID (panneau gauche)
+   Template: 1fr | slot(32px) | prev(50px) | dates(90px)
+         ou: 1fr | slot | prev | pass | rest | dates (tracking)
    ══════════════════════════════════════════════════════════ */
 
 /* Variables de grille */
 .gantt-left {
-  --gl-slot:   32px;
-  --gl-prev:   50px;
-  --gl-dates:  88px;
-  /* template sans col actions (actions = position:absolute sur label) */
-  --gl-tpl:    1fr var(--gl-slot) var(--gl-prev) var(--gl-dates);
+  --gl-slot:  32px;
+  --gl-prev:  50px;
+  --gl-dates: 90px;
+  --gl-tpl: 1fr var(--gl-slot) var(--gl-prev) var(--gl-dates);
+  overflow-x: auto;
 }
 .gantt-left.has-tracking {
   --gl-tpl: 1fr var(--gl-slot) var(--gl-prev) 50px 50px var(--gl-dates);
 }
-/* Scroll horizontal si le panneau est trop étroit */
-.gantt-left {
-  overflow-x: auto;
-  overflow-y: hidden;
-}
-/* Largeur minimale des lignes = slot + charges + dates */
-.gantt-left-row,
 
-/* Application à TOUTES les lignes : CSS Grid avec colonnes fixes ── */
-.gantt-left-row {
-  display: grid !important;
-  grid-template-columns: var(--gl-tpl);
-  align-items: center;
-  gap: 0;
-  position: relative;
+/* Ligne en-tête colonnes = même grille que les données */
+.gantt-left-row.gantt-col-headers {
+  height: 20px;
+  background: var(--surface2);
+  border-bottom: 2px solid var(--border);
+  cursor: default;
+}
+.gantt-left-row.gantt-col-headers:hover {
+  background: var(--surface2) !important;
 }
 
-/* ── Cellule label (colonne 1) ── */
+/* Spacer droit = même hauteur que gantt-col-headers */
+.gantt-col-hdr-spacer {
+  height: 20px;
+  background: var(--surface2);
+  border-bottom: 2px solid var(--border);
+  flex-shrink: 0;
+}
+
+/* Cellule label (col 1 = 1fr) */
 .row-label-cell {
   display: flex;
   align-items: center;
@@ -912,21 +887,25 @@
   min-width: 0;
   flex: 1;
 }
+.ch-hdr-label { /* placeholder col 1 dans l'en-tête */ }
 
-/* ── Slot affectation (colonne 2) ── */
-.ch-col.ch-slot {
-  width: var(--gl-slot);
-  display: flex;
+/* Boutons +/🗑 au survol — ancrés à droite dans la cellule label */
+.row-actions {
+  display: none;
   align-items: center;
-  justify-content: center;
-  padding: 0;
-  height: 100%;
-  flex-shrink: 0;
+  gap: 2px;
+  padding: 0 3px;
+  position: absolute;
+  right: 0; top: 0; bottom: 0;
+  background: var(--surface);
   border-left: 1px solid var(--border);
-  background: transparent;
+  z-index: 6;
 }
+.gantt-left-row:hover .row-actions { display: flex; }
+.row-actions .row-add-btn,
+.row-actions .row-del-btn { display: inline-flex !important; }
 
-/* ── Colonnes charges (colonnes 3, 4, 5) ── */
+/* Cellules données */
 .ch-col {
   display: flex;
   align-items: center;
@@ -940,110 +919,39 @@
   padding: 0 3px;
   flex-shrink: 0;
 }
-
+.ch-col.ch-slot { width: var(--gl-slot); padding: 0; background: transparent; }
 .ch-prev { width: var(--gl-prev); color: var(--accent);  background: rgba(236,114,6,.05); }
 .ch-pass { width: var(--gl-prev); color: var(--blue);    background: rgba(114,182,236,.07); }
 .ch-rest { width: var(--gl-prev); color: var(--green);   background: rgba(46,125,50,.07); }
 [data-theme="dark"] .ch-rest { background: rgba(67,233,123,.05); }
-
-/* ── Colonne dates (avant-dernière) ── */
 .ch-dates {
   width: var(--gl-dates);
   font-size: 10px;
   color: var(--muted);
   padding: 0 5px;
-  border-left: 1px solid var(--border);
-  flex-shrink: 0;
   gap: 2px;
 }
-.ch-empty      { opacity: 0.3; font-style: italic; }
-.ch-dates-empty{ visibility: hidden; }
-.ch-sm         { font-size: 9px !important; }
+.ch-empty       { opacity: .35; font-style: italic; }
+.ch-dates-empty { visibility: hidden; }
 
-/* ── Colonne actions (dernière) ── */
-.row-actions {
-  display: none;
-  align-items: center;
-  gap: 2px;
-  padding: 1px 3px;
-  position: absolute;
-  right: 0;
-  top: 0;
-  bottom: 0;
-  background: var(--surface);
-  border-left: 1px solid var(--border);
-  z-index: 6;
-}
-.gantt-left-row { position: relative; }
-.gantt-left-row:hover .row-actions { display: flex; }
-
-/* Ghost pour l'en-tête (invisible, prend 0 espace) */
-.row-actions-ghost { display: none; }
-
-/* ── En-tête colonnes ── */
-
-/* ── En-têtes colonnes — intégrés dans gantt-left-header ── */
-.gantt-col-headers {
-  display: flex;
-  align-items: stretch;
-  flex-shrink: 0;
-  margin-left: auto;
-  height: 100%;
-}
-.ch-col.ch-hdr {
-  font-size: 8px;
-  font-weight: 700;
-  letter-spacing: 0.5px;
-  text-transform: uppercase;
-  color: rgba(255,255,255,.9);
+/* En-têtes de colonnes — sur fond surface2 → texte visible */
+.gantt-left-row.gantt-col-headers .ch-col {
   background: transparent;
-  border-left-color: rgba(255,255,255,.2);
-}
-[data-theme="dark"] .ch-col.ch-hdr {
-  color: var(--muted);
-  border-left-color: var(--border);
-}
-
-.ch-hdr-label {
-  flex: 1;
-  min-width: 0;
 }
 .ch-col.ch-hdr {
   font-size: 8px;
   font-weight: 700;
-  letter-spacing: 0.5px;
+  letter-spacing: .6px;
   text-transform: uppercase;
-  opacity: 0.8;
   color: var(--text);
 }
 
-/* ── Ligne ressource détail ── */
-.gantt-left-row.is-res-detail {
-  height: 18px !important;
-  background: rgba(114,182,236,.04);
-  border-bottom: 1px dashed var(--border);
-  cursor: default;
-}
-[data-theme="dark"] .gantt-left-row.is-res-detail {
-  background: rgba(114,182,236,.03);
-}
-.gantt-left-row.is-res-detail:hover {
-  background: rgba(114,182,236,.08) !important;
-}
-.rd-icon { font-size: 9px; opacity: .7; margin-right: 3px; flex-shrink: 0; }
-.rd-name {
-  font-size: 10px !important;
-  color: var(--muted) !important;
-  font-style: italic;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-/* ── Bouton affectation ── */
+/* Bouton affectation */
 .affect-btn {
   display: inline-flex;
-  width: 28px;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
   height: 18px;
   font-size: 10px;
   font-family: 'Courier New', monospace;
@@ -1057,136 +965,54 @@
   transition: all .12s;
   white-space: nowrap;
   line-height: 1;
-  justify-content: center;
-  align-items: center;
 }
-/* Quand une tâche a des ressources : bouton toujours visible */
-.affect-btn.has-res {
-  display: inline-flex !important;
-  border-color: rgba(114,182,236,.4);
-  color: var(--blue);
-}
-/* Au survol de la ligne : affiche aussi le bouton + */
-.gantt-left-row:hover .affect-btn { display: inline-flex; }
-.affect-btn:hover {
-  border-color: var(--accent);
-  color: var(--accent);
-  background: rgba(236,114,6,.08);
-}
-.affect-btn.has-res:hover {
-  border-color: var(--blue);
-  background: rgba(114,182,236,.12);
-}
+.affect-btn.has-res { border-color: rgba(114,182,236,.4); color: var(--blue); }
+.affect-btn:hover { border-color: var(--accent); color: var(--accent); background: rgba(236,114,6,.08); }
+.affect-btn.has-res:hover { border-color: var(--blue); background: rgba(114,182,236,.12); }
 
-/* ── Ligne ressource côté droit (barre vide pour l'alignement) ── */
+/* Lignes ressources */
+.gantt-left-row.is-res-detail {
+  height: 18px !important;
+  background: rgba(114,182,236,.04);
+  border-bottom: 1px dashed var(--border);
+  cursor: default;
+}
+[data-theme="dark"] .gantt-left-row.is-res-detail { background: rgba(114,182,236,.03); }
+.gantt-left-row.is-res-detail:hover { background: rgba(114,182,236,.08) !important; }
+.rd-icon { font-size: 9px; opacity: .7; margin-right: 3px; flex-shrink: 0; }
+.rd-name { font-size: 10px; color: var(--muted) !important; font-style: italic;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .gantt-row.is-res-row {
   height: 18px !important;
   background: rgba(114,182,236,.02);
   border-bottom: 1px dashed var(--border);
 }
 
-/* ── Barre supérieure du Gantt (titre + toolbar sur la même ligne) ── */
-.gantt-topbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 6px 4px 6px 0;
-  gap: 10px;
-}
-.gantt-toolbar {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  flex-wrap: wrap;
-  flex-shrink: 0;
-}
+/* Barre top Gantt */
+.gantt-topbar { display:flex; align-items:center; justify-content:space-between; padding:6px 4px 6px 0; gap:10px; }
+.gantt-toolbar { display:flex; align-items:center; gap:6px; flex-wrap:wrap; flex-shrink:0; }
 
-/* ══════════════════════════════════════════════════════════
-   PANNEAU D'AFFECTATION
-   ══════════════════════════════════════════════════════════ */
-.affect-totals {
-  display: flex;
-  gap: 8px;
-  padding: 8px 14px;
-  border-bottom: 2px solid var(--border);
-  background: var(--surface2);
-  flex-wrap: wrap;
-}
-.affect-total-item {
-  font-size: 11px;
-  font-family: 'Courier New', monospace;
-  padding: 3px 8px;
-  border-radius: 4px;
-  font-weight: 600;
-}
-.affect-total-item.ch-prev { background: rgba(236,114,6,.1);    color: var(--accent); }
-.affect-total-item.ch-pass { background: rgba(114,182,236,.12); color: var(--blue); }
-.affect-total-item.ch-rest { background: rgba(46,125,50,.1);    color: var(--green); }
-
-.affect-list { overflow-y: auto; flex: 1; }
-.affect-row {
-  border-bottom: 1px solid var(--border);
-  padding: 10px 14px;
-}
-.affect-row:hover { background: rgba(236,114,6,.03); }
-.affect-row-main {
-  display: flex;
-  gap: 6px;
-  align-items: center;
-  margin-bottom: 6px;
-}
-.affect-select {
-  flex: 1;
-  font-family: Arial, sans-serif;
-  font-size: 12px;
-  background: var(--surface2);
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  color: var(--text);
-  padding: 5px 8px;
-  outline: none;
-  cursor: pointer;
-}
-.affect-select:focus { border-color: var(--accent); }
-.affect-del-btn {
-  width: 24px; height: 24px;
-  border-radius: 4px;
-  border: 1px solid rgba(192,57,43,.25);
-  background: rgba(192,57,43,.08);
-  color: #c0392b;
-  cursor: pointer;
-  font-size: 12px; font-weight: 700;
-  display: flex; align-items: center; justify-content: center;
-  flex-shrink: 0;
-}
-.affect-del-btn:hover { background: rgba(192,57,43,.2); }
-.affect-row-charges {
-  display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
-  gap: 6px;
-}
-.affect-charge-group { display: flex; flex-direction: column; gap: 2px; }
-.affect-ch-label {
-  font-size: 8px; font-weight: 700;
-  letter-spacing: 0.8px; text-transform: uppercase;
-}
-.ch-prev-lbl { color: var(--accent); }
-.ch-pass-lbl { color: var(--blue); }
-.ch-rest-lbl { color: var(--green); }
-.affect-ch-input {
-  font-family: 'Courier New', monospace;
-  font-size: 12px;
-  background: var(--surface2);
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  color: var(--text);
-  padding: 4px 6px;
-  outline: none;
-  width: 100%;
-}
-.affect-ch-input:focus { border-color: var(--accent); }
-.affect-ch-input[readonly] { opacity: 0.5; cursor: not-allowed; }
-.affect-empty {
-  padding: 30px; text-align: center;
-  color: var(--muted); font-size: 12px;
-}
+/* ── Panneau d'affectation ── */
+.affect-totals { display:flex; gap:8px; padding:8px 14px; border-bottom:2px solid var(--border); background:var(--surface2); flex-wrap:wrap; }
+.affect-total-item { font-size:11px; font-family:'Courier New',monospace; padding:3px 8px; border-radius:4px; font-weight:600; }
+.affect-total-item.ch-prev { background:rgba(236,114,6,.1);    color:var(--accent); }
+.affect-total-item.ch-pass { background:rgba(114,182,236,.12); color:var(--blue); }
+.affect-total-item.ch-rest { background:rgba(46,125,50,.1);    color:var(--green); }
+.affect-list { overflow-y:auto; flex:1; }
+.affect-row { border-bottom:1px solid var(--border); padding:10px 14px; }
+.affect-row:hover { background:rgba(236,114,6,.03); }
+.affect-row-main { display:flex; gap:6px; align-items:center; margin-bottom:6px; }
+.affect-select { flex:1; font-family:Arial,sans-serif; font-size:12px; background:var(--surface2); border:1px solid var(--border); border-radius:4px; color:var(--text); padding:5px 8px; outline:none; cursor:pointer; }
+.affect-select:focus { border-color:var(--accent); }
+.affect-del-btn { width:24px; height:24px; border-radius:4px; border:1px solid rgba(192,57,43,.25); background:rgba(192,57,43,.08); color:#c0392b; cursor:pointer; font-size:12px; font-weight:700; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+.affect-del-btn:hover { background:rgba(192,57,43,.2); }
+.affect-row-charges { display:grid; grid-template-columns:1fr 1fr 1fr; gap:6px; }
+.affect-charge-group { display:flex; flex-direction:column; gap:2px; }
+.affect-ch-label { font-size:8px; font-weight:700; letter-spacing:.8px; text-transform:uppercase; }
+.ch-prev-lbl { color:var(--accent); }
+.ch-pass-lbl { color:var(--blue); }
+.ch-rest-lbl { color:var(--green); }
+.affect-ch-input { font-family:'Courier New',monospace; font-size:12px; background:var(--surface2); border:1px solid var(--border); border-radius:4px; color:var(--text); padding:4px 6px; outline:none; width:100%; }
+.affect-ch-input:focus { border-color:var(--accent); }
+.affect-ch-input[readonly] { opacity:.5; cursor:not-allowed; }
+.affect-empty { padding:30px; text-align:center; color:var(--muted); font-size:12px; }
