@@ -143,7 +143,18 @@ function startRename(id, e){
   input.focus(); input.select();
   const commit = ()=>{
     const val = input.value.trim() || proj.name;
+    const oldName = proj.name;
     proj.name = val;
+    /* Mettre à jour r.projet dans proj.rows (données sauvegardées) */
+    if(val !== oldName){
+      (proj.rows||[]).forEach(r=>{ if(r.projet===oldName) r.projet=val; });
+      (proj.jalons||[]).forEach(j=>{ if(j.projet===oldName) j.projet=val; });
+      /* Mettre à jour les couleurs */
+      if(projectColors[oldName]){ projectColors[val]=projectColors[oldName]; delete projectColors[oldName]; }
+      if(proj.projectColors?.[oldName]){ proj.projectColors[val]=proj.projectColors[oldName]; delete proj.projectColors[oldName]; }
+      /* Mettre à jour les rows en mémoire si ce projet est actif */
+      rows = rows.map(r=>r.projet===oldName ? {...r, projet:val} : r);
+    }
     savePortfolio();
     input.remove();
     nameEl.style.visibility='';
