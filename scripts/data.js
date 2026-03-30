@@ -130,9 +130,11 @@ function _serializePortfolio(data){
       .filter(r=>r._type!=='jalon')
       .map(r=>{
         const{_srcPid,...rest}=r;
-        // Striper le préfixe projet des niveaux (artefact multi-vue)
+        // Striper le préfixe projet (artefact multi-vue) — via _srcPid stable
         const niv = rest.niveaux||[];
-        if(niv.length && niv[0]===rest.projet) rest.niveaux=niv.slice(1);
+        const _projName = (rest._srcPid && portfolio.find(p=>p.id===rest._srcPid)?.name)
+                          || rest.projet;
+        if(niv.length && niv[0]===_projName) rest.niveaux=niv.slice(1);
         return{...rest,
           debut:r.debut?r.debut.toISOString():null,
           fin:r.fin?r.fin.toISOString():null
@@ -340,7 +342,11 @@ function _saveBackToPortfolio(){
       proj.rows   = mine.map(r=>{
         const{_srcPid,...rest}=r;
         const niv = rest.niveaux || [];
-        if(niv[0] === rest.projet) rest.niveaux = niv.slice(1);
+        /* Strip le préfixe projet (nom courant OU ancien nom via _srcPid)
+           _srcPid est stable même après renommage */
+        const _projName = portfolio.find(p=>p.id===_srcPid)?.name;
+        if(niv.length && _projName && niv[0] === _projName) rest.niveaux = niv.slice(1);
+        else if(niv.length && niv[0] === rest.projet) rest.niveaux = niv.slice(1);
         return{...rest};
       });
       proj.jalons = mineJalons.map(r=>{const{_srcPid,...rest}=r;return{...rest};});
@@ -606,7 +612,10 @@ function migrateFirebaseData(data){
     rows: (p.rows||[]).filter(r=>r._type!=='jalon').map(r=>{
       const _rawNiv = r.niveaux ? r.niveaux : (r.groupe ? [r.groupe] : []);
       // Striper le préfixe projet si déjà sauvé en base avec le préfixe
-      const niveaux = (_rawNiv[0] === r.projet) ? _rawNiv.slice(1) : _rawNiv;
+      // Vérifie contre r.projet ET contre tous les noms du portfolio (après renommage)
+      const _allProjNames = new Set(data.map(p=>p.name).filter(Boolean));
+      const niveaux = (_rawNiv.length && (_rawNiv[0]===r.projet || _allProjNames.has(_rawNiv[0])))
+                      ? _rawNiv.slice(1) : _rawNiv;
       return {
         // Préserve TOUS les champs (assignments, chargePassee, chargeRestante, etc.)
         ...r,
