@@ -15,10 +15,8 @@ function sortRows(){
   const sorted=[];
   function sortLevel(taskList, projet, niveauxPath, depth){
     if(depth===0){
-      const pMin=new Date(Math.min(...taskList.map(r=>r.debut.getTime())));
-      const pMax=new Date(Math.max(...taskList.map(r=>r.fin.getTime())));
-      const pCharge=roundCharge(taskList.reduce((s,r)=>s+(r.charge||0),0));
-      sorted.push({_type:'projet',projet,niveaux:[],tache:null,debut:pMin,fin:pMax,charge:pCharge});
+      /* Plus de ligne "projet" dans le Gantt — le projet est juste un label/couleur */
+      /* On ne génère plus de row _type='projet' */
     }
     const noMore=taskList.filter(r=>!r.niveaux[depth]);
     const withMore=taskList.filter(r=>r.niveaux[depth]);
@@ -95,20 +93,10 @@ function _serializePortfolio(data){
     id:p.id, name:p.name, client:p.client||'', folder:p.folder||'',
     rows: (p.rows||[])
       .filter(r=>r._type!=='jalon')
-      .map(r=>{
-        const{_srcPid,...rest}=r;
-        // Serialize assignment dates to ISO strings
-        const assignments = (rest.assignments||[]).map(a=>({
-          ...a,
-          debut: a.debut instanceof Date ? a.debut.toISOString() : (a.debut||null),
-          fin:   a.fin   instanceof Date ? a.fin.toISOString()   : (a.fin  ||null),
-        }));
-        return{...rest,
-          debut:r.debut?r.debut.toISOString():null,
-          fin:r.fin?r.fin.toISOString():null,
-          assignments,
-        };
-      }),
+      .map(r=>{const{_srcPid,...rest}=r;return{...rest,
+        debut:r.debut?r.debut.toISOString():null,
+        fin:r.fin?r.fin.toISOString():null
+      };}),
     jalons: (p.jalons||[]).map(j=>{const{_srcPid,...rest}=j;return{...rest,
       date:j.date?j.date.toISOString():null
     };}),
@@ -150,12 +138,7 @@ function _deserializePortfolio(data){
     rows: (p.rows||[]).filter(r=>r._type!=='jalon').map(r=>({
       ...r,
       debut: r.debut ? new Date(r.debut) : null,
-      fin:   r.fin   ? new Date(r.fin)   : null,
-      assignments: (r.assignments||[]).map(a=>({
-        ...a,
-        debut: a.debut ? new Date(a.debut) : null,
-        fin:   a.fin   ? new Date(a.fin)   : null,
-      })),
+      fin:   r.fin   ? new Date(r.fin)   : null
     })),
     jalons: (p.jalons||[]).map(j=>({
       ...j,
@@ -575,6 +558,7 @@ function migrateFirebaseData(data){
     rows: (p.rows||[]).filter(r=>r._type!=='jalon').map(r=>{
       const niveaux = r.niveaux ? r.niveaux : (r.groupe ? [r.groupe] : []);
       return {
+        // Préserve TOUS les champs (assignments, chargePassee, chargeRestante, etc.)
         ...r,
         _type:  r._type  || 'tache',
         projet: r.projet || '',
@@ -585,13 +569,7 @@ function migrateFirebaseData(data){
         charge: r.charge != null ? r.charge : null,
         chargePassee:   r.chargePassee   ?? null,
         chargeRestante: r.chargeRestante ?? null,
-        xmlUid: r.xmlUid || null,
-        xmlId:  r.xmlId  || null,
-        assignments: (Array.isArray(r.assignments) ? r.assignments : []).map(a=>({
-          ...a,
-          debut: a.debut ? new Date(a.debut) : null,
-          fin:   a.fin   ? new Date(a.fin)   : null,
-        }))
+        assignments:    Array.isArray(r.assignments) ? r.assignments : []
       };
     })
   })));
