@@ -45,10 +45,13 @@ function sortRows(){
     /* Vue multi-projet : le nom du projet devient niveaux[0] (groupe de niveau 0)
        Les tâches gardent leur r.projet pour les couleurs/légende mais leurs niveaux
        sont étendus : [g1, g2] → [nomProjet, g1, g2] */
-    const tasksWithProjetAsNiveau = tasks.map(r=>({
-      ...r,
-      niveaux: [r.projet, ...(r.niveaux||[])]
-    }));
+    /* Idempotent : on ne préfixe le projet QUE si ce n'est pas déjà niveaux[0]
+       Évite la duplication si sortRows() est appelé plusieurs fois de suite */
+    const tasksWithProjetAsNiveau = tasks.map(r=>{
+      const niv = r.niveaux || [];
+      const alreadyPrefixed = niv[0] === r.projet;
+      return { ...r, niveaux: alreadyPrefixed ? niv : [r.projet, ...niv] };
+    });
     /* On tri les projets par date de début */
     const projOrder=[...new Set(tasks.map(r=>r.projet))].sort((a,b)=>{
       return Math.min(...tasks.filter(r=>r.projet===a).map(r=>r.debut.getTime()))
