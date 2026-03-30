@@ -220,20 +220,7 @@ function renderGantt(){
     const dc = `<span class="ch-col ch-dates">${r._type==='jalon'?fmtShort(r.date):fmtShort(r.debut)+'<span class="d-sep">→</span>'+fmtShort(r.fin)}</span>`;
 
     if(r._type==='projet'){
-      const key=collapseKey(r.projet,[]);
-      return`<div class="gantt-left-row is-projet" onclick="openEditPanel(${realIdx>=0?realIdx:'null'})">
-        <span class="row-label-cell">
-          <span class="toggle-btn" data-ckey="${escH(key)}" onclick="event.stopPropagation();toggleCollapse(this.dataset.ckey)">${!collapsed[key]?'▾':'▸'}</span>
-          <span style="color:${c};font-size:9px;flex-shrink:0;margin:0 2px">■</span>
-          <span class="row-label" style="color:${c}">${escH(r.projet)}</span>
-          <span class="row-actions">
-            <button class="row-add-btn" onclick="event.stopPropagation();openAddAfter(${realIdx>=0?realIdx:'null'},event)" title="Ajouter">+</button>
-            <button class="row-del-btn" onclick="event.stopPropagation();deleteGanttProjet(event,this.dataset.proj)" data-proj="${escH(r.projet)}" title="Supprimer">&#128465;</button>
-          </span>
-        </span>
-        <span class="ch-col ch-slot"></span>
-        ${chargeCols(r)}${dc}
-      </div>`;
+      return ''; // Le niveau projet n'est plus rendu dans le Gantt
     }
     if(r._type==='groupe'){
       const depth=niv.length;
@@ -417,6 +404,7 @@ function renderChart(layout,legend,visible,minD0,maxD0,today,leftHTML,mode,hasTr
   const rowsHTML=visible.map(r=>{
     const c=getColor(r.projet);
     const isProj=r._type==='projet';
+    if(isProj) return ''; // projet rows no longer displayed
     const isGrp=r._type==='groupe';
     const realIdx=rows.indexOf(r);
     const barClick=`onclick="openEditPanel(${realIdx>=0?realIdx:'null'})"`;
