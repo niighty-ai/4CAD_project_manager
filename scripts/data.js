@@ -9,6 +9,12 @@ function sortRows(){
       delete r.groupe;
     }
     if(r._type==='tache' && !r.niveaux) r.niveaux=[];
+    /* Normalisation : r.projet = nom actuel du projet via _srcPid
+       Corrige les désynchronisations après renommage dans la sidebar */
+    if(r._srcPid){
+      const _proj = portfolio.find(p=>p.id===r._srcPid);
+      if(_proj && _proj.name && r.projet !== _proj.name) r.projet = _proj.name;
+    }
   });
   const jalons=rows.filter(r=>r._type==='jalon');
   const tasks=rows.filter(r=>r._type==='tache');
