@@ -62,7 +62,7 @@ window._fbOnValue = (cb)   => onValue(_fbRef, snap => cb(snap.val()));</script>
     <button class="edit-panel-close" onclick="closeEditPanel()">✕</button>
   </div>
   <div class="edit-panel-body">
-    <div class="ep-group">
+    <div class="ep-group" style="display:none">
       <label class="ep-label">Projet</label>
       <select class="ep-input" id="epProjetSelect" onchange="onEpProjetSelectChange()" style="appearance:auto"></select>
       <input class="ep-input" id="epProjetCustom" type="text" placeholder="Nom du nouveau projet…" style="display:none;margin-top:4px;font-size:11px">
