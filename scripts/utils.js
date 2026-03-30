@@ -76,7 +76,7 @@ function collapseKey(projet,niveaux){
 }
 function isVisible(r){
   if(r._type==='jalon') return true;
-  if(r._type==='projet') return multiViewMode; // visible seulement en vue multi-projet
+  if(r._type==='projet') return false; // _type='projet' n'est plus généré
   if(collapsed[collapseKey(r.projet,[])]) return false;
   const niv=r.niveaux||[];
   if(r._type==='groupe'){
