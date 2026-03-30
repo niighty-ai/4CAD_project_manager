@@ -71,32 +71,40 @@ function sortRows(){
       sortLevel(tasks.filter(r=>r.projet===p), p, [], 0);
     });
   }
+  /* ── Interleave jalons chronologiquement par projet ──
+     On regroupe sorted[] par projet et on insère les jalons au bon endroit.
+     Fonctionne sans _type='projet' rows. ── */
+  const projetsInSorted = [...new Set(sorted.map(r=>r.projet).filter(Boolean))];
   const final=[];
-  let i=0;
-  while(i < sorted.length){
+
+  // Traiter projet par projet dans l'ordre d'apparition
+  const handledProjets = new Set();
+  for(let i=0; i<sorted.length; i++){
     const r = sorted[i];
-    if(r._type === 'projet'){
-      const projet = r.projet;
-      const bloc = [];
-      while(i < sorted.length && (sorted[i]._type==='projet' ? sorted[i].projet===projet : sorted[i].projet===projet)){
-        bloc.push(sorted[i++]);
-      }
-      const jProjet = jalons
-        .filter(j=>j.projet===projet)
-        .sort((a,b)=>(a.date||0)-(b.date||0));
-      let ji=0;
-      for(const row of bloc){
-        const lineDate = row.debut || null;
-        while(ji < jProjet.length && lineDate && jProjet[ji].date <= lineDate){
-          final.push(jProjet[ji++]);
-        }
-        final.push(row);
-      }
-      while(ji < jProjet.length) final.push(jProjet[ji++]);
-    } else {
-      final.push(sorted[i++]);
+    if(!r.projet || handledProjets.has(r.projet)){
+      // Ligne déjà traitée ou sans projet (ne devrait pas arriver)
+      if(!handledProjets.has(r.projet)) final.push(r);
+      continue;
     }
+    // Premier item de ce projet : collecter tout le bloc
+    const p = r.projet;
+    handledProjets.add(p);
+    const bloc = sorted.filter(row=>row.projet===p);
+    const jProjet = jalons
+      .filter(j=>j.projet===p)
+      .sort((a,b)=>(a.date||0)-(b.date||0));
+    let ji=0;
+    for(const row of bloc){
+      const lineDate = row.debut || null;
+      while(ji < jProjet.length && lineDate && jProjet[ji].date <= lineDate){
+        final.push(jProjet[ji++]);
+      }
+      final.push(row);
+    }
+    while(ji < jProjet.length) final.push(jProjet[ji++]);
   }
+
+  // Jalons sans projet correspondant dans tasks
   const projetsExistants = new Set(tasks.map(r=>r.projet));
   jalons.filter(j=>!projetsExistants.has(j.projet))
         .sort((a,b)=>(a.date||0)-(b.date||0))
@@ -114,10 +122,16 @@ function _serializePortfolio(data){
     id:p.id, name:p.name, client:p.client||'', folder:p.folder||'',
     rows: (p.rows||[])
       .filter(r=>r._type!=='jalon')
-      .map(r=>{const{_srcPid,...rest}=r;return{...rest,
-        debut:r.debut?r.debut.toISOString():null,
-        fin:r.fin?r.fin.toISOString():null
-      };}),
+      .map(r=>{
+        const{_srcPid,...rest}=r;
+        // Striper le préfixe projet des niveaux (artefact multi-vue)
+        const niv = rest.niveaux||[];
+        if(niv.length && niv[0]===rest.projet) rest.niveaux=niv.slice(1);
+        return{...rest,
+          debut:r.debut?r.debut.toISOString():null,
+          fin:r.fin?r.fin.toISOString():null
+        };
+      }),
     jalons: (p.jalons||[]).map(j=>{const{_srcPid,...rest}=j;return{...rest,
       date:j.date?j.date.toISOString():null
     };}),
@@ -315,7 +329,14 @@ function _saveBackToPortfolio(){
          (proj.rows||[]).some(r=>r._type==='tache' || proj.jalons?.length)){
         return; /* Ne pas écraser */
       }
-      proj.rows   = mine.map(r=>{const{_srcPid,...rest}=r;return{...rest};});
+      /* Striper le préfixe projet des niveaux avant sauvegarde
+         (ajouté par sortRows pour l'affichage multi-vue uniquement) */
+      proj.rows   = mine.map(r=>{
+        const{_srcPid,...rest}=r;
+        const niv = rest.niveaux || [];
+        if(niv[0] === rest.projet) rest.niveaux = niv.slice(1);
+        return{...rest};
+      });
       proj.jalons = mineJalons.map(r=>{const{_srcPid,...rest}=r;return{...rest};});
       const projNames = [...new Set([...mine,...mineJalons].map(r=>r.projet))];
       proj.projectColors = proj.projectColors||{};
@@ -577,7 +598,9 @@ function migrateFirebaseData(data){
       date: j.date ? j.date : null, couleur:j.couleur||null
     })),
     rows: (p.rows||[]).filter(r=>r._type!=='jalon').map(r=>{
-      const niveaux = r.niveaux ? r.niveaux : (r.groupe ? [r.groupe] : []);
+      const _rawNiv = r.niveaux ? r.niveaux : (r.groupe ? [r.groupe] : []);
+      // Striper le préfixe projet si déjà sauvé en base avec le préfixe
+      const niveaux = (_rawNiv[0] === r.projet) ? _rawNiv.slice(1) : _rawNiv;
       return {
         // Préserve TOUS les champs (assignments, chargePassee, chargeRestante, etc.)
         ...r,
