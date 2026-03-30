@@ -64,8 +64,10 @@ function sortRows(){
       const pCharge=roundCharge(projTasks.reduce((s,r)=>s+(r.charge||0),0));
       sorted.push({_type:'groupe',projet:p,niveaux:[p],tache:null,
                    debut:pMin,fin:pMax,charge:pCharge,_depth:1,_isProjetGroupe:true});
-      /* Trier les tâches du projet normalement (niveaux originaux inchangés) */
-      sortLevel(projTasks, p, [p], 1);
+      /* Trier les tâches du projet normalement (niveaux originaux inchangés)
+         depth=0 car les niveaux des tâches sont inchangés (commencent à index 0)
+         niveauxPath=[p] positionne les groupes enfants sous le groupe projet */
+      sortLevel(projTasks, p, [p], 0);
     });
   } else {
     const projOrder=[...new Set(tasks.map(r=>r.projet))].sort((a,b)=>{
