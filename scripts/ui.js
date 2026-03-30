@@ -610,17 +610,20 @@ function _epSetTacheRequired(required, isGroupe){
   if(lbl) lbl.textContent = isGroupe ? 'Nom du groupe' : 'Tâche';
 }
 function _epRefreshProjetSelect(taskRows){
-  const projets = [...new Set((taskRows||rows.filter(r=>r._type==='tache')).map(r=>r.projet))];
+  /* Le champ Projet est masqué — on garde juste la valeur du projet actif */
+  const activeProj = portfolio.find(p=>p.id===activeProjectId);
+  const projName = activeProj?.name || (rows.find(r=>r._type==='tache')?.projet) || '';
   const sel = document.getElementById('epProjetSelect');
   if(!sel) return;
-  sel.innerHTML = projets.map(p=>`<option value="${escH(p)}">${escH(p)}</option>`).join('')
-    + `<option value="__NEW__">＋ Nouveau projet…</option>`;
+  if(projName) sel.innerHTML = `<option value="${escH(projName)}">${escH(projName)}</option>`;
 }
 function getEpProjet(){
-  const sel = document.getElementById('epProjetSelect');
-  const custom = document.getElementById('epProjetCustom');
-  if(sel && sel.value === '__NEW__') return (custom?.value||'').trim();
-  return (sel?.value||'').trim();
+  /* Le projet est toujours celui actif dans la sidebar */
+  const activeProj = portfolio.find(p=>p.id===activeProjectId);
+  if(activeProj) return activeProj.name;
+  /* Fallback : premier projet des tâches existantes */
+  const firstTask = rows.find(r=>r._type==='tache');
+  return firstTask?.projet || '';
 }
 function setEpProjet(val){
   const sel = document.getElementById('epProjetSelect');
@@ -638,20 +641,7 @@ function setEpProjet(val){
     if(custom) custom.style.display='none';
   }
 }
-function onEpProjetSelectChange(){
-  const sel = document.getElementById('epProjetSelect');
-  const custom = document.getElementById('epProjetCustom');
-  if(sel && sel.value==='__NEW__'){
-    custom.style.display='block';
-    custom.value='';
-    custom.focus();
-  } else {
-    custom.style.display='none';
-    custom.value='';
-  }
-  renderEpNiveaux([], false);
-  _updateNiveauxVisibility();
-}
+function onEpProjetSelectChange(){ /* no-op — projet field is hidden */ }
 function _jpRefreshProjetSelect(){
   const projets = [...new Set(rows.filter(r=>r._type==='tache').map(r=>r.projet))];
   const sel = document.getElementById('jpProjetSelect');
