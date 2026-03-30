@@ -14,13 +14,8 @@ function sortRows(){
   const tasks=rows.filter(r=>r._type==='tache');
   const sorted=[];
   function sortLevel(taskList, projet, niveauxPath, depth){
-    if(depth===0 && multiViewMode){
-      /* En vue multi-projet : ligne séparateur avec le nom du projet */
-      const pMin=new Date(Math.min(...taskList.map(r=>r.debut.getTime())));
-      const pMax=new Date(Math.max(...taskList.map(r=>r.fin.getTime())));
-      const pCharge=roundCharge(taskList.reduce((s,r)=>s+(r.charge||0),0));
-      sorted.push({_type:'projet',projet,niveaux:[],tache:null,debut:pMin,fin:pMax,charge:pCharge});
-    }
+    /* Le projet n'est plus rendu comme ligne spéciale — même en multi-vue,
+       il apparaît comme un groupe de niveau 0 (niveaux[0] = nom du projet) */
     const noMore=taskList.filter(r=>!r.niveaux[depth]);
     const withMore=taskList.filter(r=>r.niveaux[depth]);
     const groupNames=[...new Set(withMore.map(r=>r.niveaux[depth]))];
@@ -46,13 +41,33 @@ function sortRows(){
       }
     });
   }
-  const projOrder=[...new Set(tasks.map(r=>r.projet))].sort((a,b)=>{
-    return Math.min(...tasks.filter(r=>r.projet===a).map(r=>r.debut.getTime()))
-          -Math.min(...tasks.filter(r=>r.projet===b).map(r=>r.debut.getTime()));
-  });
-  projOrder.forEach(p=>{
-    sortLevel(tasks.filter(r=>r.projet===p), p, [], 0);
-  });
+  if(multiViewMode){
+    /* Vue multi-projet : le nom du projet devient niveaux[0] (groupe de niveau 0)
+       Les tâches gardent leur r.projet pour les couleurs/légende mais leurs niveaux
+       sont étendus : [g1, g2] → [nomProjet, g1, g2] */
+    const tasksWithProjetAsNiveau = tasks.map(r=>({
+      ...r,
+      niveaux: [r.projet, ...(r.niveaux||[])]
+    }));
+    /* On tri les projets par date de début */
+    const projOrder=[...new Set(tasks.map(r=>r.projet))].sort((a,b)=>{
+      return Math.min(...tasks.filter(r=>r.projet===a).map(r=>r.debut.getTime()))
+            -Math.min(...tasks.filter(r=>r.projet===b).map(r=>r.debut.getTime()));
+    });
+    /* On appelle sortLevel par projet mais avec niveaux déjà étendus
+       pour que le nom du projet apparaisse comme groupe niveau 0 */
+    projOrder.forEach(p=>{
+      sortLevel(tasksWithProjetAsNiveau.filter(r=>r.projet===p), p, [], 0);
+    });
+  } else {
+    const projOrder=[...new Set(tasks.map(r=>r.projet))].sort((a,b)=>{
+      return Math.min(...tasks.filter(r=>r.projet===a).map(r=>r.debut.getTime()))
+            -Math.min(...tasks.filter(r=>r.projet===b).map(r=>r.debut.getTime()));
+    });
+    projOrder.forEach(p=>{
+      sortLevel(tasks.filter(r=>r.projet===p), p, [], 0);
+    });
+  }
   const final=[];
   let i=0;
   while(i < sorted.length){
