@@ -48,25 +48,24 @@ function sortRows(){
     });
   }
   if(multiViewMode){
-    /* Vue multi-projet : le nom du projet devient niveaux[0] (groupe de niveau 0)
-       Les tâches gardent leur r.projet pour les couleurs/légende mais leurs niveaux
-       sont étendus : [g1, g2] → [nomProjet, g1, g2] */
-    /* Idempotent : on ne préfixe le projet QUE si ce n'est pas déjà niveaux[0]
-       Évite la duplication si sortRows() est appelé plusieurs fois de suite */
-    const tasksWithProjetAsNiveau = tasks.map(r=>{
-      const niv = r.niveaux || [];
-      const alreadyPrefixed = niv[0] === r.projet;
-      return { ...r, niveaux: alreadyPrefixed ? niv : [r.projet, ...niv] };
-    });
-    /* On tri les projets par date de début */
+    /* Vue multi-projet : le nom du projet apparaît comme un groupe de niveau 0.
+       Les niveaux des tâches NE SONT PAS MODIFIÉS — le groupe projet est inséré
+       manuellement avant leurs lignes. Pas de préfixe stocké → pas de corruption. */
     const projOrder=[...new Set(tasks.map(r=>r.projet))].sort((a,b)=>{
       return Math.min(...tasks.filter(r=>r.projet===a).map(r=>r.debut.getTime()))
             -Math.min(...tasks.filter(r=>r.projet===b).map(r=>r.debut.getTime()));
     });
-    /* On appelle sortLevel par projet mais avec niveaux déjà étendus
-       pour que le nom du projet apparaisse comme groupe niveau 0 */
     projOrder.forEach(p=>{
-      sortLevel(tasksWithProjetAsNiveau.filter(r=>r.projet===p), p, [], 0);
+      const projTasks = tasks.filter(r=>r.projet===p);
+      if(!projTasks.length) return;
+      /* Ligne groupe pour le projet (niveau 0, niveaux=[nomProjet]) */
+      const pMin=new Date(Math.min(...projTasks.map(r=>r.debut.getTime())));
+      const pMax=new Date(Math.max(...projTasks.map(r=>r.fin.getTime())));
+      const pCharge=roundCharge(projTasks.reduce((s,r)=>s+(r.charge||0),0));
+      sorted.push({_type:'groupe',projet:p,niveaux:[p],tache:null,
+                   debut:pMin,fin:pMax,charge:pCharge,_depth:1,_isProjetGroupe:true});
+      /* Trier les tâches du projet normalement (niveaux originaux inchangés) */
+      sortLevel(projTasks, p, [p], 1);
     });
   } else {
     const projOrder=[...new Set(tasks.map(r=>r.projet))].sort((a,b)=>{
@@ -130,11 +129,6 @@ function _serializePortfolio(data){
       .filter(r=>r._type!=='jalon')
       .map(r=>{
         const{_srcPid,...rest}=r;
-        // Striper le préfixe projet (artefact multi-vue) — via _srcPid stable
-        const niv = rest.niveaux||[];
-        const _projName = (rest._srcPid && portfolio.find(p=>p.id===rest._srcPid)?.name)
-                          || rest.projet;
-        if(niv.length && niv[0]===_projName) rest.niveaux=niv.slice(1);
         return{...rest,
           debut:r.debut?r.debut.toISOString():null,
           fin:r.fin?r.fin.toISOString():null
@@ -339,16 +333,7 @@ function _saveBackToPortfolio(){
       }
       /* Striper le préfixe projet des niveaux avant sauvegarde
          (ajouté par sortRows pour l'affichage multi-vue uniquement) */
-      proj.rows   = mine.map(r=>{
-        const{_srcPid,...rest}=r;
-        const niv = rest.niveaux || [];
-        /* Strip le préfixe projet (nom courant OU ancien nom via _srcPid)
-           _srcPid est stable même après renommage */
-        const _projName = portfolio.find(p=>p.id===_srcPid)?.name;
-        if(niv.length && _projName && niv[0] === _projName) rest.niveaux = niv.slice(1);
-        else if(niv.length && niv[0] === rest.projet) rest.niveaux = niv.slice(1);
-        return{...rest};
-      });
+      proj.rows   = mine.map(r=>{const{_srcPid,...rest}=r;return{...rest};});
       proj.jalons = mineJalons.map(r=>{const{_srcPid,...rest}=r;return{...rest};});
       const projNames = [...new Set([...mine,...mineJalons].map(r=>r.projet))];
       proj.projectColors = proj.projectColors||{};
@@ -611,11 +596,7 @@ function migrateFirebaseData(data){
     })),
     rows: (p.rows||[]).filter(r=>r._type!=='jalon').map(r=>{
       const _rawNiv = r.niveaux ? r.niveaux : (r.groupe ? [r.groupe] : []);
-      // Striper le préfixe projet si déjà sauvé en base avec le préfixe
-      // Vérifie contre r.projet ET contre tous les noms du portfolio (après renommage)
-      const _allProjNames = new Set(data.map(p=>p.name).filter(Boolean));
-      const niveaux = (_rawNiv.length && (_rawNiv[0]===r.projet || _allProjNames.has(_rawNiv[0])))
-                      ? _rawNiv.slice(1) : _rawNiv;
+      const niveaux = _rawNiv;
       return {
         // Préserve TOUS les champs (assignments, chargePassee, chargeRestante, etc.)
         ...r,
