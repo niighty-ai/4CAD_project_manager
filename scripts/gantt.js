@@ -220,18 +220,7 @@ function renderGantt(){
     const dc = `<span class="ch-col ch-dates">${r._type==='jalon'?fmtShort(r.date):fmtShort(r.debut)+'<span class="d-sep">→</span>'+fmtShort(r.fin)}</span>`;
 
     if(r._type==='projet'){
-      if(!multiViewMode) return ''; // Vue projet unique : pas de ligne projet
-      /* Vue multi-projet : séparateur avec nom + couleur projet */
-      const key=collapseKey(r.projet,[]);
-      return`<div class="gantt-left-row is-projet" onclick="openEditPanel(${realIdx>=0?realIdx:'null'})">
-        <span class="row-label-cell">
-          <span class="toggle-btn" data-ckey="${escH(key)}" onclick="event.stopPropagation();toggleCollapse(this.dataset.ckey)">${!collapsed[key]?'▾':'▸'}</span>
-          <span style="color:${c};font-size:9px;flex-shrink:0;margin:0 2px">■</span>
-          <span class="row-label" style="color:${c};font-weight:700">${escH(r.projet)}</span>
-        </span>
-        <span class="ch-col ch-slot"></span>
-        ${chargeCols(r)}${dc}
-      </div>`;
+      return ''; // _type='projet' n'est plus généré — projet = groupe niveau 0 en multi-vue
     }
     if(r._type==='groupe'){
       const depth=niv.length;
@@ -415,7 +404,7 @@ function renderChart(layout,legend,visible,minD0,maxD0,today,leftHTML,mode,hasTr
   const rowsHTML=visible.map(r=>{
     const c=getColor(r.projet);
     const isProj=r._type==='projet';
-    if(isProj && !multiViewMode) return ''; // vue projet unique: pas de barre projet
+    if(isProj) return ''; // _type='projet' n'est plus généré
     const isGrp=r._type==='groupe';
     const realIdx=rows.indexOf(r);
     const barClick=`onclick="openEditPanel(${realIdx>=0?realIdx:'null'})"`;
