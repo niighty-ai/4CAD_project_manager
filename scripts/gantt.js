@@ -231,6 +231,18 @@ function renderGantt(){
       const icons=['◆','◇','▸','·','–'];
       const icon=icons[Math.min(depth-1,icons.length-1)];
       const niveauxJson=JSON.stringify(niv).replace(/"/g,'&quot;');
+      /* Groupe généré automatiquement pour le projet en vue multi-vue : pas éditable */
+      if(r._isProjetGroupe){
+        return`<div class="gantt-left-row is-groupe is-groupe-depth-${depth}">
+          <span class="row-label-cell" style="padding-left:${ind}px">
+            <span class="toggle-btn" data-ckey="${escH(key)}" onclick="event.stopPropagation();toggleCollapse(this.dataset.ckey)">${!collapsed[key]?'▾':'▸'}</span>
+            <span style="color:${col};font-size:${9-depth}px;flex-shrink:0;margin:0 2px">■</span>
+            <span class="row-label" style="color:${col};font-weight:700">${escH(nomGroupe)}</span>
+          </span>
+          <span class="ch-col ch-slot"></span>
+          ${chargeCols(r)}${dc}
+        </div>`;
+      }
       return`<div class="gantt-left-row is-groupe is-groupe-depth-${depth}" onclick="openEditPanel(${realIdx>=0?realIdx:'null'})">
         <span class="row-label-cell" style="padding-left:${ind}px">
           <span class="toggle-btn" data-ckey="${escH(key)}" onclick="event.stopPropagation();toggleCollapse(this.dataset.ckey)">${!collapsed[key]?'▾':'▸'}</span>
