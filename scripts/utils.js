@@ -78,19 +78,27 @@ function isVisible(r){
   if(r._type==='jalon') return true;
   if(r._type==='projet') return false; // _type='projet' n'est plus généré
   if(collapsed[collapseKey(r.projet,[])]) return false;
-  /* En vue multi-projet, le groupe projet a collapseKey(p,[p]) — vérifie son état */
-  if(multiViewMode && collapsed[collapseKey(r.projet,[r.projet])]) return false;
   const niv=r.niveaux||[];
   if(r._type==='groupe'){
-    /* Ignore les groupes projet (_isProjetGroupe) : toujours visibles si pas collapsés */
+    // niveaux=[p,g1,...] en multi-vue → vérifier à partir de i=1
+    // niveaux=[g1,...] en vue simple → vérifier à partir de i=1
     for(let i=1;i<niv.length;i++){
       if(collapsed[collapseKey(r.projet,niv.slice(0,i))]) return false;
     }
     return true;
   }
   if(r._type==='tache'){
-    for(let i=1;i<=niv.length;i++){
-      if(collapsed[collapseKey(r.projet,niv.slice(0,i))]) return false;
+    if(multiViewMode){
+      // En multi-vue, les clés de collapse sont préfixées par [p]
+      // Task niveaux=[g1] → vérifier collapsed['G:p|p'] (projet) et 'G:p|p|g1' (subgroup)
+      if(collapsed[collapseKey(r.projet,[r.projet])]) return false;
+      for(let i=1;i<=niv.length;i++){
+        if(collapsed[collapseKey(r.projet,[r.projet,...niv.slice(0,i)])]) return false;
+      }
+    } else {
+      for(let i=1;i<=niv.length;i++){
+        if(collapsed[collapseKey(r.projet,niv.slice(0,i))]) return false;
+      }
     }
     return true;
   }
