@@ -2,6 +2,25 @@
    resources.css — Vue Ressources GHO-style
    ═══════════════════════════════════════════════════════════════ */
 
+/* ── Reset des styles globaux main.css qui saignent dans le tableau GHO ── */
+.gho-table { font-size: 11px; font-family: Arial, sans-serif; }
+.gho-table thead tr { background: var(--surface2); }
+.gho-table th {
+  color: var(--text);
+  font-family: Arial, sans-serif;
+  text-transform: none;
+  letter-spacing: 0;
+  border-bottom: none;
+  padding: 0;
+  font-weight: 600;
+}
+.gho-table td {
+  font-family: Arial, sans-serif;
+  border-bottom: none;
+  padding: 0;
+}
+.gho-table tr:last-child td { border-bottom: none; }
+
 /* ── Wrapper global ── */
 .gho-wrap {
   display: flex;
@@ -109,7 +128,30 @@
   z-index: 4;
   background: var(--surface2);
 }
+
+/* Hauteur fixe de la ligne mois = 26px pour que la ligne jours soit exactement à top:26px */
+.gho-thead-months th { height: 26px; }
 .gho-thead-days th { top: 26px; }
+
+/* Padding des cellules header */
+.gho-th-res  { padding: 4px 8px; }
+.gho-th-act  { padding: 4px 8px; }
+.gho-th-month {
+  padding: 0 4px;
+  text-align: center;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--muted);
+  border-right: 1px solid var(--border);
+}
+.gho-th-day {
+  padding: 2px 1px;
+  text-align: center;
+  font-size: 9px;
+  font-weight: 600;
+  color: var(--text);
+  border-right: 1px solid var(--border);
+}
 
 /* ── Sticky left columns ── */
 .gho-sticky-res {
@@ -263,7 +305,7 @@
 
 /* ── Activity detail rows ── */
 .gho-row-act {
-  border-top: 1px solid rgba(var(--accent-rgb, 74,144,226), 0.15);
+  border-top: 1px solid rgba(0,0,0,.06);
   background: var(--bg);
 }
 /* First activity row: stronger border below the total row */
@@ -289,8 +331,12 @@
   width: var(--col-w, 34px);
   font-size: 9px;
 }
+.gho-td-day.we,
 .gho-td-day.weekend { background: rgba(0,0,0,.04); }
-.gho-td-day.today   { background: rgba(var(--accent-rgb, 74,144,226),.08); }
+.gho-td-day.today   { background: rgba(236,114,6,.10); }
+.gho-th-day.weekend,
+.gho-th-day.we      { background: rgba(0,0,0,.05); color: var(--muted); }
+.gho-th-day.today   { background: rgba(236,114,6,.18); color: var(--accent); font-weight: 700; }
 
 /* ── Charge cell content ── */
 .gho-cell {
@@ -399,6 +445,7 @@
   background: var(--bg);
   color: var(--text);
   font-size: 10px;
+  font-family: Arial, sans-serif;
   box-sizing: border-box;
 }
 .gho-search:focus { outline: none; border-color: var(--accent); }
@@ -435,5 +482,3 @@
 .gho-td-day { cursor: grab; }
 .gho-td-day:active { cursor: grabbing; }
 
-/* Rows aligned by shared scroll container — no JS sync needed */
-.gho-left-table tr, .gho-right-table tr { vertical-align: middle; }
