@@ -14,6 +14,10 @@ let _resFilter = '';     // filtre texte recherche
 /* ── Année affichée ── */
 let _resYear = new Date().getFullYear();
 
+/* ── Caches mémoire ── */
+const _daysCache  = {}; // year → Date[]
+const _ferieCache = {}; // year → Set<timestamp>
+
 /* ══════════════════════════════════
    CRUD ressources (inchangé)
    ══════════════════════════════════ */
@@ -63,13 +67,14 @@ function getInitials(prenom, nom) {
    HELPERS JOURS
    ══════════════════════════════════ */
 function _getDaysOfYear(year) {
+  if (_daysCache[year]) return _daysCache[year];
   const days = [];
   const d = new Date(year, 0, 1);
   while (d.getFullYear() === year) {
     days.push(new Date(d));
     d.setDate(d.getDate() + 1);
   }
-  return days;
+  return (_daysCache[year] = days);
 }
 
 function _dayKey(date) {
@@ -80,33 +85,31 @@ function _dayKey(date) {
 }
 
 function _isWE(date) { return date.getDay()===0 || date.getDay()===6; }
-function _isFerie(date) {
-  /* Jours fériés français fixes */
-  const m = date.getMonth()+1, d = date.getDate();
-  if (m===1  && d===1)  return true; // Jour de l'An
-  if (m===5  && d===1)  return true; // Fête du Travail
-  if (m===5  && d===8)  return true; // Victoire 1945
-  if (m===7  && d===14) return true; // Fête Nationale
-  if (m===8  && d===15) return true; // Assomption
-  if (m===11 && d===1)  return true; // Toussaint
-  if (m===11 && d===11) return true; // Armistice
-  if (m===12 && d===25) return true; // Noël
+
+/* Construit (et mémoïse) le Set des timestamps fériés pour une année */
+function _getFeriesOfYear(year) {
+  if (_ferieCache[year]) return _ferieCache[year];
+  const s = new Set();
+  const add = (m, d) => s.add(new Date(year, m-1, d).getTime());
+  /* Fixes */
+  add(1,1); add(5,1); add(5,8); add(7,14); add(8,15); add(11,1); add(11,11); add(12,25);
   /* Pâques (algo Meeus/Jones/Butcher) */
-  const y = date.getFullYear();
-  const a=y%19,b=Math.floor(y/100),c=y%100,d2=Math.floor(b/4),e=b%4;
+  const a=year%19,b=Math.floor(year/100),c=year%100,d2=Math.floor(b/4),e=b%4;
   const f=Math.floor((b+8)/25),g=Math.floor((b-f+1)/3),h=(19*a+b-d2-g+15)%30;
   const i=Math.floor(c/4),k=c%4,l=(32+2*e+2*i-h-k)%7;
   const mm=Math.floor((a+11*h+22*l)/451);
   const mo=Math.floor((h+l-7*mm+114)/31);
   const dd=(h+l-7*mm+114)%31+1;
-  const easter = new Date(y,mo-1,dd);
-  const lundiPaques = new Date(easter); lundiPaques.setDate(easter.getDate()+1);
-  const ascension  = new Date(easter); ascension.setDate(easter.getDate()+39);
-  const pentecote  = new Date(easter); pentecote.setDate(easter.getDate()+49);
-  const lundiPent  = new Date(easter); lundiPent.setDate(easter.getDate()+50);
-  const t = date.getTime();
-  return t===lundiPaques.getTime() || t===ascension.getTime() ||
-         t===pentecote.getTime()   || t===lundiPent.getTime();
+  const easter = new Date(year,mo-1,dd);
+  [1,39,49,50].forEach(offset => {
+    const d = new Date(easter); d.setDate(easter.getDate()+offset);
+    s.add(d.getTime());
+  });
+  return (_ferieCache[year] = s);
+}
+
+function _isFerie(date) {
+  return _getFeriesOfYear(date.getFullYear()).has(date.getTime());
 }
 function _isToday(date) {
   const t = new Date(); t.setHours(0,0,0,0);
@@ -116,12 +119,7 @@ function _isToday(date) {
 /* ══════════════════════════════════
    RENDU PRINCIPAL
    ══════════════════════════════════ */
-function renderResourcesView() {
-  const container = document.getElementById('viewRessources');
-  if (!container) return;
-  container.innerHTML = _buildResViewHTML();
-  _attachResEvents();
-}
+function renderResourcesView() { _refreshResView(); }
 
 function _refreshResView() {
   const container = document.getElementById('viewRessources');
@@ -204,6 +202,26 @@ function _buildRows(days) {
       resources.length ? 'Aucune ressource trouvée.' : 'Aucune ressource — cliquez "+ Ressource".'
     }</td></tr>`;
   }
+
+  /* Pré-calcul des métadonnées par jour (1×365 au lieu de N×365) */
+  const todayT = (() => { const t = new Date(); t.setHours(0,0,0,0); return t.getTime(); })();
+  const feries = _getFeriesOfYear(_resYear);
+  const dayMeta = days.map(d => {
+    const t = d.getTime();
+    const key = _dayKey(d);
+    const day = d.getDay();
+    let dc = '';
+    if (t === todayT) dc = ' today';
+    else if (feries.has(t)) dc = ' ferie';
+    else if (day === 0 || day === 6) dc = ' we';
+    return { key, dc };
+  });
+
+  const mkDay = (vals, meta) => {
+    const jours = (vals[meta.key]||0) / 480;
+    return `<td class="gho-td-day${meta.dc}">${jours>0 ? _fmtJ(jours) : ''}</td>`;
+  };
+
   return fr.map(r => {
     const fullName = [r.prenom, r.nom].filter(Boolean).join(' ') || '—';
     const acts = (r.ghoData?.activities || []).filter(a => Object.values(a.daily).some(v=>v>0));
@@ -212,11 +230,6 @@ function _buildRows(days) {
     acts.forEach(a => Object.entries(a.daily).forEach(([k,v]) => {
       dayTotals[k] = (dayTotals[k]||0) + v;
     }));
-    const mkDay = (vals, d) => {
-      const jours = (vals[_dayKey(d)]||0) / 480;
-      const dc = _isToday(d)?' today':(_isFerie(d)?' ferie':(_isWE(d)?' we':''));
-      return `<td class="gho-td-day${dc}">${jours>0 ? _fmtJ(jours) : ''}</td>`;
-    };
     /* Resource summary row */
     let rows = `<tr class="gho-row-res" data-rid="${r.id}">
       <td class="gho-td-res gho-sticky-res">
@@ -233,14 +246,14 @@ function _buildRows(days) {
           ? `<span class="gho-act-count">${acts.length}&nbsp;projet${acts.length>1?'s':''}</span>`
           : '<span class="gho-no-data">—</span>'}
       </td>
-      ${days.map(d => mkDay(dayTotals, d)).join('')}
+      ${dayMeta.map(m => mkDay(dayTotals, m)).join('')}
     </tr>`;
     /* Activity rows */
     if (isExp) acts.forEach(a => {
       rows += `<tr class="gho-row-act" data-rid="${r.id}">
         <td class="gho-td-res gho-td-res-empty gho-sticky-res"></td>
         <td class="gho-td-act gho-td-act-name gho-sticky-act" title="${escH(a.name)}">${escH(a.name)}</td>
-        ${days.map(d => mkDay(a.daily, d)).join('')}
+        ${dayMeta.map(m => mkDay(a.daily, m)).join('')}
       </tr>`;
     });
     return rows;
@@ -290,22 +303,6 @@ function _refreshTbody() {
   tbody.innerHTML = _buildRows(days);
 }
 
-function _syncRowHeights() {
-  /* Match row heights between left and right panels */
-  const leftRows  = document.querySelectorAll('#ghoLeft  tbody tr, #ghoLeft  thead tr');
-  const rightRows = document.querySelectorAll('#ghoRight tbody tr, #ghoRight thead tr');
-  /* Reset heights first */
-  leftRows.forEach(r  => r.style.height = '');
-  rightRows.forEach(r => r.style.height = '');
-  /* Apply max height to paired rows */
-  const len = Math.min(leftRows.length, rightRows.length);
-  for (let i = 0; i < len; i++) {
-    const h = Math.max(leftRows[i].getBoundingClientRect().height,
-                       rightRows[i].getBoundingClientRect().height);
-    leftRows[i].style.height  = h + 'px';
-    rightRows[i].style.height = h + 'px';
-  }
-}
 
 function _scrollToToday() {
   setTimeout(() => {
@@ -492,7 +489,7 @@ function parseGHOExcel(buffer) {
     Object.entries(parsed).forEach(([resName, actMap]) => {
       const hasData = Object.values(actMap).some(d => Object.values(d).some(v=>v>0));
       if (!hasData) return;
-      let res = _findResouceByName(resName);
+      let res = _findResourceByName(resName);
       if (!res) {
         /* Créer la ressource : détecter NOM (majuscules) et prénom */
         const parts = resName.split(' ');
@@ -518,7 +515,7 @@ function parseGHOExcel(buffer) {
   }
 }
 
-function _findResouceByName(fullName) {
+function _findResourceByName(fullName) {
   const norm = s => s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim();
   const t = norm(fullName);
   return resources.find(r => {
