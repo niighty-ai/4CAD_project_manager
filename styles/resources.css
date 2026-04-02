@@ -83,58 +83,77 @@
 .gho-btn-add:hover { opacity: .85; }
 
 /* ── Table wrapper ── */
-/* ── Two-panel container ── */
+/* ── Main panels container ── */
 .gho-panels {
   flex: 1;
   display: flex;
+  flex-direction: column;
   overflow: hidden;
   min-height: 0;
 }
 
-/* ── Left panel: fixed, no scroll ── */
-.gho-left-panel {
+/* ── Fixed header row (outside scroll) ── */
+.gho-headers-row {
+  display: flex;
   flex-shrink: 0;
-  width: 440px;
+  border-bottom: 2px solid var(--border);
+  z-index: 10;
+  background: var(--surface2);
+}
+.gho-left-head {
+  flex-shrink: 0;
   overflow: hidden;
   border-right: 2px solid var(--border);
   box-shadow: 4px 0 8px rgba(0,0,0,.12);
   z-index: 2;
-  display: flex;
-  flex-direction: column;
 }
-.gho-left-table {
-  width: 440px;
-  border-collapse: collapse;
-  font-size: 11px;
-  font-family: Arial, sans-serif;
-  table-layout: fixed;
+.gho-right-head-wrap {
+  flex: 1;
+  overflow: hidden; /* sync'd via JS scrollLeft from body */
 }
 
-/* ── Right panel: scrollable ── */
-.gho-right-panel {
+/* ── Shared vertical scroll body ── */
+.gho-body-scroll {
+  flex: 1;
+  display: flex;
+  overflow-y: auto;   /* ONE vertical scroll for both panels */
+  overflow-x: hidden;
+  min-height: 0;
+}
+.gho-body-scroll::-webkit-scrollbar { width: 6px; }
+.gho-body-scroll::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+/* ── Left body: fixed width, no scroll ── */
+.gho-left-body {
+  flex-shrink: 0;
+  overflow: hidden;
+  border-right: 2px solid var(--border);
+  box-shadow: 4px 0 8px rgba(0,0,0,.12);
+  z-index: 2;
+}
+
+/* ── Right body: horizontal scroll only ── */
+.gho-right-body-wrap {
   flex: 1;
   overflow-x: auto;
-  overflow-y: auto;
+  overflow-y: hidden; /* vertical scroll is on parent .gho-body-scroll */
   cursor: grab;
 }
-.gho-right-panel:active { cursor: grabbing; }
-.gho-right-panel::-webkit-scrollbar { height: 6px; }
-.gho-right-panel::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
-.gho-right-table {
+.gho-right-body-wrap:active { cursor: grabbing; }
+.gho-right-body-wrap::-webkit-scrollbar { height: 6px; }
+.gho-right-body-wrap::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+/* ── Shared table styles ── */
+.gho-left-table, .gho-right-table {
   border-collapse: collapse;
   font-size: 11px;
   font-family: Arial, sans-serif;
   table-layout: fixed;
+  white-space: nowrap;
 }
 
 /* ── Table ── */
-/* ── Sticky headers in each panel ── */
-.gho-left-table thead,
-.gho-right-table thead {
-  position: sticky;
-  top: 0;
-  z-index: 10;
-}
+/* Headers are in fixed .gho-headers-row — no sticky needed */
 
 .gho-th-month {
   background: var(--accent);
@@ -467,7 +486,5 @@
 .gho-td-day { cursor: grab; }
 .gho-td-day:active { cursor: grabbing; }
 
-/* ── Left panel rows same height as right ── */
+/* Rows aligned by shared scroll container — no JS sync needed */
 .gho-left-table tr, .gho-right-table tr { vertical-align: middle; }
-.gho-left-table td, .gho-right-table td { overflow: hidden; }
-.gho-left-table th { white-space: normal; }
