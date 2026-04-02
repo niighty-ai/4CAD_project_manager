@@ -238,51 +238,16 @@ function _filteredResources() {
   return resources.filter(r => [r.prenom, r.nom].join(' ').toLowerCase().includes(f));
 }
 
-/* ── Left panel rows (Ressource + Activité/Projet cols) ── */
-function _buildLeftRows() {
+/* ── Single table rows: res col + act col + all day cols ── */
+function _buildRows(days) {
   const fr = _filteredResources();
   if (!fr.length) {
-    return `<tr><td colspan="2" class="gho-empty">${
-      resources.length ? 'Aucune ressource trouvée.' : 'Aucune ressource.'
+    return `<tr><td colspan="${days.length+2}" class="gho-empty">${
+      resources.length ? 'Aucune ressource trouvée.' : 'Aucune ressource — cliquez "+ Ressource".'
     }</td></tr>`;
   }
   return fr.map(r => {
     const fullName = [r.prenom, r.nom].filter(Boolean).join(' ') || '—';
-    const acts = (r.ghoData?.activities || []).filter(a => Object.values(a.daily).some(v=>v>0));
-    const isExp = _resExpanded.has(r.id);
-    let rows = `<tr class="gho-row-res" data-rid="${r.id}">
-      <td class="gho-td-res">
-        <div class="gho-td-res-inner">
-          <span class="gho-avatar">${getInitials(r.prenom, r.nom)}</span>
-          <span class="gho-res-name">${escH(fullName)}</span>
-          <span class="gho-res-actions">
-            <button class="gho-btn-edit" onclick="openResDialog('${r.id}')" title="Modifier">✎</button>
-            <button class="gho-btn-del" onclick="confirmDeleteResource('${r.id}')" title="Supprimer">🗑</button>
-          </span>
-        </div>
-      </td>
-      <td class="gho-td-act gho-td-act-total" onclick="_toggleRes('${r.id}')">
-        <span class="gho-toggle">${acts.length ? (isExp?'▾':'▸') : '·'}</span>
-        ${acts.length
-          ? `<span class="gho-act-count">${acts.length}&nbsp;projet${acts.length>1?'s':''}</span>`
-          : '<span class="gho-no-data">—</span>'}
-      </td>
-    </tr>`;
-    if (isExp) acts.forEach(a => {
-      rows += `<tr class="gho-row-act" data-rid="${r.id}">
-        <td class="gho-td-res gho-td-res-empty"></td>
-        <td class="gho-td-act gho-td-act-name" title="${escH(a.name)}">${escH(a.name)}</td>
-      </tr>`;
-    });
-    return rows;
-  }).join('');
-}
-
-/* ── Right panel rows (day cols only) ── */
-function _buildRightRows(days) {
-  const fr = _filteredResources();
-  if (!fr.length) return `<tr><td colspan="${days.length}" class="gho-empty"></td></tr>`;
-  return fr.map(r => {
     const acts = (r.ghoData?.activities || []).filter(a => Object.values(a.daily).some(v=>v>0));
     const isExp = _resExpanded.has(r.id);
     const dayTotals = {};
@@ -290,15 +255,33 @@ function _buildRightRows(days) {
       dayTotals[k] = (dayTotals[k]||0) + v;
     }));
     const mkDay = (vals, d) => {
-      const jours = (vals[_dayKey(d)] || 0) / 480;
+      const jours = (vals[_dayKey(d)]||0) / 480;
       const dc = _isToday(d)?' today':(_isFerie(d)?' ferie':(_isWE(d)?' we':''));
-      return `<td class="gho-td-day${dc}">${jours > 0 ? _fmtJ(jours) : ''}</td>`;
+      return `<td class="gho-td-day${dc}">${jours>0 ? _fmtJ(jours) : ''}</td>`;
     };
+    /* Resource summary row */
     let rows = `<tr class="gho-row-res" data-rid="${r.id}">
+      <td class="gho-td-res gho-sticky-res">
+        <span class="gho-avatar">${getInitials(r.prenom, r.nom)}</span>
+        <span class="gho-res-name">${escH(fullName)}</span>
+        <span class="gho-res-actions">
+          <button class="gho-btn-edit" onclick="openResDialog('${r.id}')" title="Modifier">✎</button>
+          <button class="gho-btn-del" onclick="confirmDeleteResource('${r.id}')" title="Supprimer">🗑</button>
+        </span>
+      </td>
+      <td class="gho-td-act gho-td-act-total gho-sticky-act" onclick="_toggleRes('${r.id}')">
+        <span class="gho-toggle">${acts.length?(isExp?'▾':'▸'):'·'}</span>
+        ${acts.length
+          ? `<span class="gho-act-count">${acts.length}&nbsp;projet${acts.length>1?'s':''}</span>`
+          : '<span class="gho-no-data">—</span>'}
+      </td>
       ${days.map(d => mkDay(dayTotals, d)).join('')}
     </tr>`;
+    /* Activity rows */
     if (isExp) acts.forEach(a => {
       rows += `<tr class="gho-row-act" data-rid="${r.id}">
+        <td class="gho-td-res gho-td-res-empty gho-sticky-res"></td>
+        <td class="gho-td-act gho-td-act-name gho-sticky-act" title="${escH(a.name)}">${escH(a.name)}</td>
         ${days.map(d => mkDay(a.daily, d)).join('')}
       </tr>`;
     });
@@ -341,14 +324,12 @@ function _toggleRes(id) {
   _refreshTbody(); // partial refresh — no scroll reset
 }
 
-/* Partial refresh: rebuild both panel tbodies (preserves scroll + focus) */
+/* Partial refresh: only rebuild tbody (preserves scroll + focus) */
 function _refreshTbody() {
-  const leftBody  = document.getElementById('ghoLeftBody');
-  const rightBody = document.getElementById('ghoRightBodyTbody');
-  if (!leftBody || !rightBody) { _refreshResView(); return; }
+  const tbody = document.getElementById('ghoTbody');
+  if (!tbody) { _refreshResView(); return; }
   const days = _getDaysOfYear(_resYear);
-  leftBody.innerHTML  = _buildLeftRows();
-  rightBody.innerHTML = _buildRightRows(days);
+  tbody.innerHTML = _buildRows(days);
 }
 
 function _syncRowHeights() {
@@ -370,13 +351,13 @@ function _syncRowHeights() {
 
 function _scrollToToday() {
   setTimeout(() => {
-    const rightBody = document.getElementById('ghoRightBody');
-    const th = document.querySelector('#ghoRightHead th.gho-th-day.today');
-    if (rightBody && th) {
-      const rRect = rightBody.getBoundingClientRect();
+    const wrap = document.getElementById('ghoScrollWrap');
+    const th = document.querySelector('#ghoScrollWrap th.gho-th-day.today');
+    if (wrap && th) {
+      const wRect = wrap.getBoundingClientRect();
       const tRect = th.getBoundingClientRect();
-      const offset = tRect.left - rRect.left + rightBody.scrollLeft - rightBody.clientWidth / 2 + tRect.width / 2;
-      rightBody.scrollTo({ left: Math.max(0, offset), behavior: 'smooth' });
+      const offset = tRect.left - wRect.left + wrap.scrollLeft - wrap.clientWidth / 2 + tRect.width / 2;
+      wrap.scrollTo({ left: Math.max(0, offset), behavior: 'smooth' });
     }
   }, 100);
 }
@@ -457,34 +438,26 @@ function _attachResEvents() {
     });
   });
 
-  /* Sync horizontal scroll between right header and right body */
-  const rightHead = document.getElementById('ghoRightHead');
-  const rightBody = document.getElementById('ghoRightBody');
-  if (rightHead && rightBody) {
-    rightBody.addEventListener('scroll', () => {
-      rightHead.scrollLeft = rightBody.scrollLeft;
-    });
-  }
-
-  /* Drag-scroll on right body (horizontal) */
-  if (rightBody) {
-    let isDragging = false, startX = 0, startScrollLeft = 0;
-    rightBody.addEventListener('mousedown', e => {
+  /* Drag-scroll on the single table wrapper */
+  const wrap = document.getElementById('ghoScrollWrap');
+  if (wrap) {
+    let isDragging = false, startX = 0, startY = 0, startSL = 0, startST = 0;
+    wrap.addEventListener('mousedown', e => {
       if (e.target.closest('button') || e.target.closest('input')) return;
       isDragging = true;
-      startX = e.pageX - rightBody.offsetLeft;
-      startScrollLeft = rightBody.scrollLeft;
-      rightBody.style.cursor = 'grabbing';
+      startX = e.pageX; startY = e.pageY;
+      startSL = wrap.scrollLeft; startST = wrap.scrollTop;
+      wrap.style.cursor = 'grabbing';
       e.preventDefault();
     });
     document.addEventListener('mouseup', () => {
       isDragging = false;
-      if (rightBody) rightBody.style.cursor = '';
+      if (wrap) wrap.style.cursor = '';
     });
     document.addEventListener('mousemove', e => {
       if (!isDragging) return;
-      const x = e.pageX - rightBody.offsetLeft;
-      rightBody.scrollLeft = startScrollLeft - (x - startX);
+      wrap.scrollLeft = startSL - (e.pageX - startX);
+      wrap.scrollTop  = startST - (e.pageY - startY);
     });
   }
 
@@ -613,4 +586,39 @@ function getChargeForResourceDay(resourceId, date) {
   if (!r || !r.ghoData) return 0;
   const key = _dayKey(date);
   return (r.ghoData.activities||[]).reduce((s,a) => s+(a.daily[key]||0), 0);
-}
+}  /* ── Single table, single scroll container ── */
+  const RES_W = 200, ACT_W = 240;
+
+  html += `<div class="gho-scroll-wrap" id="ghoScrollWrap">
+    <table class="gho-table" id="ghoTable" style="width:${RES_W+ACT_W+days.length*COL_W}px">
+      <colgroup>
+        <col class="gho-col-res" style="width:${RES_W}px">
+        <col class="gho-col-act" style="width:${ACT_W}px">
+        ${days.map(()=>`<col style="width:${COL_W}px">`).join('')}
+      </colgroup>
+      <thead>
+        <tr class="gho-thead-months">
+          <th class="gho-th-res gho-sticky-res" rowspan="2">
+            RESSOURCE
+            <input class="gho-search" placeholder="🔍 Rechercher…" value="${_resFilter}"
+              oninput="_resFilter=this.value;_refreshTbody()" autocomplete="off"
+              onclick="event.stopPropagation()">
+          </th>
+          <th class="gho-th-act gho-sticky-act" rowspan="2">ACTIVITÉ / PROJET</th>
+          ${_buildMonthHeaders(days, COL_W)}
+        </tr>
+        <tr class="gho-thead-days">
+          ${days.map(d => {
+            const isTd = _isToday(d);
+            const lbl = ['D','L','M','M','J','V','S'][d.getDay()];
+            let cls = 'gho-th-day';
+            if (isTd) cls += ' today';
+            else if (_isFerie(d)) cls += ' ferie';
+            else if (_isWE(d)) cls += ' weekend';
+            return `<th class="${cls}" title="${_dayKey(d)}">${d.getDate()}<br><span class="gho-dl">${lbl}</span></th>`;
+          }).join('')}
+        </tr>
+      </thead>
+      <tbody id="ghoTbody">${_buildRows(days)}</tbody>
+    </table>
+  </div>`;
