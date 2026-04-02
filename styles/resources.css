@@ -1,553 +1,462 @@
 /* ═══════════════════════════════════════════════════════════════
-   resources.js — Vue Ressources : tableau GHO-style
-   Ressource | Activité | J1 | J2 | ... | J365
+   resources.css — Vue Ressources GHO-style
    ═══════════════════════════════════════════════════════════════ */
 
-/* ── État global ressources ── */
-const RESOURCES_KEY = 'gantt4cad_resources';
-let resources = [];
-
-/* ── Collapse state : set of resource IDs that are expanded ── */
-const _resExpanded = new Set();
-let _resFilter = '';     // filtre texte recherche
-
-/* ── Année affichée ── */
-let _resYear = new Date().getFullYear();
-
-/* ══════════════════════════════════
-   CRUD ressources (inchangé)
-   ══════════════════════════════════ */
-function saveResources() {
-  try { localStorage.setItem(RESOURCES_KEY, JSON.stringify(resources)); } catch(e) {}
-  if (typeof scheduleFirebaseSaveResources === 'function') scheduleFirebaseSaveResources();
+/* ── Wrapper global ── */
+.gho-wrap {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+  background: var(--bg);
 }
 
-function loadResources() {
-  try {
-    const raw = localStorage.getItem(RESOURCES_KEY);
-    if (raw) resources = JSON.parse(raw);
-  } catch(e) { resources = []; }
+/* ── Toolbar ── */
+.gho-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: var(--surface2);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+  flex-wrap: wrap;
 }
 
-function genResId() {
-  return 'r_' + Math.random().toString(36).slice(2, 9);
+.gho-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text);
+  margin-right: auto;
 }
 
-function addResource(nom, prenom, profession) {
-  if (!nom && !prenom) return false;
-  resources.push({ id: genResId(), nom, prenom, profession });
-  saveResources();
-  return true;
+.gho-toolbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
-function updateResource(id, nom, prenom, profession) {
-  const r = resources.find(r => r.id === id);
-  if (!r) return false;
-  r.nom = nom; r.prenom = prenom; r.profession = profession;
-  saveResources();
-  return true;
+.gho-btn-year {
+  padding: 3px 8px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 11px;
+  cursor: pointer;
+  transition: all .12s;
+}
+.gho-btn-year:hover { background: var(--surface2); color: var(--text); }
+
+.gho-year-label {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text);
+  min-width: 36px;
+  text-align: center;
 }
 
-function deleteResource(id) {
-  resources = resources.filter(r => r.id !== id);
-  saveResources();
+.gho-btn-import {
+  padding: 4px 10px;
+  border-radius: 4px;
+  border: 1px solid rgba(80,200,120,.5);
+  background: rgba(80,200,120,.15);
+  color: var(--text);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all .12s;
+}
+.gho-btn-import:hover { background: rgba(80,200,120,.3); }
+
+.gho-btn-add {
+  padding: 4px 10px;
+  border-radius: 4px;
+  border: 1px solid var(--accent);
+  background: var(--accent);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all .12s;
+}
+.gho-btn-add:hover { opacity: .85; }
+
+/* ── Table wrapper ── */
+/* ── Outer container: holds the single scrollable table ── */
+.gho-outer {
+  flex: 1;
+  overflow: hidden;
+  position: relative;
+  display: flex;
+  flex-direction: column;
 }
 
-function getInitials(prenom, nom) {
-  const p = (prenom||'').trim()[0]||'';
-  const n = (nom||'').trim()[0]||'';
-  return (p + n).toUpperCase() || '?';
+/* ── The actual scrollable area (horizontal scroll for calendar) ── */
+.gho-fixed-cols {
+  flex: 1;
+  overflow: auto;
+  position: relative;
+  cursor: default;
+  user-select: none;
+}
+.gho-fixed-cols::-webkit-scrollbar { height: 6px; }
+.gho-fixed-cols::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+/* ── Table ── */
+.gho-table {
+  border-collapse: collapse;
+  font-size: 11px;
+  font-family: Arial, sans-serif;
+  white-space: nowrap;
+  table-layout: fixed; /* locks column widths — prevents shift on expand */
 }
 
-/* ══════════════════════════════════
-   HELPERS JOURS
-   ══════════════════════════════════ */
-function _getDaysOfYear(year) {
-  const days = [];
-  const d = new Date(year, 0, 1);
-  while (d.getFullYear() === year) {
-    days.push(new Date(d));
-    d.setDate(d.getDate() + 1);
-  }
-  return days;
+/* ── Sticky header ── */
+.gho-table thead {
+  position: sticky;
+  top: 0;
+  z-index: 10;
 }
 
-function _dayKey(date) {
-  // Format "DD/MM/YYYY" — matches GHO import keys
-  const dd = String(date.getDate()).padStart(2,'0');
-  const mm = String(date.getMonth()+1).padStart(2,'0');
-  return `${dd}/${mm}/${date.getFullYear()}`;
+.gho-th-month {
+  background: var(--accent);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  text-align: center;
+  padding: 3px 2px;
+  border-right: 1px solid rgba(255,255,255,.2);
+  letter-spacing: .3px;
 }
 
-function _isWE(date) { return date.getDay()===0 || date.getDay()===6; }
-function _isFerie(date) {
-  /* Jours fériés français fixes */
-  const m = date.getMonth()+1, d = date.getDate();
-  if (m===1  && d===1)  return true; // Jour de l'An
-  if (m===5  && d===1)  return true; // Fête du Travail
-  if (m===5  && d===8)  return true; // Victoire 1945
-  if (m===7  && d===14) return true; // Fête Nationale
-  if (m===8  && d===15) return true; // Assomption
-  if (m===11 && d===1)  return true; // Toussaint
-  if (m===11 && d===11) return true; // Armistice
-  if (m===12 && d===25) return true; // Noël
-  /* Pâques (algo Meeus/Jones/Butcher) */
-  const y = date.getFullYear();
-  const a=y%19,b=Math.floor(y/100),c=y%100,d2=Math.floor(b/4),e=b%4;
-  const f=Math.floor((b+8)/25),g=Math.floor((b-f+1)/3),h=(19*a+b-d2-g+15)%30;
-  const i=Math.floor(c/4),k=c%4,l=(32+2*e+2*i-h-k)%7;
-  const mm=Math.floor((a+11*h+22*l)/451);
-  const mo=Math.floor((h+l-7*mm+114)/31);
-  const dd=(h+l-7*mm+114)%31+1;
-  const easter = new Date(y,mo-1,dd);
-  const lundiPaques = new Date(easter); lundiPaques.setDate(easter.getDate()+1);
-  const ascension  = new Date(easter); ascension.setDate(easter.getDate()+39);
-  const pentecote  = new Date(easter); pentecote.setDate(easter.getDate()+49);
-  const lundiPent  = new Date(easter); lundiPent.setDate(easter.getDate()+50);
-  const t = date.getTime();
-  return t===lundiPaques.getTime() || t===ascension.getTime() ||
-         t===pentecote.getTime()   || t===lundiPent.getTime();
+.gho-thead-days .gho-th-day {
+  background: var(--surface2);
+  color: var(--muted);
+  font-size: 9px;
+  font-weight: 600;
+  text-align: center;
+  padding: 2px 1px;
+  border-right: 1px solid var(--border);
+  line-height: 1.2;
 }
-function _isToday(date) {
-  const t = new Date(); t.setHours(0,0,0,0);
-  return date.getTime() === t.getTime();
+.gho-thead-days .gho-th-day.weekend { background: rgba(0,0,0,.07); color: var(--muted); }
+.gho-thead-days .gho-th-day.today   { background: var(--accent); color: #fff; }
+.gho-dl { font-size: 8px; opacity: .7; }
+
+/* ── Sticky left columns ── */
+.gho-th-res, .gho-th-act,
+.gho-td-res, .gho-td-act {
+  position: sticky;
+  z-index: 5;
+  background: var(--bg);
 }
 
-/* ══════════════════════════════════
-   RENDU PRINCIPAL
-   ══════════════════════════════════ */
-function renderResourcesView() {
-  const container = document.getElementById('viewRessources');
-  if (!container) return;
-  container.innerHTML = _buildResViewHTML();
-  _attachResEvents();
+.gho-th-res, .gho-td-res {
+  left: 0;
+  width: 200px;
+  box-shadow: 2px 0 4px rgba(0,0,0,.06);
+}
+.gho-th-act, .gho-td-act {
+  left: 200px;
+  width: 240px;
+  border-right: 2px solid var(--border);
+  box-shadow: 2px 0 6px rgba(0,0,0,.1);
 }
 
-function _refreshResView() {
-  const container = document.getElementById('viewRessources');
-  if (!container) return;
-  container.innerHTML = _buildResViewHTML();
-  _attachResEvents();
+.gho-th-res, .gho-th-act {
+  background: var(--surface2);
+  color: var(--text);
+  font-size: 11px;
+  font-weight: 700;
+  padding: 5px 8px;
+  border-bottom: 1px solid var(--border);
+  border-right: 1px solid var(--border);
+  text-align: left;
+  z-index: 15;
 }
 
-function _buildResViewHTML() {
-  const days = _getDaysOfYear(_resYear);
-  const today = new Date(); today.setHours(0,0,0,0);
-  const COL_W = 34; // px per day column
-
-  /* ── Header toolbar ── */
-  const _lastImport = resources.reduce((best,r) => r.ghoData?.importDate && r.ghoData.importDate>best ? r.ghoData.importDate : best, '');
-  let html = `<div class="gho-wrap">
-    <div class="gho-toolbar">
-      <span class="gho-title">👤 Ressources</span>
-      <div class="gho-toolbar-actions">
-        <button class="gho-btn-year" onclick="_resYear--;_refreshResView()">‹ ${_resYear-1}</button>
-        <span class="gho-year-label">${_resYear}</span>
-        <button class="gho-btn-year" onclick="_resYear++;_refreshResView()">${_resYear+1} ›</button>
-        ${_lastImport ? `<span class="gho-last-import">↑ GHO : ${_lastImport}</span>` : ''}
-        <button class="gho-btn-import" onclick="triggerGHOImport()" title="Importer charges GHO (xlsx)">↑ Import GHO</button>
-        <button class="gho-btn-add" onclick="openResDialog()" title="Nouvelle ressource">+ Ressource</button>
-      </div>
-    </div>`;
-
-  /* ── Table ── */
-  const filteredRes = _resFilter
-    ? resources.filter(r => [r.prenom, r.nom].join(' ').toLowerCase().includes(_resFilter.toLowerCase()))
-    : resources;
-  html += `<div class="gho-outer">
-    <div class="gho-fixed-cols" id="ghoFixedCols">
-    <table class="gho-table" style="--col-w:${COL_W}px;table-layout:fixed;width:${440+days.length*COL_W}px">
-      <colgroup>
-        <col style="width:200px;min-width:200px">
-        <col style="width:240px;min-width:240px">
-        ${days.map(()=>`<col style="width:${COL_W}px;min-width:${COL_W}px">`).join('')}
-      </colgroup>
-      <thead>
-        <tr class="gho-thead-months">
-          <th class="gho-th-res" rowspan="2">
-            Ressource
-            <input class="gho-search" placeholder="🔍 Rechercher…" value="${_resFilter}"
-              oninput="_resFilter=this.value;_refreshTbody()" autocomplete="off" onclick="event.stopPropagation()">
-          </th>
-          <th class="gho-th-act" rowspan="2">Activité / Projet</th>
-          ${_buildMonthHeaders(days, COL_W)}
-        </tr>
-        <tr class="gho-thead-days">
-          ${days.map(d => {
-            const isWE = _isWE(d);
-            const isTd = _isToday(d);
-            const lbl = ['D','L','M','M','J','V','S'][d.getDay()];
-            let cls = 'gho-th-day';
-            if (isTd) cls += ' today';
-            else if (_isFerie(d)) cls += ' ferie';
-            else if (isWE) cls += ' weekend';
-            return `<th class="${cls}" style="min-width:${COL_W}px;width:${COL_W}px" title="${_dayKey(d)}">${d.getDate()}<br><span class="gho-dl">${lbl}</span></th>`;
-          }).join('')}
-        </tr>
-      </thead>
-      <tbody>`;
-
-  /* ── Rows per resource ── */
-  html += _buildTbodyRows(days);
-
-  html += `</tbody></table></div></div>`; // gho-fixed-cols + gho-outer
-
-  /* ── Dialog création/édition ressource (hidden) ── */
-  html += _buildResDialog();
-
-  html += `</div>`; // gho-wrap
-  return html;
+/* ── Resource rows ── */
+.gho-row-res {
+  cursor: pointer;
+  border-top: 2px solid var(--border);
+}
+.gho-row-res:hover .gho-td-res,
+.gho-row-res:hover .gho-td-act {
+  background: var(--surface2);
+}
+.gho-row-res:hover .gho-td-day {
+  background: var(--surface);
 }
 
-/* Builds only the tbody rows — used by both full render and partial refresh */
-function _buildTbodyRows(days) {
-  const filteredRes = _resFilter
-    ? resources.filter(r => [r.prenom, r.nom].join(' ').toLowerCase().includes(_resFilter.toLowerCase()))
-    : resources;
-
-  if (!filteredRes.length) {
-    return `<tr><td colspan="${days.length+2}" class="gho-empty">${
-      resources.length ? 'Aucune ressource ne correspond à la recherche.'
-                       : 'Aucune ressource — cliquez "+ Ressource" pour commencer.'
-    }</td></tr>`;
-  }
-
-  return filteredRes.map(r => {
-    const fullName = [r.prenom, r.nom].filter(Boolean).join(' ') || '—';
-    const acts = (r.ghoData?.activities || []).filter(a => Object.values(a.daily).some(v=>v>0));
-    const isExp = _resExpanded.has(r.id);
-
-    /* Daily totals (sum across activities) */
-    const dayTotals = {};
-    acts.forEach(a => {
-      Object.entries(a.daily).forEach(([k,v]) => {
-        dayTotals[k] = (dayTotals[k]||0) + v;
-      });
-    });
-
-    /* ── Resource row ── */
-    let rows = `<tr class="gho-row-res">
-      <td class="gho-td-res">
-        <div class="gho-td-res-inner">
-          <span class="gho-avatar">${getInitials(r.prenom, r.nom)}</span>
-          <span class="gho-res-name">${escH(fullName)}</span>
-          <span class="gho-res-actions">
-            <button class="gho-btn-edit" onclick="openResDialog('${r.id}')" title="Modifier">✎</button>
-            <button class="gho-btn-del" onclick="confirmDeleteResource('${r.id}')" title="Supprimer">🗑</button>
-          </span>
-        </div>
-      </td>
-      <td class="gho-td-act gho-td-act-total" onclick="_toggleRes('${r.id}')">
-        <span class="gho-toggle">${acts.length ? (isExp?'▾':'▸') : '·'}</span>
-        ${acts.length
-          ? `<span class="gho-act-count">${acts.length}&nbsp;projet${acts.length>1?'s':''}</span>`
-          : '<span class="gho-no-data">Aucune donnée GHO</span>'}
-      </td>
-      ${days.map(d => {
-        const v = dayTotals[_dayKey(d)] || 0;
-        const jours = v / 480;
-        const dc = _isToday(d)?' today':(_isFerie(d)?' ferie':(_isWE(d)?' we':''));
-        return `<td class="gho-td-day${dc}">${jours > 0 ? _fmtJ(jours) : ''}</td>`;
-      }).join('')}
-    </tr>`;
-
-    /* ── Activity rows ── */
-    if (isExp && acts.length) {
-      acts.forEach(a => {
-        rows += `<tr class="gho-row-act">
-          <td class="gho-td-res gho-td-res-empty"></td>
-          <td class="gho-td-act gho-td-act-name" title="${escH(a.name)}">${escH(a.name)}</td>
-          ${days.map(d => {
-            const v = a.daily[_dayKey(d)] || 0;
-            const jours = v / 480;
-            const dc = _isToday(d)?' today':(_isFerie(d)?' ferie':(_isWE(d)?' we':''));
-            return `<td class="gho-td-day${dc}">${jours > 0 ? _fmtJ(jours) : ''}</td>`;
-          }).join('')}
-        </tr>`;
-      });
-    }
-    return rows;
-  }).join('');
+.gho-td-res {
+  padding: 0;
+  border-right: 1px solid var(--border);
+  vertical-align: middle;
+  overflow: hidden;
+}
+.gho-td-res-inner {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 8px;
+  min-height: 28px;
 }
 
-
-function _buildMonthHeaders(days, colW) {
-  /* Group days by month, output one <th> per month spanning N days */
-  const months = [];
-  days.forEach(d => {
-    const key = `${d.getFullYear()}-${d.getMonth()}`;
-    const label = d.toLocaleDateString('fr-FR', { month: 'short', year: '2-digit' });
-    if (!months.length || months[months.length-1].key !== key) {
-      months.push({ key, label, count: 1 });
-    } else {
-      months[months.length-1].count++;
-    }
-  });
-  return months.map(m =>
-    `<th class="gho-th-month" colspan="${m.count}" style="min-width:${m.count*colW}px">${m.label}</th>`
-  ).join('');
+.gho-toggle {
+  font-size: 10px;
+  color: var(--muted);
+  width: 10px;
+  flex-shrink: 0;
 }
 
-function _fmtJ(jours) {
-  /* Format charge in jours, with color class */
-  const v = Math.round(jours * 100) / 100;
-  const txt = v % 1 === 0 ? v.toFixed(0) : v.toFixed(2).replace(/\.?0+$/,'');
-  let cls = 'gho-cell';
-  if (jours >= 1) cls += ' c-over';
-  else if (jours >= 0.5) cls += ' c-high';
-  else cls += ' c-low';
-  return `<span class="${cls}">${txt}</span>`;
+.gho-avatar {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: #fff;
+  font-size: 8px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
 }
 
-function _toggleRes(id) {
-  if (_resExpanded.has(id)) _resExpanded.delete(id);
-  else _resExpanded.add(id);
-  _refreshTbody(); // partial refresh — no scroll reset
+.gho-res-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 600;
+  color: var(--text);
+  font-size: 11px;
 }
 
-/* Partial refresh: only rebuild tbody rows (preserves scroll + focus) */
-function _refreshTbody() {
-  const tbody = document.querySelector('.gho-table tbody');
-  if (!tbody) { _refreshResView(); return; }
-  const days = _getDaysOfYear(_resYear);
-  tbody.innerHTML = _buildTbodyRows(days);
+.gho-res-actions {
+  display: none;
+  gap: 3px;
+  flex-shrink: 0;
+}
+.gho-row-res:hover .gho-res-actions { display: flex; }
+
+.gho-btn-edit, .gho-btn-del {
+  width: 20px;
+  height: 20px;
+  border-radius: 3px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 11px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all .1s;
+}
+.gho-btn-edit:hover { background: var(--accent); color: #fff; border-color: var(--accent); }
+.gho-btn-del:hover  { background: #e53935; color: #fff; border-color: #e53935; }
+
+/* ── Activity summary cell ── */
+.gho-td-act {
+  padding: 4px 8px;
+  border-right: 2px solid var(--border);
+  font-size: 10px;
+  color: var(--muted);
+  vertical-align: middle;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+.gho-td-act-name {
+  cursor: default;
+  font-size: 10px;
+  color: var(--text);
+  padding-left: 20px !important;
+}
+.gho-td-act-total {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.gho-import-date {
+  font-size: 9px;
+  color: rgba(80,200,120,.8);
+  white-space: nowrap;
+}
+.gho-act-count {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--accent);
+}
+.gho-no-data { color: var(--muted); opacity: .5; font-style: italic; }
+
+/* ── Activity detail rows ── */
+.gho-row-act {
+  border-top: 1px dashed var(--border);
+}
+.gho-row-act .gho-td-act {
+  padding-left: 12px;
+  font-size: 10px;
+  color: var(--text);
+}
+.gho-td-res-empty {
+  border-right: 1px solid var(--border);
 }
 
-function _scrollToToday() {
-  setTimeout(() => {
-    const wrap = document.getElementById('ghoFixedCols');
-    const td = document.querySelector('th.gho-th-day.today');
-    if (wrap && td) {
-      // Calculate position of today column relative to the scrollable container
-      const wrapRect = wrap.getBoundingClientRect();
-      const tdRect = td.getBoundingClientRect();
-      const offset = tdRect.left - wrapRect.left + wrap.scrollLeft - wrap.clientWidth / 2 + tdRect.width / 2;
-      wrap.scrollTo({ left: Math.max(0, offset), behavior: 'smooth' });
-    }
-  }, 80);
+/* ── Day cells ── */
+.gho-td-day {
+  text-align: center;
+  padding: 3px 1px;
+  border-right: 1px solid var(--border);
+  vertical-align: middle;
+  min-width: var(--col-w, 34px);
+  width: var(--col-w, 34px);
+  font-size: 9px;
+}
+.gho-td-day.weekend { background: rgba(0,0,0,.04); }
+.gho-td-day.today   { background: rgba(var(--accent-rgb, 74,144,226),.08); }
+
+/* ── Charge cell content ── */
+.gho-cell {
+  display: inline-block;
+  padding: 1px 2px;
+  border-radius: 2px;
+  font-size: 9px;
+  font-weight: 700;
+  min-width: 18px;
+  text-align: center;
+}
+.gho-cell.c-low  { background: rgba(76,175,80,.2);  color: #2e7d32; }
+.gho-cell.c-high { background: rgba(255,152,0,.25); color: #e65100; }
+.gho-cell.c-over { background: rgba(244,67,54,.25); color: #b71c1c; }
+
+/* ── Empty state ── */
+.gho-empty {
+  padding: 40px;
+  text-align: center;
+  color: var(--muted);
+  font-style: italic;
 }
 
-/* ══════════════════════════════════
-   DIALOG RESSOURCE (création/édition)
-   ══════════════════════════════════ */
-let _editingResId = null;
+/* ── Dialog ressource ── */
+.gho-dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,.4);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.gho-dialog {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 20px;
+  min-width: 300px;
+  max-width: 400px;
+  box-shadow: 0 8px 32px rgba(0,0,0,.3);
+}
+.gho-dialog-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 14px;
+}
+.gho-dialog-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+.gho-dlg-label {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: .5px;
+  margin-bottom: -4px;
+}
+.gho-dlg-input {
+  padding: 6px 8px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+  font-size: 12px;
+}
+.gho-dlg-input:focus { outline: none; border-color: var(--accent); }
+.gho-dialog-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.gho-dlg-cancel {
+  padding: 5px 12px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--muted);
+  font-size: 12px;
+  cursor: pointer;
+}
+.gho-dlg-save {
+  padding: 5px 12px;
+  border-radius: 4px;
+  border: none;
+  background: var(--accent);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.gho-dlg-save:hover { opacity: .9; }
 
-function _buildResDialog() {
-  return `<div class="gho-dialog-backdrop" id="resDialogBackdrop" style="display:none" onclick="closeResDialog()">
-    <div class="gho-dialog" onclick="event.stopPropagation()">
-      <div class="gho-dialog-title" id="resDialogTitle">Nouvelle ressource</div>
-      <div class="gho-dialog-body">
-        <label class="gho-dlg-label">Nom</label>
-        <input class="gho-dlg-input" id="resDlgNom" placeholder="Nom de famille">
-        <label class="gho-dlg-label">Prénom</label>
-        <input class="gho-dlg-input" id="resDlgPrenom" placeholder="Prénom">
-        <label class="gho-dlg-label">Profession</label>
-        <input class="gho-dlg-input" id="resDlgProf" placeholder="Ex: Développeur, Chef de projet…">
-      </div>
-      <div class="gho-dialog-footer">
-        <button class="gho-dlg-cancel" onclick="closeResDialog()">Annuler</button>
-        <button class="gho-dlg-save" onclick="saveResDialog()">✓ Enregistrer</button>
-      </div>
-    </div>
-  </div>`;
+/* ── Search bar in Ressource header ── */
+.gho-search {
+  display: block;
+  width: 100%;
+  margin-top: 4px;
+  padding: 3px 6px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+  font-size: 10px;
+  box-sizing: border-box;
+}
+.gho-search:focus { outline: none; border-color: var(--accent); }
+
+/* ── Last import date in toolbar ── */
+.gho-last-import {
+  font-size: 10px;
+  color: rgba(80,200,120,.9);
+  font-weight: 600;
+  white-space: nowrap;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: rgba(80,200,120,.1);
 }
 
-function openResDialog(id) {
-  _editingResId = id || null;
-  const backdrop = document.getElementById('resDialogBackdrop');
-  if (!backdrop) return;
-  const r = id ? resources.find(x => x.id === id) : null;
-  document.getElementById('resDialogTitle').textContent = r ? '✎ Modifier la ressource' : 'Nouvelle ressource';
-  document.getElementById('resDlgNom').value = r?.nom || '';
-  document.getElementById('resDlgPrenom').value = r?.prenom || '';
-  document.getElementById('resDlgProf').value = r?.profession || '';
-  backdrop.style.display = 'flex';
-  setTimeout(() => document.getElementById('resDlgNom').focus(), 50);
+/* ── Toggle in act col ── */
+.gho-td-act-total {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.gho-td-act-total .gho-act-count {
+  margin-left: auto; /* push count to right */
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--accent);
 }
 
-function closeResDialog() {
-  const b = document.getElementById('resDialogBackdrop');
-  if (b) b.style.display = 'none';
-  _editingResId = null;
-}
+/* ── Jour férié ── */
+.gho-th-day.ferie  { background: rgba(156,39,176,.12); color: #7b1fa2; }
+.gho-td-day.ferie  { background: rgba(156,39,176,.06); }
 
-function saveResDialog() {
-  const nom    = document.getElementById('resDlgNom').value.trim();
-  const prenom = document.getElementById('resDlgPrenom').value.trim();
-  const prof   = document.getElementById('resDlgProf').value.trim();
-  if (!nom && !prenom) { document.getElementById('resDlgNom').focus(); return; }
-  if (_editingResId) {
-    updateResource(_editingResId, nom, prenom, prof);
-  } else {
-    addResource(nom, prenom, prof);
-  }
-  closeResDialog();
-  _refreshResView();
-}
-
-function confirmDeleteResource(id) {
-  const r = resources.find(x => x.id === id);
-  const name = r ? [r.prenom, r.nom].filter(Boolean).join(' ') : id;
-  if (!confirm(`Supprimer la ressource "${name}" ?`)) return;
-  deleteResource(id);
-  _resExpanded.delete(id);
-  _refreshResView();
-}
-
-function _attachResEvents() {
-  /* Keyboard on dialog */
-  document.querySelectorAll('.gho-dlg-input').forEach(inp => {
-    inp.addEventListener('keydown', e => {
-      if (e.key === 'Enter') saveResDialog();
-      if (e.key === 'Escape') closeResDialog();
-    });
-  });
-  /* Drag-scroll on the fixed-cols panel (calendar area) */
-  const wrap = document.getElementById('ghoFixedCols');
-  if (wrap) {
-    let isDragging = false, startX = 0, startScrollLeft = 0;
-    wrap.addEventListener('mousedown', e => {
-      if (e.target.closest('.gho-td-act') || e.target.closest('.gho-td-res') ||
-          e.target.closest('button') || e.target.closest('input')) return;
-      isDragging = true;
-      startX = e.pageX - wrap.offsetLeft;
-      startScrollLeft = wrap.scrollLeft;
-      wrap.style.cursor = 'grabbing';
-      e.preventDefault();
-    });
-    document.addEventListener('mouseup', () => {
-      isDragging = false;
-      if (wrap) wrap.style.cursor = '';
-    });
-    document.addEventListener('mousemove', e => {
-      if (!isDragging) return;
-      const x = e.pageX - wrap.offsetLeft;
-      wrap.scrollLeft = startScrollLeft - (x - startX);
-    });
-  }
-  /* Scroll to today on load */
-  _scrollToToday();
-}
-
-/* ══════════════════════════════════
-   IMPORT GHO EXCEL (SheetJS)
-   ══════════════════════════════════ */
-function triggerGHOImport() {
-  const input = document.createElement('input');
-  input.type = 'file';
-  input.accept = '.xlsx,.xls';
-  input.onchange = e => {
-    const file = e.target.files[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = evt => parseGHOExcel(evt.target.result);
-    reader.readAsArrayBuffer(file);
-  };
-  input.click();
-}
-
-function parseGHOExcel(buffer) {
-  try {
-    if (typeof XLSX === 'undefined') {
-      alert('SheetJS non disponible — vérifiez le chargement de la librairie.');
-      return;
-    }
-    const wb = XLSX.read(buffer, { type: 'array', cellDates: false });
-    const ws = wb.Sheets[wb.SheetNames[0]];
-    const raw = XLSX.utils.sheet_to_json(ws, { header: 1, defval: null });
-
-    /* Row 12 (index 11) = dates, col E+ (index 4+) */
-    const DATE_ROW = 11;
-    const DATA_START = 13;
-    const COL_RES = 1, COL_ACT = 2, COL_FIRST = 4;
-
-    const dateRow = raw[DATE_ROW] || [];
-    const dates = [];
-    for (let c = COL_FIRST; c < dateRow.length; c++) {
-      const v = dateRow[c];
-      if (v != null) dates.push({ col: c, label: String(v).trim() });
-    }
-    if (!dates.length) { alert('Format GHO non reconnu — ligne 12 vide.'); return; }
-
-    /* Parse data rows */
-    const parsed = {}; // { resName → { actName → { dateLabel → minutes } } }
-    let curRes = null;
-    for (let ri = DATA_START; ri < raw.length; ri++) {
-      const row = raw[ri];
-      if (!row) continue;
-      const resCell = row[COL_RES];
-      const actCell = row[COL_ACT];
-      if (resCell != null && String(resCell).trim()) curRes = String(resCell).trim();
-      if (!curRes || actCell == null || !String(actCell).trim()) continue;
-      const actName = String(actCell).trim();
-      if (!parsed[curRes]) parsed[curRes] = {};
-      if (!parsed[curRes][actName]) parsed[curRes][actName] = {};
-      dates.forEach(({ col, label }) => {
-        const v = row[col];
-        const mins = (v != null && !isNaN(parseFloat(v))) ? parseFloat(v) : 0;
-        if (mins > 0) {
-          parsed[curRes][actName][label] = Math.round(((parsed[curRes][actName][label]||0) + mins) * 100) / 100;
-        }
-      });
-    }
-
-    const now = new Date();
-    const importDate = `${String(now.getDate()).padStart(2,'0')}/${String(now.getMonth()+1).padStart(2,'0')}/${now.getFullYear()}`;
-    let created = 0, updated = 0;
-
-    Object.entries(parsed).forEach(([resName, actMap]) => {
-      const hasData = Object.values(actMap).some(d => Object.values(d).some(v=>v>0));
-      if (!hasData) return;
-      let res = _findResouceByName(resName);
-      if (!res) {
-        /* Créer la ressource : détecter NOM (majuscules) et prénom */
-        const parts = resName.split(' ');
-        const nomParts   = parts.filter(p => p.length>1 && p === p.toUpperCase() && !/\d/.test(p));
-        const prenomParts = parts.filter(p => !nomParts.includes(p));
-        res = { id: genResId(), nom: nomParts.join(' ')||parts[parts.length-1], prenom: prenomParts.join(' '), profession: '' };
-        resources.push(res);
-        created++;
-      } else { updated++; }
-
-      const activities = Object.entries(actMap)
-        .map(([name, daily]) => ({ name, daily }))
-        .filter(a => Object.values(a.daily).some(v=>v>0));
-      res.ghoData = { importDate, activities };
-    });
-
-    saveResources();
-    _refreshResView();
-    alert(`Import GHO ✓\n• ${created} ressource(s) créée(s)\n• ${updated} mise(s) à jour`);
-  } catch(err) {
-    console.error('GHO import error:', err);
-    alert('Erreur import GHO : ' + err.message);
-  }
-}
-
-function _findResouceByName(fullName) {
-  const norm = s => s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim();
-  const t = norm(fullName);
-  return resources.find(r => {
-    const a = norm([r.prenom, r.nom].filter(Boolean).join(' '));
-    const b = norm([r.nom, r.prenom].filter(Boolean).join(' '));
-    return a===t || b===t;
-  }) || null;
-}
-
-/* ══════════════════════════════════
-   INIT
-   ══════════════════════════════════ */
-function initResources() {
-  loadResources();
-}
-
-/* Legacy aliases used elsewhere */
-function renderResourceCalendarView() { _refreshResView(); }
-function openResourceForm() { openResDialog(); }
-function openResourceEdit(id) { openResDialog(id); }
-function getChargeForResourceDay(resourceId, date) {
-  const r = resources.find(x => x.id === resourceId);
-  if (!r || !r.ghoData) return 0;
-  const key = _dayKey(date);
-  return (r.ghoData.activities||[]).reduce((s,a) => s+(a.daily[key]||0), 0);
-}
+/* ── Drag cursor on calendar day cells ── */
+.gho-td-day { cursor: grab; }
+.gho-td-day:active { cursor: grabbing; }
