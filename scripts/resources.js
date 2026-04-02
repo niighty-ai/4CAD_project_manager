@@ -150,51 +150,75 @@ function _buildResViewHTML() {
       </div>
     </div>`;
 
-  /* ── Two-panel layout: left fixed + right scrollable ── */
+  /* ── Layout: left header + right header (fixed) + shared vertical scroll body ── */
   const RES_W = 200, ACT_W = 240;
+  const leftHeadH = 48; // px — single header row height
 
   html += `<div class="gho-panels" id="ghoPanels">
 
-    <div class="gho-left-panel" id="ghoLeft">
-      <table class="gho-left-table" style="table-layout:fixed;width:${RES_W+ACT_W}px">
-        <colgroup>
-          <col style="width:${RES_W}px">
-          <col style="width:${ACT_W}px">
-        </colgroup>
-        <thead>
-          <tr>
-            <th class="gho-th-res">
-              RESSOURCE
-              <input class="gho-search" placeholder="🔍 Rechercher…" value="${_resFilter}"
-                oninput="_resFilter=this.value;_refreshTbody()" autocomplete="off"
-                onclick="event.stopPropagation()">
-            </th>
-            <th class="gho-th-act">ACTIVITÉ / PROJET</th>
-          </tr>
-        </thead>
-        <tbody id="ghoLeftBody">${_buildLeftRows()}</tbody>
-      </table>
+    <!-- Fixed header row (outside scroll) -->
+    <div class="gho-headers-row">
+      <!-- Left headers -->
+      <div class="gho-left-head" style="width:${RES_W+ACT_W}px">
+        <table class="gho-left-table" style="table-layout:fixed;width:${RES_W+ACT_W}px">
+          <colgroup>
+            <col style="width:${RES_W}px">
+            <col style="width:${ACT_W}px">
+          </colgroup>
+          <tbody>
+            <tr>
+              <th class="gho-th-res">
+                RESSOURCE
+                <input class="gho-search" placeholder="🔍 Rechercher…" value="${_resFilter}"
+                  oninput="_resFilter=this.value;_refreshTbody()" autocomplete="off"
+                  onclick="event.stopPropagation()">
+              </th>
+              <th class="gho-th-act">ACTIVITÉ / PROJET</th>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <!-- Right headers (scrollable horizontally) -->
+      <div class="gho-right-head-wrap" id="ghoRightHead">
+        <table class="gho-right-table" style="table-layout:fixed;width:${days.length*COL_W}px">
+          <colgroup>${days.map(()=>`<col style="width:${COL_W}px">`).join('')}</colgroup>
+          <tbody>
+            <tr class="gho-thead-months">${_buildMonthHeaders(days, COL_W)}</tr>
+            <tr class="gho-thead-days">
+              ${days.map(d => {
+                const isTd = _isToday(d);
+                const lbl = ['D','L','M','M','J','V','S'][d.getDay()];
+                let cls = 'gho-th-day';
+                if (isTd) cls += ' today';
+                else if (_isFerie(d)) cls += ' ferie';
+                else if (_isWE(d)) cls += ' weekend';
+                return `<th class="${cls}" title="${_dayKey(d)}">${d.getDate()}<br><span class="gho-dl">${lbl}</span></th>`;
+              }).join('')}
+            </tr>
+          </tbody>
+        </table>
+      </div>
     </div>
 
-    <div class="gho-right-panel" id="ghoRight">
-      <table class="gho-right-table" style="table-layout:fixed;width:${days.length*COL_W}px">
-        <colgroup>${days.map(()=>`<col style="width:${COL_W}px">`).join('')}</colgroup>
-        <thead>
-          <tr class="gho-thead-months">${_buildMonthHeaders(days, COL_W)}</tr>
-          <tr class="gho-thead-days">
-            ${days.map(d => {
-              const isTd = _isToday(d);
-              const lbl = ['D','L','M','M','J','V','S'][d.getDay()];
-              let cls = 'gho-th-day';
-              if (isTd) cls += ' today';
-              else if (_isFerie(d)) cls += ' ferie';
-              else if (_isWE(d)) cls += ' weekend';
-              return `<th class="${cls}" title="${_dayKey(d)}">${d.getDate()}<br><span class="gho-dl">${lbl}</span></th>`;
-            }).join('')}
-          </tr>
-        </thead>
-        <tbody id="ghoRightBody">${_buildRightRows(days)}</tbody>
-      </table>
+    <!-- Shared vertical scroll area -->
+    <div class="gho-body-scroll" id="ghoBodyScroll">
+      <!-- Left body (fixed width, no horizontal scroll) -->
+      <div class="gho-left-body" style="width:${RES_W+ACT_W}px">
+        <table class="gho-left-table" style="table-layout:fixed;width:${RES_W+ACT_W}px">
+          <colgroup>
+            <col style="width:${RES_W}px">
+            <col style="width:${ACT_W}px">
+          </colgroup>
+          <tbody id="ghoLeftBody">${_buildLeftRows()}</tbody>
+        </table>
+      </div>
+      <!-- Right body (scrollable horizontally, synced with header) -->
+      <div class="gho-right-body-wrap" id="ghoRightBody">
+        <table class="gho-right-table" style="table-layout:fixed;width:${days.length*COL_W}px">
+          <colgroup>${days.map(()=>`<col style="width:${COL_W}px">`).join('')}</colgroup>
+          <tbody id="ghoRightBodyTbody">${_buildRightRows(days)}</tbody>
+        </table>
+      </div>
     </div>
 
   </div>`;
@@ -320,12 +344,11 @@ function _toggleRes(id) {
 /* Partial refresh: rebuild both panel tbodies (preserves scroll + focus) */
 function _refreshTbody() {
   const leftBody  = document.getElementById('ghoLeftBody');
-  const rightBody = document.getElementById('ghoRightBody');
+  const rightBody = document.getElementById('ghoRightBodyTbody');
   if (!leftBody || !rightBody) { _refreshResView(); return; }
   const days = _getDaysOfYear(_resYear);
   leftBody.innerHTML  = _buildLeftRows();
   rightBody.innerHTML = _buildRightRows(days);
-  _syncRowHeights();
 }
 
 function _syncRowHeights() {
@@ -347,13 +370,13 @@ function _syncRowHeights() {
 
 function _scrollToToday() {
   setTimeout(() => {
-    const right = document.getElementById('ghoRight');
-    const th = document.querySelector('#ghoRight th.gho-th-day.today');
-    if (right && th) {
-      const rRect = right.getBoundingClientRect();
+    const rightBody = document.getElementById('ghoRightBody');
+    const th = document.querySelector('#ghoRightHead th.gho-th-day.today');
+    if (rightBody && th) {
+      const rRect = rightBody.getBoundingClientRect();
       const tRect = th.getBoundingClientRect();
-      const offset = tRect.left - rRect.left + right.scrollLeft - right.clientWidth / 2 + tRect.width / 2;
-      right.scrollTo({ left: Math.max(0, offset), behavior: 'smooth' });
+      const offset = tRect.left - rRect.left + rightBody.scrollLeft - rightBody.clientWidth / 2 + tRect.width / 2;
+      rightBody.scrollTo({ left: Math.max(0, offset), behavior: 'smooth' });
     }
   }, 100);
 }
@@ -434,29 +457,34 @@ function _attachResEvents() {
     });
   });
 
-  /* Sync row heights between left and right panels */
-  _syncRowHeights();
+  /* Sync horizontal scroll between right header and right body */
+  const rightHead = document.getElementById('ghoRightHead');
+  const rightBody = document.getElementById('ghoRightBody');
+  if (rightHead && rightBody) {
+    rightBody.addEventListener('scroll', () => {
+      rightHead.scrollLeft = rightBody.scrollLeft;
+    });
+  }
 
-  /* Drag-scroll on right panel (day columns) */
-  const right = document.getElementById('ghoRight');
-  if (right) {
+  /* Drag-scroll on right body (horizontal) */
+  if (rightBody) {
     let isDragging = false, startX = 0, startScrollLeft = 0;
-    right.addEventListener('mousedown', e => {
+    rightBody.addEventListener('mousedown', e => {
       if (e.target.closest('button') || e.target.closest('input')) return;
       isDragging = true;
-      startX = e.pageX - right.offsetLeft;
-      startScrollLeft = right.scrollLeft;
-      right.style.cursor = 'grabbing';
+      startX = e.pageX - rightBody.offsetLeft;
+      startScrollLeft = rightBody.scrollLeft;
+      rightBody.style.cursor = 'grabbing';
       e.preventDefault();
     });
     document.addEventListener('mouseup', () => {
       isDragging = false;
-      if (right) right.style.cursor = '';
+      if (rightBody) rightBody.style.cursor = '';
     });
     document.addEventListener('mousemove', e => {
       if (!isDragging) return;
-      const x = e.pageX - right.offsetLeft;
-      right.scrollLeft = startScrollLeft - (x - startX);
+      const x = e.pageX - rightBody.offsetLeft;
+      rightBody.scrollLeft = startScrollLeft - (x - startX);
     });
   }
 
