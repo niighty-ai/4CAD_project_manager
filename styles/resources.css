@@ -83,68 +83,18 @@
 .gho-btn-add:hover { opacity: .85; }
 
 /* ── Table wrapper ── */
-/* ── Main panels container ── */
-.gho-panels {
+/* ── Single scroll wrapper (scrolls both X and Y) ── */
+.gho-scroll-wrap {
   flex: 1;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
+  overflow: auto;
   min-height: 0;
+  cursor: default;
 }
+.gho-scroll-wrap::-webkit-scrollbar { width: 6px; height: 6px; }
+.gho-scroll-wrap::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
 
-/* ── Fixed header row (outside scroll) ── */
-.gho-headers-row {
-  display: flex;
-  flex-shrink: 0;
-  border-bottom: 2px solid var(--border);
-  z-index: 10;
-  background: var(--surface2);
-}
-.gho-left-head {
-  flex-shrink: 0;
-  overflow: hidden;
-  border-right: 2px solid var(--border);
-  box-shadow: 4px 0 8px rgba(0,0,0,.12);
-  z-index: 2;
-}
-.gho-right-head-wrap {
-  flex: 1;
-  overflow: hidden; /* sync'd via JS scrollLeft from body */
-}
-
-/* ── Shared vertical scroll body ── */
-.gho-body-scroll {
-  flex: 1;
-  display: flex;
-  overflow-y: auto;   /* ONE vertical scroll for both panels */
-  overflow-x: hidden;
-  min-height: 0;
-}
-.gho-body-scroll::-webkit-scrollbar { width: 6px; }
-.gho-body-scroll::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
-
-/* ── Left body: fixed width, no scroll ── */
-.gho-left-body {
-  flex-shrink: 0;
-  overflow: hidden;
-  border-right: 2px solid var(--border);
-  box-shadow: 4px 0 8px rgba(0,0,0,.12);
-  z-index: 2;
-}
-
-/* ── Right body: horizontal scroll only ── */
-.gho-right-body-wrap {
-  flex: 1;
-  overflow-x: auto;
-  overflow-y: hidden; /* vertical scroll is on parent .gho-body-scroll */
-  cursor: grab;
-}
-.gho-right-body-wrap:active { cursor: grabbing; }
-.gho-right-body-wrap::-webkit-scrollbar { height: 6px; }
-.gho-right-body-wrap::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
-
-/* ── Shared table styles ── */
-.gho-left-table, .gho-right-table {
+/* ── Single table ── */
+.gho-table {
   border-collapse: collapse;
   font-size: 11px;
   font-family: Arial, sans-serif;
@@ -152,49 +102,48 @@
   white-space: nowrap;
 }
 
-/* ── Table ── */
-/* Headers are in fixed .gho-headers-row — no sticky needed */
-
-.gho-th-month {
-  background: var(--accent);
-  color: #fff;
-  font-size: 10px;
-  font-weight: 700;
-  text-align: center;
-  padding: 3px 2px;
-  border-right: 1px solid rgba(255,255,255,.2);
-  letter-spacing: .3px;
-}
-
-.gho-thead-days .gho-th-day {
+/* ── Sticky header: months row then days row ── */
+.gho-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 4;
   background: var(--surface2);
-  color: var(--muted);
-  font-size: 9px;
-  font-weight: 600;
-  text-align: center;
-  padding: 2px 1px;
-  border-right: 1px solid var(--border);
-  line-height: 1.2;
 }
-.gho-thead-days .gho-th-day.weekend { background: rgba(0,0,0,.07); color: var(--muted); }
-.gho-thead-days .gho-th-day.today   { background: var(--accent); color: #fff; }
-.gho-dl { font-size: 8px; opacity: .7; }
+.gho-thead-days th { top: 26px; }
 
-/* ── Left panel column widths (no sticky needed — panel itself is fixed) ── */
-.gho-th-res, .gho-td-res { width: 200px; }
-.gho-th-act, .gho-td-act { width: 240px; }
-
-.gho-th-res, .gho-th-act {
+/* ── Sticky left columns ── */
+.gho-sticky-res {
+  position: sticky;
+  left: 0;
+  z-index: 3;
+  background: var(--bg);
+}
+.gho-sticky-act {
+  position: sticky;
+  left: 200px;
+  z-index: 3;
+  background: var(--bg);
+  border-right: 2px solid var(--border) !important;
+  box-shadow: 3px 0 6px rgba(0,0,0,.1);
+}
+/* Corner cells: sticky both top and left — highest z-index */
+.gho-table thead th.gho-sticky-res,
+.gho-table thead th.gho-sticky-act {
+  z-index: 7;
   background: var(--surface2);
-  color: var(--text);
-  font-size: 11px;
-  font-weight: 700;
-  padding: 5px 8px;
-  border-bottom: 2px solid var(--border);
-  border-right: 1px solid var(--border);
-  text-align: left;
 }
+/* Row hover: keep sticky bg */
+.gho-row-res:hover .gho-sticky-res,
+.gho-row-res:hover .gho-sticky-act { background: var(--surface2); }
+.gho-row-act .gho-sticky-res,
+.gho-row-act .gho-sticky-act       { background: var(--bg); }
 
+/* ── Column widths ── */
+.gho-th-res, .gho-td-res { width: 200px; min-width: 200px; }
+.gho-th-act, .gho-td-act { width: 240px; min-width: 240px; }
+
+/* Rows aligned by single table — no JS sync needed */
+.gho-table tr { vertical-align: middle; }
 /* ── Resource rows ── */
 .gho-row-res {
   cursor: pointer;
@@ -210,17 +159,17 @@
 }
 
 .gho-td-res {
-  padding: 0;
+  padding: 4px 8px;
   border-right: 1px solid var(--border);
   vertical-align: middle;
   overflow: hidden;
 }
-.gho-td-res-inner {
+/* Resource td: flex layout directly on td */
+.gho-row-res .gho-td-res,
+.gho-row-act .gho-td-res {
   display: flex;
   align-items: center;
   gap: 5px;
-  padding: 5px 8px;
-  min-height: 28px;
 }
 
 .gho-toggle {
