@@ -70,6 +70,76 @@
   transition: all .13s;
   font-family: Arial, sans-serif;
 }
+/* ── GHO Import button ── */
+.res-gho-import-btn {
+  height: 24px;
+  padding: 0 8px;
+  border-radius: 4px;
+  background: rgba(80,200,120,.25);
+  border: 1px solid rgba(80,200,120,.5);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .5px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  transition: all .13s;
+  font-family: Arial, sans-serif;
+  white-space: nowrap;
+}
+.res-gho-import-btn:hover { background: rgba(80,200,120,.45); }
+
+/* ── GHO activity bar (collapsed summary) ── */
+.res-gho-bar {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 5px;
+  padding: 3px 4px;
+  border-radius: 4px;
+  background: rgba(80,200,120,.08);
+  border: 1px solid rgba(80,200,120,.2);
+  cursor: pointer;
+  font-size: 10px;
+  transition: background .12s;
+}
+.res-gho-bar:hover { background: rgba(80,200,120,.16); }
+.res-gho-toggle { font-size: 9px; color: var(--muted); width: 10px; }
+.res-gho-label { color: var(--muted); flex: 1; }
+.res-gho-total { color: var(--accent); font-weight: 700; }
+.res-gho-date  { color: var(--muted); font-size: 9px; opacity: .7; }
+
+/* ── GHO activity list (expanded) ── */
+.res-gho-list {
+  margin-top: 2px;
+  border-left: 2px solid rgba(80,200,120,.25);
+  margin-left: 4px;
+}
+.res-gho-act {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 6px;
+  font-size: 10px;
+  border-bottom: 1px solid var(--border);
+}
+.res-gho-act:last-child { border-bottom: none; }
+.res-gho-act-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text);
+}
+.res-gho-act-total {
+  color: var(--accent);
+  font-weight: 600;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
 
 .res-add-btn:hover {
   background: rgba(236,114,6,.35);
@@ -193,14 +263,18 @@
 /* Item ressource */
 .res-item {
   display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 7px 8px;
+  flex-direction: column;
+  padding: 6px 8px;
   border-radius: 5px;
   border: 1px solid transparent;
   margin-bottom: 3px;
   cursor: default;
   transition: background .12s;
+}
+.res-item-main {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .res-item:hover {
