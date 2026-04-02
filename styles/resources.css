@@ -179,7 +179,8 @@
 /* ── Resource rows ── */
 .gho-row-res {
   cursor: pointer;
-  border-top: 2px solid var(--border);
+  border-top: 3px solid var(--accent);
+  background: var(--surface);
 }
 .gho-row-res:hover .gho-td-res,
 .gho-row-res:hover .gho-td-act {
@@ -294,7 +295,12 @@
 
 /* ── Activity detail rows ── */
 .gho-row-act {
-  border-top: 1px dashed var(--border);
+  border-top: 1px solid rgba(var(--accent-rgb, 74,144,226), 0.15);
+  background: var(--bg);
+}
+/* First activity row: stronger border below the total row */
+.gho-row-res + .gho-row-act {
+  border-top: 2px solid var(--border);
 }
 .gho-row-act .gho-td-act {
   padding-left: 12px;
