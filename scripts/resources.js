@@ -9,6 +9,7 @@ let resources = [];
 
 /* ── Collapse state : set of resource IDs that are expanded ── */
 const _resExpanded = new Set();
+let _resFilter = '';     // filtre texte recherche
 
 /* ── Année affichée ── */
 let _resYear = new Date().getFullYear();
@@ -79,6 +80,34 @@ function _dayKey(date) {
 }
 
 function _isWE(date) { return date.getDay()===0 || date.getDay()===6; }
+function _isFerie(date) {
+  /* Jours fériés français fixes */
+  const m = date.getMonth()+1, d = date.getDate();
+  if (m===1  && d===1)  return true; // Jour de l'An
+  if (m===5  && d===1)  return true; // Fête du Travail
+  if (m===5  && d===8)  return true; // Victoire 1945
+  if (m===7  && d===14) return true; // Fête Nationale
+  if (m===8  && d===15) return true; // Assomption
+  if (m===11 && d===1)  return true; // Toussaint
+  if (m===11 && d===11) return true; // Armistice
+  if (m===12 && d===25) return true; // Noël
+  /* Pâques (algo Meeus/Jones/Butcher) */
+  const y = date.getFullYear();
+  const a=y%19,b=Math.floor(y/100),c=y%100,d2=Math.floor(b/4),e=b%4;
+  const f=Math.floor((b+8)/25),g=Math.floor((b-f+1)/3),h=(19*a+b-d2-g+15)%30;
+  const i=Math.floor(c/4),k=c%4,l=(32+2*e+2*i-h-k)%7;
+  const mm=Math.floor((a+11*h+22*l)/451);
+  const mo=Math.floor((h+l-7*mm+114)/31);
+  const dd=(h+l-7*mm+114)%31+1;
+  const easter = new Date(y,mo-1,dd);
+  const lundiPaques = new Date(easter); lundiPaques.setDate(easter.getDate()+1);
+  const ascension  = new Date(easter); ascension.setDate(easter.getDate()+39);
+  const pentecote  = new Date(easter); pentecote.setDate(easter.getDate()+49);
+  const lundiPent  = new Date(easter); lundiPent.setDate(easter.getDate()+50);
+  const t = date.getTime();
+  return t===lundiPaques.getTime() || t===ascension.getTime() ||
+         t===pentecote.getTime()   || t===lundiPent.getTime();
+}
 function _isToday(date) {
   const t = new Date(); t.setHours(0,0,0,0);
   return date.getTime() === t.getTime();
@@ -107,6 +136,7 @@ function _buildResViewHTML() {
   const COL_W = 34; // px per day column
 
   /* ── Header toolbar ── */
+  const _lastImport = resources.reduce((best,r) => r.ghoData?.importDate && r.ghoData.importDate>best ? r.ghoData.importDate : best, '');
   let html = `<div class="gho-wrap">
     <div class="gho-toolbar">
       <span class="gho-title">👤 Ressources</span>
@@ -114,17 +144,26 @@ function _buildResViewHTML() {
         <button class="gho-btn-year" onclick="_resYear--;_refreshResView()">‹ ${_resYear-1}</button>
         <span class="gho-year-label">${_resYear}</span>
         <button class="gho-btn-year" onclick="_resYear++;_refreshResView()">${_resYear+1} ›</button>
+        ${_lastImport ? `<span class="gho-last-import">↑ GHO : ${_lastImport}</span>` : ''}
         <button class="gho-btn-import" onclick="triggerGHOImport()" title="Importer charges GHO (xlsx)">↑ Import GHO</button>
         <button class="gho-btn-add" onclick="openResDialog()" title="Nouvelle ressource">+ Ressource</button>
       </div>
     </div>`;
 
   /* ── Table ── */
-  html += `<div class="gho-table-wrap">
-    <table class="gho-table" style="--col-w:${COL_W}px">
+  const filteredRes = _resFilter
+    ? resources.filter(r => [r.prenom, r.nom].join(' ').toLowerCase().includes(_resFilter.toLowerCase()))
+    : resources;
+  html += `<div class="gho-outer">
+    <div class="gho-fixed-cols" id="ghoFixedCols">
+    <table class="gho-table gho-table-fixed" style="--col-w:${COL_W}px">
       <thead>
         <tr class="gho-thead-months">
-          <th class="gho-th-res" rowspan="2">Ressource</th>
+          <th class="gho-th-res" rowspan="2">
+            Ressource
+            <input class="gho-search" placeholder="🔍 Rechercher…" value="${_resFilter}"
+              oninput="_resFilter=this.value;_refreshResView()" onclick="event.stopPropagation()">
+          </th>
           <th class="gho-th-act" rowspan="2">Activité / Projet</th>
           ${_buildMonthHeaders(days, COL_W)}
         </tr>
@@ -135,6 +174,7 @@ function _buildResViewHTML() {
             const lbl = ['D','L','M','M','J','V','S'][d.getDay()];
             let cls = 'gho-th-day';
             if (isTd) cls += ' today';
+            else if (_isFerie(d)) cls += ' ferie';
             else if (isWE) cls += ' weekend';
             return `<th class="${cls}" style="min-width:${COL_W}px;width:${COL_W}px" title="${_dayKey(d)}">${d.getDate()}<br><span class="gho-dl">${lbl}</span></th>`;
           }).join('')}
@@ -143,10 +183,10 @@ function _buildResViewHTML() {
       <tbody>`;
 
   /* ── Rows per resource ── */
-  if (!resources.length) {
-    html += `<tr><td colspan="${days.length+2}" class="gho-empty">Aucune ressource — cliquez "+ Ressource" pour commencer.</td></tr>`;
+  if (!filteredRes.length) {
+    html += `<tr><td colspan="${days.length+2}" class="gho-empty">${resources.length ? 'Aucune ressource ne correspond à la recherche.' : 'Aucune ressource — cliquez "+ Ressource" pour commencer.'}</td></tr>`;
   } else {
-    resources.forEach(r => {
+    filteredRes.forEach(r => {
       const fullName = [r.prenom, r.nom].filter(Boolean).join(' ') || '—';
       const acts = (r.ghoData?.activities || []).filter(a => Object.values(a.daily).some(v=>v>0));
       const isExp = _resExpanded.has(r.id);
@@ -160,24 +200,24 @@ function _buildResViewHTML() {
       });
 
       /* ── Resource summary row ── */
-      html += `<tr class="gho-row-res" onclick="_toggleRes('${r.id}')">
+      html += `<tr class="gho-row-res">
         <td class="gho-td-res">
-          <span class="gho-toggle">${acts.length ? (isExp?'▾':'▸') : '·'}</span>
           <span class="gho-avatar">${getInitials(r.prenom, r.nom)}</span>
           <span class="gho-res-name">${escH(fullName)}</span>
-          <span class="gho-res-actions" onclick="event.stopPropagation()">
+          <span class="gho-res-actions">
             <button class="gho-btn-edit" onclick="openResDialog('${r.id}')" title="Modifier">✎</button>
             <button class="gho-btn-del" onclick="confirmDeleteResource('${r.id}')" title="Supprimer">🗑</button>
           </span>
         </td>
-        <td class="gho-td-act gho-td-act-total">
-          ${r.ghoData?.importDate ? `<span class="gho-import-date">↑ ${r.ghoData.importDate}</span>` : ''}
+        <td class="gho-td-act gho-td-act-total" onclick="_toggleRes('${r.id}')" style="cursor:pointer">
+          <span class="gho-toggle">${acts.length ? (isExp?'▾':'▸') : '·'}</span>
           ${acts.length ? `<span class="gho-act-count">${acts.length} projet${acts.length>1?'s':''}</span>` : '<span class="gho-no-data">Aucune donnée GHO</span>'}
         </td>
         ${days.map(d => {
           const v = dayTotals[_dayKey(d)] || 0;
           const jours = v / 480;
-          return `<td class="gho-td-day${_isWE(d)?' we':''}${_isToday(d)?' today':''}">${jours > 0 ? _fmtJ(jours) : ''}</td>`;
+          const dc = _isToday(d)?' today':(_isFerie(d)?' ferie':(_isWE(d)?' we':''));
+          return `<td class="gho-td-day${dc}">${jours > 0 ? _fmtJ(jours) : ''}</td>`;
         }).join('')}
       </tr>`;
 
@@ -190,7 +230,8 @@ function _buildResViewHTML() {
             ${days.map(d => {
               const v = a.daily[_dayKey(d)] || 0;
               const jours = v / 480;
-              return `<td class="gho-td-day${_isWE(d)?' we':''}${_isToday(d)?' today':''}">${jours > 0 ? _fmtJ(jours) : ''}</td>`;
+              const dc = _isToday(d)?' today':(_isFerie(d)?' ferie':(_isWE(d)?' we':''));
+              return `<td class="gho-td-day${dc}">${jours > 0 ? _fmtJ(jours) : ''}</td>`;
             }).join('')}
           </tr>`;
         });
@@ -198,7 +239,7 @@ function _buildResViewHTML() {
     });
   }
 
-  html += `</tbody></table></div>`;
+  html += `</tbody></table></div></div>`; // gho-fixed-cols + gho-outer
 
   /* ── Dialog création/édition ressource (hidden) ── */
   html += _buildResDialog();
@@ -245,9 +286,16 @@ function _toggleRes(id) {
 
 function _scrollToToday() {
   setTimeout(() => {
-    const td = document.querySelector('.gho-td-day.today');
-    if (td) td.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
-  }, 50);
+    const wrap = document.getElementById('ghoFixedCols');
+    const td = document.querySelector('th.gho-th-day.today');
+    if (wrap && td) {
+      // Calculate position of today column relative to the scrollable container
+      const wrapRect = wrap.getBoundingClientRect();
+      const tdRect = td.getBoundingClientRect();
+      const offset = tdRect.left - wrapRect.left + wrap.scrollLeft - wrap.clientWidth / 2 + tdRect.width / 2;
+      wrap.scrollTo({ left: Math.max(0, offset), behavior: 'smooth' });
+    }
+  }, 80);
 }
 
 /* ══════════════════════════════════
@@ -325,6 +373,29 @@ function _attachResEvents() {
       if (e.key === 'Escape') closeResDialog();
     });
   });
+  /* Drag-scroll on the fixed-cols panel (calendar area) */
+  const wrap = document.getElementById('ghoFixedCols');
+  if (wrap) {
+    let isDragging = false, startX = 0, startScrollLeft = 0;
+    wrap.addEventListener('mousedown', e => {
+      if (e.target.closest('.gho-td-act') || e.target.closest('.gho-td-res') ||
+          e.target.closest('button') || e.target.closest('input')) return;
+      isDragging = true;
+      startX = e.pageX - wrap.offsetLeft;
+      startScrollLeft = wrap.scrollLeft;
+      wrap.style.cursor = 'grabbing';
+      e.preventDefault();
+    });
+    document.addEventListener('mouseup', () => {
+      isDragging = false;
+      if (wrap) wrap.style.cursor = '';
+    });
+    document.addEventListener('mousemove', e => {
+      if (!isDragging) return;
+      const x = e.pageX - wrap.offsetLeft;
+      wrap.scrollLeft = startScrollLeft - (x - startX);
+    });
+  }
   /* Scroll to today on load */
   _scrollToToday();
 }
