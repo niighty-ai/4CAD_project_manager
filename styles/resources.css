@@ -83,37 +83,54 @@
 .gho-btn-add:hover { opacity: .85; }
 
 /* ── Table wrapper ── */
-/* ── Outer container: holds the single scrollable table ── */
-.gho-outer {
+/* ── Two-panel container ── */
+.gho-panels {
   flex: 1;
+  display: flex;
   overflow: hidden;
-  position: relative;
+  min-height: 0;
+}
+
+/* ── Left panel: fixed, no scroll ── */
+.gho-left-panel {
+  flex-shrink: 0;
+  width: 440px;
+  overflow: hidden;
+  border-right: 2px solid var(--border);
+  box-shadow: 4px 0 8px rgba(0,0,0,.12);
+  z-index: 2;
   display: flex;
   flex-direction: column;
 }
-
-/* ── The actual scrollable area (horizontal scroll for calendar) ── */
-.gho-fixed-cols {
-  flex: 1;
-  overflow: auto;
-  position: relative;
-  cursor: default;
-  user-select: none;
-}
-.gho-fixed-cols::-webkit-scrollbar { height: 6px; }
-.gho-fixed-cols::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
-
-/* ── Table ── */
-.gho-table {
+.gho-left-table {
+  width: 440px;
   border-collapse: collapse;
   font-size: 11px;
   font-family: Arial, sans-serif;
-  white-space: nowrap;
-  table-layout: fixed; /* locks column widths — prevents shift on expand */
+  table-layout: fixed;
 }
 
-/* ── Sticky header ── */
-.gho-table thead {
+/* ── Right panel: scrollable ── */
+.gho-right-panel {
+  flex: 1;
+  overflow-x: auto;
+  overflow-y: auto;
+  cursor: grab;
+}
+.gho-right-panel:active { cursor: grabbing; }
+.gho-right-panel::-webkit-scrollbar { height: 6px; }
+.gho-right-panel::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+.gho-right-table {
+  border-collapse: collapse;
+  font-size: 11px;
+  font-family: Arial, sans-serif;
+  table-layout: fixed;
+}
+
+/* ── Table ── */
+/* ── Sticky headers in each panel ── */
+.gho-left-table thead,
+.gho-right-table thead {
   position: sticky;
   top: 0;
   z-index: 10;
@@ -144,25 +161,9 @@
 .gho-thead-days .gho-th-day.today   { background: var(--accent); color: #fff; }
 .gho-dl { font-size: 8px; opacity: .7; }
 
-/* ── Sticky left columns ── */
-.gho-th-res, .gho-th-act,
-.gho-td-res, .gho-td-act {
-  position: sticky;
-  z-index: 5;
-  background: var(--bg);
-}
-
-.gho-th-res, .gho-td-res {
-  left: 0;
-  width: 200px;
-  box-shadow: 2px 0 4px rgba(0,0,0,.06);
-}
-.gho-th-act, .gho-td-act {
-  left: 200px;
-  width: 240px;
-  border-right: 2px solid var(--border);
-  box-shadow: 2px 0 6px rgba(0,0,0,.1);
-}
+/* ── Left panel column widths (no sticky needed — panel itself is fixed) ── */
+.gho-th-res, .gho-td-res { width: 200px; }
+.gho-th-act, .gho-td-act { width: 240px; }
 
 .gho-th-res, .gho-th-act {
   background: var(--surface2);
@@ -170,10 +171,9 @@
   font-size: 11px;
   font-weight: 700;
   padding: 5px 8px;
-  border-bottom: 1px solid var(--border);
+  border-bottom: 2px solid var(--border);
   border-right: 1px solid var(--border);
   text-align: left;
-  z-index: 15;
 }
 
 /* ── Resource rows ── */
@@ -460,3 +460,8 @@
 /* ── Drag cursor on calendar day cells ── */
 .gho-td-day { cursor: grab; }
 .gho-td-day:active { cursor: grabbing; }
+
+/* ── Left panel rows same height as right ── */
+.gho-left-table tr, .gho-right-table tr { vertical-align: middle; }
+.gho-left-table td, .gho-right-table td { overflow: hidden; }
+.gho-left-table th { white-space: normal; }
