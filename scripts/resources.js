@@ -156,13 +156,18 @@ function _buildResViewHTML() {
     : resources;
   html += `<div class="gho-outer">
     <div class="gho-fixed-cols" id="ghoFixedCols">
-    <table class="gho-table gho-table-fixed" style="--col-w:${COL_W}px">
+    <table class="gho-table" style="--col-w:${COL_W}px;table-layout:fixed;width:${440+days.length*COL_W}px">
+      <colgroup>
+        <col style="width:200px;min-width:200px">
+        <col style="width:240px;min-width:240px">
+        ${days.map(()=>`<col style="width:${COL_W}px;min-width:${COL_W}px">`).join('')}
+      </colgroup>
       <thead>
         <tr class="gho-thead-months">
           <th class="gho-th-res" rowspan="2">
             Ressource
             <input class="gho-search" placeholder="🔍 Rechercher…" value="${_resFilter}"
-              oninput="_resFilter=this.value;_refreshResView()" onclick="event.stopPropagation()">
+              oninput="_resFilter=this.value;_refreshTbody()" autocomplete="off" onclick="event.stopPropagation()">
           </th>
           <th class="gho-th-act" rowspan="2">Activité / Projet</th>
           ${_buildMonthHeaders(days, COL_W)}
@@ -183,61 +188,7 @@ function _buildResViewHTML() {
       <tbody>`;
 
   /* ── Rows per resource ── */
-  if (!filteredRes.length) {
-    html += `<tr><td colspan="${days.length+2}" class="gho-empty">${resources.length ? 'Aucune ressource ne correspond à la recherche.' : 'Aucune ressource — cliquez "+ Ressource" pour commencer.'}</td></tr>`;
-  } else {
-    filteredRes.forEach(r => {
-      const fullName = [r.prenom, r.nom].filter(Boolean).join(' ') || '—';
-      const acts = (r.ghoData?.activities || []).filter(a => Object.values(a.daily).some(v=>v>0));
-      const isExp = _resExpanded.has(r.id);
-
-      /* Build daily totals across all activities */
-      const dayTotals = {};
-      acts.forEach(a => {
-        Object.entries(a.daily).forEach(([k,v]) => {
-          dayTotals[k] = (dayTotals[k]||0) + v;
-        });
-      });
-
-      /* ── Resource summary row ── */
-      html += `<tr class="gho-row-res">
-        <td class="gho-td-res">
-          <span class="gho-avatar">${getInitials(r.prenom, r.nom)}</span>
-          <span class="gho-res-name">${escH(fullName)}</span>
-          <span class="gho-res-actions">
-            <button class="gho-btn-edit" onclick="openResDialog('${r.id}')" title="Modifier">✎</button>
-            <button class="gho-btn-del" onclick="confirmDeleteResource('${r.id}')" title="Supprimer">🗑</button>
-          </span>
-        </td>
-        <td class="gho-td-act gho-td-act-total" onclick="_toggleRes('${r.id}')" style="cursor:pointer">
-          <span class="gho-toggle">${acts.length ? (isExp?'▾':'▸') : '·'}</span>
-          ${acts.length ? `<span class="gho-act-count">${acts.length} projet${acts.length>1?'s':''}</span>` : '<span class="gho-no-data">Aucune donnée GHO</span>'}
-        </td>
-        ${days.map(d => {
-          const v = dayTotals[_dayKey(d)] || 0;
-          const jours = v / 480;
-          const dc = _isToday(d)?' today':(_isFerie(d)?' ferie':(_isWE(d)?' we':''));
-          return `<td class="gho-td-day${dc}">${jours > 0 ? _fmtJ(jours) : ''}</td>`;
-        }).join('')}
-      </tr>`;
-
-      /* ── Activity rows (visible when expanded) ── */
-      if (isExp && acts.length) {
-        acts.forEach(a => {
-          html += `<tr class="gho-row-act">
-            <td class="gho-td-res gho-td-res-empty"></td>
-            <td class="gho-td-act" title="${escH(a.name)}">${escH(a.name)}</td>
-            ${days.map(d => {
-              const v = a.daily[_dayKey(d)] || 0;
-              const jours = v / 480;
-              const dc = _isToday(d)?' today':(_isFerie(d)?' ferie':(_isWE(d)?' we':''));
-              return `<td class="gho-td-day${dc}">${jours > 0 ? _fmtJ(jours) : ''}</td>`;
-            }).join('')}
-          </tr>`;
-        });
-      }
-    });
-  }
+  html += _buildTbodyRows(days);
 
   html += `</tbody></table></div></div>`; // gho-fixed-cols + gho-outer
 
@@ -247,6 +198,78 @@ function _buildResViewHTML() {
   html += `</div>`; // gho-wrap
   return html;
 }
+
+/* Builds only the tbody rows — used by both full render and partial refresh */
+function _buildTbodyRows(days) {
+  const filteredRes = _resFilter
+    ? resources.filter(r => [r.prenom, r.nom].join(' ').toLowerCase().includes(_resFilter.toLowerCase()))
+    : resources;
+
+  if (!filteredRes.length) {
+    return `<tr><td colspan="${days.length+2}" class="gho-empty">${
+      resources.length ? 'Aucune ressource ne correspond à la recherche.'
+                       : 'Aucune ressource — cliquez "+ Ressource" pour commencer.'
+    }</td></tr>`;
+  }
+
+  return filteredRes.map(r => {
+    const fullName = [r.prenom, r.nom].filter(Boolean).join(' ') || '—';
+    const acts = (r.ghoData?.activities || []).filter(a => Object.values(a.daily).some(v=>v>0));
+    const isExp = _resExpanded.has(r.id);
+
+    /* Daily totals (sum across activities) */
+    const dayTotals = {};
+    acts.forEach(a => {
+      Object.entries(a.daily).forEach(([k,v]) => {
+        dayTotals[k] = (dayTotals[k]||0) + v;
+      });
+    });
+
+    /* ── Resource row ── */
+    let rows = `<tr class="gho-row-res">
+      <td class="gho-td-res">
+        <div class="gho-td-res-inner">
+          <span class="gho-avatar">${getInitials(r.prenom, r.nom)}</span>
+          <span class="gho-res-name">${escH(fullName)}</span>
+          <span class="gho-res-actions">
+            <button class="gho-btn-edit" onclick="openResDialog('${r.id}')" title="Modifier">✎</button>
+            <button class="gho-btn-del" onclick="confirmDeleteResource('${r.id}')" title="Supprimer">🗑</button>
+          </span>
+        </div>
+      </td>
+      <td class="gho-td-act gho-td-act-total" onclick="_toggleRes('${r.id}')">
+        <span class="gho-toggle">${acts.length ? (isExp?'▾':'▸') : '·'}</span>
+        ${acts.length
+          ? `<span class="gho-act-count">${acts.length}&nbsp;projet${acts.length>1?'s':''}</span>`
+          : '<span class="gho-no-data">Aucune donnée GHO</span>'}
+      </td>
+      ${days.map(d => {
+        const v = dayTotals[_dayKey(d)] || 0;
+        const jours = v / 480;
+        const dc = _isToday(d)?' today':(_isFerie(d)?' ferie':(_isWE(d)?' we':''));
+        return `<td class="gho-td-day${dc}">${jours > 0 ? _fmtJ(jours) : ''}</td>`;
+      }).join('')}
+    </tr>`;
+
+    /* ── Activity rows ── */
+    if (isExp && acts.length) {
+      acts.forEach(a => {
+        rows += `<tr class="gho-row-act">
+          <td class="gho-td-res gho-td-res-empty"></td>
+          <td class="gho-td-act gho-td-act-name" title="${escH(a.name)}">${escH(a.name)}</td>
+          ${days.map(d => {
+            const v = a.daily[_dayKey(d)] || 0;
+            const jours = v / 480;
+            const dc = _isToday(d)?' today':(_isFerie(d)?' ferie':(_isWE(d)?' we':''));
+            return `<td class="gho-td-day${dc}">${jours > 0 ? _fmtJ(jours) : ''}</td>`;
+          }).join('')}
+        </tr>`;
+      });
+    }
+    return rows;
+  }).join('');
+}
+
 
 function _buildMonthHeaders(days, colW) {
   /* Group days by month, output one <th> per month spanning N days */
@@ -279,9 +302,15 @@ function _fmtJ(jours) {
 function _toggleRes(id) {
   if (_resExpanded.has(id)) _resExpanded.delete(id);
   else _resExpanded.add(id);
-  _refreshResView();
-  /* Scroll to keep today visible */
-  _scrollToToday();
+  _refreshTbody(); // partial refresh — no scroll reset
+}
+
+/* Partial refresh: only rebuild tbody rows (preserves scroll + focus) */
+function _refreshTbody() {
+  const tbody = document.querySelector('.gho-table tbody');
+  if (!tbody) { _refreshResView(); return; }
+  const days = _getDaysOfYear(_resYear);
+  tbody.innerHTML = _buildTbodyRows(days);
 }
 
 function _scrollToToday() {
