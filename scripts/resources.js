@@ -132,11 +132,12 @@ function _refreshResView() {
 
 function _buildResViewHTML() {
   const days = _getDaysOfYear(_resYear);
-  const today = new Date(); today.setHours(0,0,0,0);
-  const COL_W = 34; // px per day column
+  const COL_W = 34;
+  const RES_W = 200, ACT_W = 240;
 
-  /* ── Header toolbar ── */
-  const _lastImport = resources.reduce((best,r) => r.ghoData?.importDate && r.ghoData.importDate>best ? r.ghoData.importDate : best, '');
+  const _lastImport = resources.reduce((best,r) =>
+    r.ghoData?.importDate && r.ghoData.importDate > best ? r.ghoData.importDate : best, '');
+
   let html = `<div class="gho-wrap">
     <div class="gho-toolbar">
       <span class="gho-title">👤 Ressources</span>
@@ -145,91 +146,48 @@ function _buildResViewHTML() {
         <span class="gho-year-label">${_resYear}</span>
         <button class="gho-btn-year" onclick="_resYear++;_refreshResView()">${_resYear+1} ›</button>
         ${_lastImport ? `<span class="gho-last-import">↑ GHO : ${_lastImport}</span>` : ''}
-        <button class="gho-btn-import" onclick="triggerGHOImport()" title="Importer charges GHO (xlsx)">↑ Import GHO</button>
-        <button class="gho-btn-add" onclick="openResDialog()" title="Nouvelle ressource">+ Ressource</button>
+        <button class="gho-btn-import" onclick="triggerGHOImport()">↑ Import GHO</button>
+        <button class="gho-btn-add" onclick="openResDialog()">+ Ressource</button>
       </div>
+    </div>
+    <div class="gho-scroll-wrap" id="ghoScrollWrap">
+      <table class="gho-table" style="width:${RES_W+ACT_W+days.length*COL_W}px">
+        <colgroup>
+          <col style="width:${RES_W}px">
+          <col style="width:${ACT_W}px">
+          ${days.map(()=>`<col style="width:${COL_W}px">`).join('')}
+        </colgroup>
+        <thead>
+          <tr class="gho-thead-months">
+            <th class="gho-th-res gho-sticky-res" rowspan="2">
+              RESSOURCE
+              <input class="gho-search" placeholder="🔍 Rechercher…" value="${_resFilter}"
+                oninput="_resFilter=this.value;_refreshTbody()" autocomplete="off"
+                onclick="event.stopPropagation()">
+            </th>
+            <th class="gho-th-act gho-sticky-act" rowspan="2">ACTIVITÉ / PROJET</th>
+            ${_buildMonthHeaders(days, COL_W)}
+          </tr>
+          <tr class="gho-thead-days">
+            ${days.map(d => {
+              const lbl = ['D','L','M','M','J','V','S'][d.getDay()];
+              let cls = 'gho-th-day';
+              if (_isToday(d))   cls += ' today';
+              else if (_isFerie(d)) cls += ' ferie';
+              else if (_isWE(d)) cls += ' weekend';
+              return `<th class="${cls}" title="${_dayKey(d)}">${d.getDate()}<br><span class="gho-dl">${lbl}</span></th>`;
+            }).join('')}
+          </tr>
+        </thead>
+        <tbody id="ghoTbody">${_buildRows(days)}</tbody>
+      </table>
     </div>`;
 
-  /* ── Layout: left header + right header (fixed) + shared vertical scroll body ── */
-  const RES_W = 200, ACT_W = 240;
-  const leftHeadH = 48; // px — single header row height
-
-  html += `<div class="gho-panels" id="ghoPanels">
-
-    <!-- Fixed header row (outside scroll) -->
-    <div class="gho-headers-row">
-      <!-- Left headers -->
-      <div class="gho-left-head" style="width:${RES_W+ACT_W}px">
-        <table class="gho-left-table" style="table-layout:fixed;width:${RES_W+ACT_W}px">
-          <colgroup>
-            <col style="width:${RES_W}px">
-            <col style="width:${ACT_W}px">
-          </colgroup>
-          <tbody>
-            <tr>
-              <th class="gho-th-res">
-                RESSOURCE
-                <input class="gho-search" placeholder="🔍 Rechercher…" value="${_resFilter}"
-                  oninput="_resFilter=this.value;_refreshTbody()" autocomplete="off"
-                  onclick="event.stopPropagation()">
-              </th>
-              <th class="gho-th-act">ACTIVITÉ / PROJET</th>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-      <!-- Right headers (scrollable horizontally) -->
-      <div class="gho-right-head-wrap" id="ghoRightHead">
-        <table class="gho-right-table" style="table-layout:fixed;width:${days.length*COL_W}px">
-          <colgroup>${days.map(()=>`<col style="width:${COL_W}px">`).join('')}</colgroup>
-          <tbody>
-            <tr class="gho-thead-months">${_buildMonthHeaders(days, COL_W)}</tr>
-            <tr class="gho-thead-days">
-              ${days.map(d => {
-                const isTd = _isToday(d);
-                const lbl = ['D','L','M','M','J','V','S'][d.getDay()];
-                let cls = 'gho-th-day';
-                if (isTd) cls += ' today';
-                else if (_isFerie(d)) cls += ' ferie';
-                else if (_isWE(d)) cls += ' weekend';
-                return `<th class="${cls}" title="${_dayKey(d)}">${d.getDate()}<br><span class="gho-dl">${lbl}</span></th>`;
-              }).join('')}
-            </tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
-
-    <!-- Shared vertical scroll area -->
-    <div class="gho-body-scroll" id="ghoBodyScroll">
-      <!-- Left body (fixed width, no horizontal scroll) -->
-      <div class="gho-left-body" style="width:${RES_W+ACT_W}px">
-        <table class="gho-left-table" style="table-layout:fixed;width:${RES_W+ACT_W}px">
-          <colgroup>
-            <col style="width:${RES_W}px">
-            <col style="width:${ACT_W}px">
-          </colgroup>
-          <tbody id="ghoLeftBody">${_buildLeftRows()}</tbody>
-        </table>
-      </div>
-      <!-- Right body (scrollable horizontally, synced with header) -->
-      <div class="gho-right-body-wrap" id="ghoRightBody">
-        <table class="gho-right-table" style="table-layout:fixed;width:${days.length*COL_W}px">
-          <colgroup>${days.map(()=>`<col style="width:${COL_W}px">`).join('')}</colgroup>
-          <tbody id="ghoRightBodyTbody">${_buildRightRows(days)}</tbody>
-        </table>
-      </div>
-    </div>
-
-  </div>`;
-
-
-  /* ── Dialog création/édition ressource (hidden) ── */
   html += _buildResDialog();
-
-  html += `</div>`; // gho-wrap
+  html += '</div>';
   return html;
 }
+
 
 /* ── Filtered resource list ── */
 function _filteredResources() {
@@ -586,39 +544,4 @@ function getChargeForResourceDay(resourceId, date) {
   if (!r || !r.ghoData) return 0;
   const key = _dayKey(date);
   return (r.ghoData.activities||[]).reduce((s,a) => s+(a.daily[key]||0), 0);
-}  /* ── Single table, single scroll container ── */
-  const RES_W = 200, ACT_W = 240;
-
-  html += `<div class="gho-scroll-wrap" id="ghoScrollWrap">
-    <table class="gho-table" id="ghoTable" style="width:${RES_W+ACT_W+days.length*COL_W}px">
-      <colgroup>
-        <col class="gho-col-res" style="width:${RES_W}px">
-        <col class="gho-col-act" style="width:${ACT_W}px">
-        ${days.map(()=>`<col style="width:${COL_W}px">`).join('')}
-      </colgroup>
-      <thead>
-        <tr class="gho-thead-months">
-          <th class="gho-th-res gho-sticky-res" rowspan="2">
-            RESSOURCE
-            <input class="gho-search" placeholder="🔍 Rechercher…" value="${_resFilter}"
-              oninput="_resFilter=this.value;_refreshTbody()" autocomplete="off"
-              onclick="event.stopPropagation()">
-          </th>
-          <th class="gho-th-act gho-sticky-act" rowspan="2">ACTIVITÉ / PROJET</th>
-          ${_buildMonthHeaders(days, COL_W)}
-        </tr>
-        <tr class="gho-thead-days">
-          ${days.map(d => {
-            const isTd = _isToday(d);
-            const lbl = ['D','L','M','M','J','V','S'][d.getDay()];
-            let cls = 'gho-th-day';
-            if (isTd) cls += ' today';
-            else if (_isFerie(d)) cls += ' ferie';
-            else if (_isWE(d)) cls += ' weekend';
-            return `<th class="${cls}" title="${_dayKey(d)}">${d.getDate()}<br><span class="gho-dl">${lbl}</span></th>`;
-          }).join('')}
-        </tr>
-      </thead>
-      <tbody id="ghoTbody">${_buildRows(days)}</tbody>
-    </table>
-  </div>`;
+}
