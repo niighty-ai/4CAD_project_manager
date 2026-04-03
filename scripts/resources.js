@@ -233,18 +233,22 @@ function _buildRows(days) {
     /* Resource summary row */
     let rows = `<tr class="gho-row-res" data-rid="${r.id}">
       <td class="gho-td-res gho-sticky-res">
-        <span class="gho-avatar">${getInitials(r.prenom, r.nom)}</span>
-        <span class="gho-res-name">${escH(fullName)}</span>
-        <span class="gho-res-actions">
-          <button class="gho-btn-edit" onclick="openResDialog('${r.id}')" title="Modifier">✎</button>
-          <button class="gho-btn-del" onclick="confirmDeleteResource('${r.id}')" title="Supprimer">🗑</button>
-        </span>
+        <div class="gho-td-res-inner">
+          <span class="gho-avatar">${getInitials(r.prenom, r.nom)}</span>
+          <span class="gho-res-name">${escH(fullName)}</span>
+          <span class="gho-res-actions">
+            <button class="gho-btn-edit" onclick="openResDialog('${r.id}')" title="Modifier">✎</button>
+            <button class="gho-btn-del" onclick="confirmDeleteResource('${r.id}')" title="Supprimer">🗑</button>
+          </span>
+        </div>
       </td>
-      <td class="gho-td-act gho-td-act-total gho-sticky-act" onclick="_toggleRes('${r.id}')">
-        <span class="gho-toggle">${acts.length?(isExp?'▾':'▸'):'·'}</span>
-        ${acts.length
-          ? `<span class="gho-act-count">${acts.length}&nbsp;projet${acts.length>1?'s':''}</span>`
-          : '<span class="gho-no-data">—</span>'}
+      <td class="gho-td-act gho-td-act-total gho-sticky-act">
+        <div class="gho-td-act-inner" onclick="_toggleRes('${r.id}')">
+          <span class="gho-toggle">${acts.length?(isExp?'▾':'▸'):'·'}</span>
+          ${acts.length
+            ? `<span class="gho-act-count">${acts.length}&nbsp;projet${acts.length>1?'s':''}</span>`
+            : '<span class="gho-no-data">—</span>'}
+        </div>
       </td>
       ${dayMeta.map(m => mkDay(dayTotals, m)).join('')}
     </tr>`;
@@ -252,7 +256,9 @@ function _buildRows(days) {
     if (isExp) acts.forEach(a => {
       rows += `<tr class="gho-row-act" data-rid="${r.id}">
         <td class="gho-td-res gho-td-res-empty gho-sticky-res"></td>
-        <td class="gho-td-act gho-td-act-name gho-sticky-act" title="${escH(a.name)}">${escH(a.name)}</td>
+        <td class="gho-td-act gho-sticky-act">
+          <div class="gho-td-act-name" title="${escH(a.name)}">${escH(a.name)}</div>
+        </td>
         ${dayMeta.map(m => mkDay(a.daily, m)).join('')}
       </tr>`;
     });
