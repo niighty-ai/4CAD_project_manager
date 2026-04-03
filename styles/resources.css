@@ -11,13 +11,11 @@
   text-transform: none;
   letter-spacing: 0;
   border-bottom: none;
-  padding: 0;
   font-weight: 600;
 }
 .gho-table td {
   font-family: Arial, sans-serif;
   border-bottom: none;
-  padding: 0;
 }
 .gho-table tr:last-child td { border-bottom: none; }
 
@@ -26,7 +24,8 @@
   display: flex;
   flex-direction: column;
   height: 100%;
-  overflow: hidden;
+  /* PAS d'overflow:hidden ici : ça créerait un scroll container fantôme
+     qui empêcherait position:sticky de fonctionner sur les td */
   background: var(--bg);
 }
 
@@ -201,17 +200,18 @@
 }
 
 .gho-td-res {
-  padding: 4px 8px;
+  padding: 0;
   border-right: 1px solid var(--border);
   vertical-align: middle;
   overflow: hidden;
 }
-/* Resource td: flex layout directly on td */
-.gho-row-res .gho-td-res,
-.gho-row-act .gho-td-res {
+/* Wrapper interne : flex sur un div, pas sur le td (préserve position:sticky) */
+.gho-td-res-inner {
   display: flex;
   align-items: center;
   gap: 5px;
+  padding: 4px 8px;
+  height: 100%;
 }
 
 .gho-toggle {
@@ -271,34 +271,41 @@
 
 /* ── Activity summary cell ── */
 .gho-td-act {
-  padding: 4px 8px;
+  padding: 0;
   border-right: 2px solid var(--border);
   font-size: 10px;
   color: var(--muted);
   vertical-align: middle;
   overflow: hidden;
-  text-overflow: ellipsis;
+}
+/* Wrapper interne flex — td reste display:table-cell pour que sticky marche */
+.gho-td-act-inner {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  height: 100%;
   cursor: pointer;
 }
 .gho-td-act-name {
   cursor: default;
   font-size: 10px;
   color: var(--text);
-  padding-left: 20px !important;
-}
-.gho-td-act-total {
-  display: flex;
-  align-items: center;
-  gap: 6px;
+  padding: 4px 8px 4px 20px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .gho-import-date {
   font-size: 9px;
   color: rgba(80,200,120,.8);
   white-space: nowrap;
 }
+/* Nombre de projets : affiché à droite dans la colonne Activité/Projet */
 .gho-act-count {
+  margin-left: auto;
   font-size: 10px;
-  font-weight: 600;
+  font-weight: 700;
   color: var(--accent);
 }
 .gho-no-data { color: var(--muted); opacity: .5; font-style: italic; }
@@ -461,18 +468,6 @@
   background: rgba(80,200,120,.1);
 }
 
-/* ── Toggle in act col ── */
-.gho-td-act-total {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-}
-.gho-td-act-total .gho-act-count {
-  margin-left: auto; /* push count to right */
-  font-size: 10px;
-  font-weight: 700;
-  color: var(--accent);
-}
 
 /* ── Jour férié ── */
 .gho-th-day.ferie  { background: rgba(156,39,176,.12); color: #7b1fa2; }
