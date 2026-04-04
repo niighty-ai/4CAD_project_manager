@@ -523,7 +523,13 @@ function parseListExcel(buffer) {
     const colProf = _findCol([/\brole\b/, /\bprof/, /\bfonction/, /\bposte\b/,
                               /\btitre\b/, /\btitle\b/, /\bjob\b/],                2);
 
-    let created = 0, updated = 0;
+    /* ── Clé de correspondance : externalId + fullName normalisé ── */
+    const _matchKey = (externalId, fullName) =>
+      (String(externalId).trim() + '|' + String(fullName).trim()).toLowerCase();
+
+    /* ── 1. Construire la liste des ressources du fichier ── */
+    const importedKeys = new Set();
+    const importRows   = [];
 
     for (let ri = 1; ri < raw.length; ri++) {
       const row = raw[ri];
@@ -531,17 +537,28 @@ function parseListExcel(buffer) {
       const externalId = _normalizeExcelStr(row[colId]);
       const fullName   = _normalizeExcelStr(row[colName]);
       const profession = _normalizeExcelStr(colProf >= 0 ? row[colProf] : null);
-
       if (!externalId && !fullName) continue;
+      const key = _matchKey(externalId, fullName);
+      importedKeys.add(key);
+      importRows.push({ externalId, fullName, profession, key });
+    }
 
+    if (!importRows.length) { alert('Aucune ligne valide trouvée dans le fichier.'); return; }
+
+    /* ── 2. Upsert : mise à jour ou création ── */
+    let created = 0, updated = 0, deleted = 0;
+
+    for (const { externalId, fullName, profession, key } of importRows) {
       const { nom, prenom } = _parseNameParts(fullName);
-
-      /* Mise à jour si l'ID existe déjà, création sinon */
-      const existing = externalId ? resources.find(r => r.externalId === externalId) : null;
+      /* Correspondance par couple ID + Nom (normalisé) */
+      const existing = resources.find(r =>
+        _matchKey(r.externalId || '', [r.prenom, r.nom].filter(Boolean).join(' ')) === key
+      );
       if (existing) {
         existing.nom        = nom;
         existing.prenom     = prenom;
         existing.profession = profession;
+        existing.externalId = externalId;
         updated++;
       } else {
         resources.push({ id: genResId(), externalId, nom, prenom, profession });
@@ -549,9 +566,20 @@ function parseListExcel(buffer) {
       }
     }
 
+    /* ── 3. Suppression des ressources absentes du fichier
+            (uniquement celles qui avaient un externalId — les ressources
+             créées manuellement sans externalId sont préservées) ── */
+    const before = resources.length;
+    resources = resources.filter(r => {
+      if (!r.externalId) return true; // ressource manuelle → conserver
+      const key = _matchKey(r.externalId, [r.prenom, r.nom].filter(Boolean).join(' '));
+      return importedKeys.has(key);
+    });
+    deleted = before - resources.length;
+
     saveResources();
     _refreshResView();
-    alert(`Import Liste ✓\n• ${created} ressource(s) créée(s)\n• ${updated} mise(s) à jour`);
+    alert(`Import Liste ✓\n• ${created} créée(s)\n• ${updated} mise(s) à jour\n• ${deleted} supprimée(s)`);
   } catch (err) {
     console.error('List import error:', err);
     alert('Erreur import Liste : ' + err.message);
