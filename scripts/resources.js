@@ -7,6 +7,12 @@
 const RESOURCES_KEY = 'gantt4cad_resources';
 let resources = [];
 
+/* ── Firebase ressources ── */
+let _fbResSaveTimer   = null;
+let _fbResSaving      = false;
+let _fbResInitLoaded  = false;
+let _fbResLastSaveTs  = 0;
+
 /* ── Collapse state : set of resource IDs that are expanded ── */
 const _resExpanded = new Set();
 let _resFilter = '';     // filtre texte recherche
@@ -655,10 +661,57 @@ function _findResourceByName(fullName) {
 }
 
 /* ══════════════════════════════════
+   FIREBASE RESSOURCES — save / load
+   ══════════════════════════════════ */
+function scheduleFirebaseSaveResources() {
+  if (typeof window._fbSetResources !== 'function') return;
+  clearTimeout(_fbResSaveTimer);
+  _fbResSaveTimer = setTimeout(_doFirebaseSaveResources, 1500);
+}
+
+async function _doFirebaseSaveResources() {
+  if (_fbResSaving) return;
+  if (typeof window._fbSetResources !== 'function') return;
+  _fbResSaving = true;
+  try {
+    _fbResLastSaveTs = Date.now();
+    await window._fbSetResources(resources);
+  } catch(e) {
+    console.error('Firebase resources save error:', e);
+  } finally {
+    _fbResSaving = false;
+  }
+}
+
+/* ══════════════════════════════════
    INIT
    ══════════════════════════════════ */
 function initResources() {
-  loadResources();
+  loadResources(); // localStorage en premier (immédiat)
+
+  /* Attendre que le SDK Firebase soit prêt puis charger les ressources */
+  let _attempts = 0;
+  const _iv = setInterval(() => {
+    _attempts++;
+    if (typeof window._fbOnValueResources === 'function') {
+      clearInterval(_iv);
+      window._fbOnValueResources(val => {
+        /* Ignorer les mises à jour en temps réel si on vient juste de sauvegarder */
+        if (_fbResInitLoaded && (Date.now() - _fbResLastSaveTs) < 4000) return;
+        if (val && Array.isArray(val) && val.length) {
+          resources = val;
+          try { localStorage.setItem(RESOURCES_KEY, JSON.stringify(resources)); } catch(e) {}
+          /* Rafraîchir la vue si elle est active */
+          if (document.getElementById('viewRessources')?.style.display !== 'none') {
+            _refreshResView();
+          }
+        }
+        _fbResInitLoaded = true;
+      });
+    } else if (_attempts > 60) {
+      clearInterval(_iv); // Firebase indisponible, localStorage suffit
+    }
+  }, 100);
 }
 
 /* Legacy aliases used elsewhere */
