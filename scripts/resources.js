@@ -43,25 +43,6 @@ function genResId() {
   return 'r_' + Math.random().toString(36).slice(2, 9);
 }
 
-function addResource(nom, prenom, profession) {
-  if (!nom && !prenom) return false;
-  resources.push({ id: genResId(), nom, prenom, profession });
-  saveResources();
-  return true;
-}
-
-function updateResource(id, nom, prenom, profession) {
-  const r = resources.find(r => r.id === id);
-  if (!r) return false;
-  r.nom = nom; r.prenom = prenom; r.profession = profession;
-  saveResources();
-  return true;
-}
-
-function deleteResource(id) {
-  resources = resources.filter(r => r.id !== id);
-  saveResources();
-}
 
 function getInitials(prenom, nom) {
   const p = (prenom||'').trim()[0]||'';
@@ -152,7 +133,6 @@ function _buildResViewHTML() {
         ${_lastImport ? `<span class="gho-last-import">↑ GHO : ${_lastImport}</span>` : ''}
         <button class="gho-btn-import-list" onclick="triggerListImport()">↑ Import Liste</button>
         <button class="gho-btn-import" onclick="triggerGHOImport()">↑ Import GHO</button>
-        <button class="gho-btn-add" onclick="openResDialog()">+ Ressource</button>
       </div>
     </div>
     <div class="gho-scroll-wrap" id="ghoScrollWrap">
@@ -242,14 +222,10 @@ function _buildRows(days) {
     }));
     /* Resource summary row */
     let rows = `<tr class="gho-row-res" data-rid="${r.id}">
-      <td class="gho-td-res gho-sticky-res">
+      <td class="gho-td-res gho-sticky-res" onclick="openResInfo('${r.id}')" title="Voir les infos">
         <div class="gho-td-res-inner">
           <span class="gho-avatar">${getInitials(r.prenom, r.nom)}</span>
           <span class="gho-res-name">${escH(fullName)}</span>
-          <span class="gho-res-actions">
-            <button class="gho-btn-edit" onclick="openResDialog('${r.id}')" title="Modifier">✎</button>
-            <button class="gho-btn-del" onclick="confirmDeleteResource('${r.id}')" title="Supprimer">🗑</button>
-          </span>
         </div>
       </td>
       <td class="gho-td-act gho-td-act-total gho-sticky-act">
@@ -334,92 +310,62 @@ function _scrollToToday() {
 }
 
 /* ══════════════════════════════════
-   DIALOG RESSOURCE (création/édition)
+   POPUP INFO RESSOURCE (lecture seule)
    ══════════════════════════════════ */
-let _editingResId = null;
-
 function _buildResDialog() {
-  return `<div class="gho-dialog-backdrop" id="resDialogBackdrop" style="display:none" onclick="closeResDialog()">
+  /* Remplacé par un popup lecture seule — les ressources sont gérées par import uniquement */
+  return `<div class="gho-dialog-backdrop" id="resInfoBackdrop" style="display:none" onclick="closeResInfo()">
     <div class="gho-dialog" onclick="event.stopPropagation()">
-      <div class="gho-dialog-title" id="resDialogTitle">Nouvelle ressource</div>
+      <div class="gho-dialog-title" id="resInfoTitle">Ressource</div>
       <div class="gho-dialog-body">
-        <div id="resDlgIdRow" style="display:none">
+        <div id="resInfoIdRow" style="display:none">
           <label class="gho-dlg-label">ID</label>
-          <input class="gho-dlg-input gho-dlg-input-id" id="resDlgId" readonly tabindex="-1">
+          <input class="gho-dlg-input gho-dlg-input-id" id="resInfoId" readonly tabindex="-1">
         </div>
-        <label class="gho-dlg-label">Nom</label>
-        <input class="gho-dlg-input" id="resDlgNom" placeholder="Nom de famille">
         <label class="gho-dlg-label">Prénom</label>
-        <input class="gho-dlg-input" id="resDlgPrenom" placeholder="Prénom">
-        <label class="gho-dlg-label">Profession</label>
-        <input class="gho-dlg-input" id="resDlgProf" placeholder="Ex: Développeur, Chef de projet…">
+        <input class="gho-dlg-input gho-dlg-input-id" id="resInfoPrenom" readonly tabindex="-1">
+        <label class="gho-dlg-label">Nom</label>
+        <input class="gho-dlg-input gho-dlg-input-id" id="resInfoNom" readonly tabindex="-1">
+        <label class="gho-dlg-label">Profession / Rôle</label>
+        <input class="gho-dlg-input gho-dlg-input-id" id="resInfoProf" readonly tabindex="-1">
       </div>
       <div class="gho-dialog-footer">
-        <button class="gho-dlg-cancel" onclick="closeResDialog()">Annuler</button>
-        <button class="gho-dlg-save" onclick="saveResDialog()">✓ Enregistrer</button>
+        <button class="gho-dlg-save" onclick="closeResInfo()">Fermer</button>
       </div>
     </div>
   </div>`;
 }
 
-function openResDialog(id) {
-  _editingResId = id || null;
-  const backdrop = document.getElementById('resDialogBackdrop');
+function openResInfo(id) {
+  const backdrop = document.getElementById('resInfoBackdrop');
   if (!backdrop) return;
-  const r = id ? resources.find(x => x.id === id) : null;
-  document.getElementById('resDialogTitle').textContent = r ? '✎ Modifier la ressource' : 'Nouvelle ressource';
-  document.getElementById('resDlgNom').value    = r?.nom        || '';
-  document.getElementById('resDlgPrenom').value = r?.prenom     || '';
-  document.getElementById('resDlgProf').value   = r?.profession || '';
-  /* Affiche l'ID externe uniquement si la ressource en possède un */
-  const idRow = document.getElementById('resDlgIdRow');
-  if (r?.externalId) {
-    document.getElementById('resDlgId').value = r.externalId;
+  const r = resources.find(x => x.id === id);
+  if (!r) return;
+  document.getElementById('resInfoTitle').textContent =
+    [r.prenom, r.nom].filter(Boolean).join(' ') || '—';
+  document.getElementById('resInfoPrenom').value = r.prenom     || '—';
+  document.getElementById('resInfoNom').value    = r.nom        || '—';
+  document.getElementById('resInfoProf').value   = r.profession || '—';
+  const idRow = document.getElementById('resInfoIdRow');
+  if (r.externalId) {
+    document.getElementById('resInfoId').value = r.externalId;
     idRow.style.display = '';
   } else {
     idRow.style.display = 'none';
   }
   backdrop.style.display = 'flex';
-  setTimeout(() => document.getElementById('resDlgNom').focus(), 50);
 }
 
-function closeResDialog() {
-  const b = document.getElementById('resDialogBackdrop');
+function closeResInfo() {
+  const b = document.getElementById('resInfoBackdrop');
   if (b) b.style.display = 'none';
-  _editingResId = null;
-}
-
-function saveResDialog() {
-  const nom    = document.getElementById('resDlgNom').value.trim();
-  const prenom = document.getElementById('resDlgPrenom').value.trim();
-  const prof   = document.getElementById('resDlgProf').value.trim();
-  if (!nom && !prenom) { document.getElementById('resDlgNom').focus(); return; }
-  if (_editingResId) {
-    updateResource(_editingResId, nom, prenom, prof);
-  } else {
-    addResource(nom, prenom, prof);
-  }
-  closeResDialog();
-  _refreshResView();
-}
-
-function confirmDeleteResource(id) {
-  const r = resources.find(x => x.id === id);
-  const name = r ? [r.prenom, r.nom].filter(Boolean).join(' ') : id;
-  if (!confirm(`Supprimer la ressource "${name}" ?`)) return;
-  deleteResource(id);
-  _resExpanded.delete(id);
-  _refreshResView();
 }
 
 function _attachResEvents() {
-  /* Keyboard on dialog */
-  document.querySelectorAll('.gho-dlg-input').forEach(inp => {
-    inp.addEventListener('keydown', e => {
-      if (e.key === 'Enter') saveResDialog();
-      if (e.key === 'Escape') closeResDialog();
-    });
-  });
+  /* Fermer le popup info avec Escape */
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') closeResInfo();
+  }, { once: true });
 
   /* Drag-scroll on the single table wrapper */
   const wrap = document.getElementById('ghoScrollWrap');
@@ -744,8 +690,6 @@ function initResources() {
 
 /* Legacy aliases used elsewhere */
 function renderResourceCalendarView() { _refreshResView(); }
-function openResourceForm() { openResDialog(); }
-function openResourceEdit(id) { openResDialog(id); }
 function getChargeForResourceDay(resourceId, date) {
   const r = resources.find(x => x.id === resourceId);
   if (!r || !r.ghoData) return 0;

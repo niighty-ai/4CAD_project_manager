@@ -33,8 +33,8 @@ function parseMSProjectXML(xmlText, projectName) {
      Clé de fusion : nom complet normalisé (sans espaces doubles, casse normalisée)
      Retourne une map { xmlResourceUID → resourceId (appli) }
   ─────────────────────────────────────────────────────────── */
-  const uidToAppId = {};   // xmlUID → id interne appli
-  const importedResources = [];
+  const uidToAppId     = {};  // xmlUID → id interne appli
+  const missingResources = []; // noms des ressources introuvables dans la liste
 
   for (const el of getAll('Resource')) {
     const uid      = getVal(el, 'UID');
@@ -44,43 +44,33 @@ function parseMSProjectXML(xmlText, projectName) {
     // On ignore la ressource "vide" (UID=0) et les ressources matérielles (Type=0)
     if (!uid || uid === '0' || type === '0' || !fullName) continue;
 
-    const { prenom, nom, profession } = parseResourceName(fullName);
+    const { prenom, nom } = parseResourceName(fullName);
 
-    // Clé de déduplication : Prénom NOM en minuscules normalisé
+    // Clé de correspondance : Prénom NOM normalisé
     const normalizedKey = (prenom + ' ' + nom).toLowerCase().replace(/\s+/g, ' ').trim();
 
-    // Cherche une correspondance exacte dans resources[] existantes
-    let existing = null;
-    if (typeof resources !== 'undefined' && resources.length) {
-      existing = resources.find(r => {
-        const rKey = ((r.prenom || '') + ' ' + (r.nom || '')).toLowerCase().replace(/\s+/g, ' ').trim();
-        return rKey === normalizedKey;
-      });
-    }
+    const existing = (typeof resources !== 'undefined' && resources.length)
+      ? resources.find(r => {
+          const rKey = ((r.prenom || '') + ' ' + (r.nom || '')).toLowerCase().replace(/\s+/g, ' ').trim();
+          return rKey === normalizedKey;
+        })
+      : null;
 
     if (existing) {
-      // Fusion : on met à jour la profession si elle était vide
-      if (!existing.profession && profession) {
-        existing.profession = profession;
-      }
-      // Stocke le xmlUid pour le lien fort avec MS Project
       if (!existing.xmlUid) existing.xmlUid = uid;
       uidToAppId[uid] = existing.id;
     } else {
-      // Création d'une nouvelle ressource
-      const newId = genResId();
-      const newRes = { id: newId, nom, prenom, profession, xmlUid: uid };
-      if (typeof resources !== 'undefined') {
-        resources.push(newRes);
-      }
-      uidToAppId[uid] = newId;
-      importedResources.push(newRes);
+      /* Ressource absente de la liste → on bloque l'import */
+      missingResources.push(fullName);
     }
   }
 
-  // Persiste les ressources si elles ont changé
-  if (importedResources.length && typeof saveResources === 'function') {
-    saveResources();
+  if (missingResources.length) {
+    throw new Error(
+      `Impossible d'importer : ${missingResources.length} ressource(s) introuvable(s) dans la liste.\n\n` +
+      missingResources.map(n => `  • ${n}`).join('\n') +
+      `\n\nImportez d'abord la liste des ressources via "↑ Import Liste".`
+    );
   }
 
   /* ── 2. Assignments XML : map taskUID → [{resourceUID, work, actualWork, remainingWork}]
@@ -292,10 +282,7 @@ function handleXMLImport(file) {
         }
       }
 
-      const resMsg = importedResources.length
-        ? ` | ${importedResources.length} ressource(s) créée(s) : ${importedResources.map(r => [r.prenom, r.nom].filter(Boolean).join(' ')).join(', ')}`
-        : '';
-      console.log(`[XML Import] ${parsedRows.length} tâche(s), ${parsedJalons.length} jalon(s) importé(s) dans "${projectName}"${resMsg}`);
+      console.log(`[XML Import] ${parsedRows.length} tâche(s), ${parsedJalons.length} jalon(s) importé(s) dans "${projectName}"`);
 
     } catch (err) {
       alert('Erreur import XML :\n' + err.message);
