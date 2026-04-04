@@ -88,6 +88,10 @@ window._fbOnValue = (cb)   => onValue(_fbRef, snap => cb(snap.val()));</script>
       <label class="ep-label">Charge (jours)</label>
       <input class="ep-input" id="epCharge" type="number" step="0.5" min="0" placeholder="ex: 2.5">
     </div>
+    <div class="ep-group" id="epExternalIdGroup" style="display:none">
+      <label class="ep-label">Task ID</label>
+      <input class="ep-input ep-input-id" id="epExternalId" type="text" readonly tabindex="-1">
+    </div>
   </div>
   <div class="edit-panel-footer">
     <button class="ep-btn-delete" id="epDeleteBtn" onclick="deleteFromPanel()" style="display:none">🗑 Supprimer</button>

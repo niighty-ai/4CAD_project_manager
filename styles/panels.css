@@ -555,6 +555,14 @@ select.ep-input {
   cursor:pointer
 }
 
+/* Task ID externe — lecture seule */
+.ep-input-id {
+  color:var(--muted);
+  cursor:default;
+  opacity:.85;
+}
+.ep-input-id:focus { border-color:var(--border) }
+
 .ep-btn-save {
   flex:1;
   background:var(--accent);
