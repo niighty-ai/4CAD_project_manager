@@ -15,7 +15,8 @@ let _fbResLastSaveTs  = 0;
 
 /* ── Collapse state : set of resource IDs that are expanded ── */
 const _resExpanded = new Set();
-let _resFilter = '';     // filtre texte recherche
+let _resFilter     = '';           // filtre texte recherche
+let _resTypeFilter = 'Employee';   // filtre type de ressource (défaut : Employee)
 
 /* ── Année affichée ── */
 let _resYear = new Date().getFullYear();
@@ -146,9 +147,21 @@ function _buildResViewHTML() {
           <tr class="gho-thead-months">
             <th class="gho-th-res gho-sticky-res" rowspan="2">
               RESSOURCE
-              <input class="gho-search" placeholder="🔍 Rechercher…" value="${_resFilter}"
-                oninput="_resFilter=this.value;_refreshTbody()" autocomplete="off"
-                onclick="event.stopPropagation()">
+              <div class="gho-search-row">
+                <input class="gho-search" placeholder="🔍 Rechercher…" value="${_resFilter}"
+                  oninput="_resFilter=this.value;_refreshTbody()" autocomplete="off"
+                  onclick="event.stopPropagation()">
+                <select class="gho-type-filter" onclick="event.stopPropagation()"
+                  onchange="_resTypeFilter=this.value;_refreshTbody()">
+                  <option value="">Tous</option>
+                  ${_resTypes().map(t =>
+                    `<option value="${escH(t)}"${t===_resTypeFilter?' selected':''}>${escH(t)}</option>`
+                  ).join('')}
+                  ${!_resTypes().includes(_resTypeFilter) && _resTypeFilter
+                    ? `<option value="${escH(_resTypeFilter)}" selected>${escH(_resTypeFilter)}</option>`
+                    : ''}
+                </select>
+              </div>
             </th>
             <th class="gho-th-act gho-sticky-act" rowspan="2">ACTIVITÉ / PROJET</th>
             ${_buildMonthHeaders(days, COL_W)}
@@ -176,12 +189,25 @@ function _buildResViewHTML() {
 
 /* ── Filtered resource list ── */
 function _filteredResources() {
-  if (!_resFilter) return resources;
-  const f = _resFilter.toLowerCase();
-  return resources.filter(r =>
-    [r.prenom, r.nom].join(' ').toLowerCase().includes(f) ||
-    (r.externalId || '').toLowerCase().includes(f)
-  );
+  let list = resources;
+  /* Filtre par type */
+  if (_resTypeFilter) {
+    list = list.filter(r => (r.resourceType || '').toLowerCase() === _resTypeFilter.toLowerCase());
+  }
+  /* Filtre texte (nom, prénom, ID) */
+  if (_resFilter) {
+    const f = _resFilter.toLowerCase();
+    list = list.filter(r =>
+      [r.prenom, r.nom].join(' ').toLowerCase().includes(f) ||
+      (r.externalId || '').toLowerCase().includes(f)
+    );
+  }
+  return list;
+}
+
+/* ── Liste triée des types uniques dans resources[] ── */
+function _resTypes() {
+  return [...new Set(resources.map(r => r.resourceType || '').filter(Boolean))].sort();
 }
 
 /* ── Single table rows: res col + act col + all day cols ── */
@@ -328,6 +354,8 @@ function _buildResDialog() {
         <input class="gho-dlg-input gho-dlg-input-id" id="resInfoNom" readonly tabindex="-1">
         <label class="gho-dlg-label">Profession / Rôle</label>
         <input class="gho-dlg-input gho-dlg-input-id" id="resInfoProf" readonly tabindex="-1">
+        <label class="gho-dlg-label">Type de ressource</label>
+        <input class="gho-dlg-input gho-dlg-input-id" id="resInfoType" readonly tabindex="-1">
       </div>
       <div class="gho-dialog-footer">
         <button class="gho-dlg-save" onclick="closeResInfo()">Fermer</button>
@@ -343,9 +371,10 @@ function openResInfo(id) {
   if (!r) return;
   document.getElementById('resInfoTitle').textContent =
     [r.prenom, r.nom].filter(Boolean).join(' ') || '—';
-  document.getElementById('resInfoPrenom').value = r.prenom     || '—';
-  document.getElementById('resInfoNom').value    = r.nom        || '—';
-  document.getElementById('resInfoProf').value   = r.profession || '—';
+  document.getElementById('resInfoPrenom').value = r.prenom       || '—';
+  document.getElementById('resInfoNom').value    = r.nom          || '—';
+  document.getElementById('resInfoProf').value   = r.profession   || '—';
+  document.getElementById('resInfoType').value   = r.resourceType || '—';
   const idRow = document.getElementById('resInfoIdRow');
   if (r.externalId) {
     document.getElementById('resInfoId').value = r.externalId;
@@ -468,6 +497,7 @@ function parseListExcel(buffer) {
     const colName = _findCol([/\bname\b/, /\bnom\b/, /resource[\s_-]?name/],       1);
     const colProf = _findCol([/\brole\b/, /\bprof/, /\bfonction/, /\bposte\b/,
                               /\btitre\b/, /\btitle\b/, /\bjob\b/],                2);
+    const colType = _findCol([/\btype\b/],                                        -1); // pas de fallback positionnel
 
     /* ── Clé de correspondance : externalId + fullName normalisé ── */
     const _matchKey = (externalId, fullName) =>
@@ -480,13 +510,14 @@ function parseListExcel(buffer) {
     for (let ri = 1; ri < raw.length; ri++) {
       const row = raw[ri];
       if (!row) continue;
-      const externalId = _normalizeExcelStr(row[colId]);
-      const fullName   = _normalizeExcelStr(row[colName]);
-      const profession = _normalizeExcelStr(colProf >= 0 ? row[colProf] : null);
+      const externalId   = _normalizeExcelStr(row[colId]);
+      const fullName     = _normalizeExcelStr(row[colName]);
+      const profession   = _normalizeExcelStr(colProf >= 0 ? row[colProf] : null);
+      const resourceType = _normalizeExcelStr(colType >= 0 ? row[colType] : null);
       if (!externalId && !fullName) continue;
       const key = _matchKey(externalId, fullName);
       importedKeys.add(key);
-      importRows.push({ externalId, fullName, profession, key });
+      importRows.push({ externalId, fullName, profession, resourceType, key });
     }
 
     if (!importRows.length) { alert('Aucune ligne valide trouvée dans le fichier.'); return; }
@@ -494,20 +525,21 @@ function parseListExcel(buffer) {
     /* ── 2. Upsert : mise à jour ou création ── */
     let created = 0, updated = 0, deleted = 0;
 
-    for (const { externalId, fullName, profession, key } of importRows) {
+    for (const { externalId, fullName, profession, resourceType, key } of importRows) {
       const { nom, prenom } = _parseNameParts(fullName);
       /* Correspondance par couple ID + Nom (normalisé) */
       const existing = resources.find(r =>
         _matchKey(r.externalId || '', [r.prenom, r.nom].filter(Boolean).join(' ')) === key
       );
       if (existing) {
-        existing.nom        = nom;
-        existing.prenom     = prenom;
-        existing.profession = profession;
-        existing.externalId = externalId;
+        existing.nom          = nom;
+        existing.prenom       = prenom;
+        existing.profession   = profession;
+        existing.externalId   = externalId;
+        existing.resourceType = resourceType || existing.resourceType || '';
         updated++;
       } else {
-        resources.push({ id: genResId(), externalId, nom, prenom, profession });
+        resources.push({ id: genResId(), externalId, nom, prenom, profession, resourceType: resourceType || '' });
         created++;
       }
     }
