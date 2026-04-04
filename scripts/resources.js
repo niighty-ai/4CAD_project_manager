@@ -482,16 +482,22 @@ function parseListExcel(buffer) {
 
     if (raw.length < 2) { alert('Fichier vide ou format invalide.'); return; }
 
-    /* Détection automatique des colonnes à partir de la ligne d'en-tête */
-    const header  = (raw[0] || []).map(h => String(h ?? '').trim().toLowerCase());
-    const colId   = header.findIndex(h => /^id$/i.test(h));
-    const colName = header.findIndex(h => /name|nom/i.test(h));
-    const colProf = header.findIndex(h => /prof/i.test(h));
+    /* ── Détection flexible des colonnes ──
+       Stratégie :
+         1. Cherche la première colonne dont l'en-tête contient le mot-clé
+         2. Si non trouvée, fallback sur la position (0=ID, 1=Nom, 2=Rôle)
+       → l'import ne se bloque jamais sur un nom de colonne inattendu        */
+    const header = (raw[0] || []).map(h => String(h ?? '').trim().toLowerCase());
 
-    if (colId < 0 || colName < 0) {
-      alert('Colonnes "ID" et "Name" (ou "Nom") requises — non trouvées dans la première ligne.');
-      return;
-    }
+    const _findCol = (patterns, fallback) => {
+      const idx = header.findIndex(h => patterns.some(p => p.test(h)));
+      return idx >= 0 ? idx : fallback;
+    };
+
+    const colId   = _findCol([/\bid\b/, /resource[\s_-]?id/, /id[\s_-]?resource/], 0);
+    const colName = _findCol([/\bname\b/, /\bnom\b/, /resource[\s_-]?name/],       1);
+    const colProf = _findCol([/\brole\b/, /\bprof/, /\bfonction/, /\bposte\b/,
+                              /\btitre\b/, /\btitle\b/, /\bjob\b/],                2);
 
     let created = 0, updated = 0;
 
