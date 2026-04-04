@@ -144,6 +144,7 @@ function _buildResViewHTML() {
         <span class="gho-year-label">${_resYear}</span>
         <button class="gho-btn-year" onclick="_resYear++;_refreshResView()">${_resYear+1} ›</button>
         ${_lastImport ? `<span class="gho-last-import">↑ GHO : ${_lastImport}</span>` : ''}
+        <button class="gho-btn-import-list" onclick="triggerListImport()">↑ Import Liste</button>
         <button class="gho-btn-import" onclick="triggerGHOImport()">↑ Import GHO</button>
         <button class="gho-btn-add" onclick="openResDialog()">+ Ressource</button>
       </div>
@@ -333,6 +334,10 @@ function _buildResDialog() {
     <div class="gho-dialog" onclick="event.stopPropagation()">
       <div class="gho-dialog-title" id="resDialogTitle">Nouvelle ressource</div>
       <div class="gho-dialog-body">
+        <div id="resDlgIdRow" style="display:none">
+          <label class="gho-dlg-label">ID</label>
+          <input class="gho-dlg-input gho-dlg-input-id" id="resDlgId" readonly tabindex="-1">
+        </div>
         <label class="gho-dlg-label">Nom</label>
         <input class="gho-dlg-input" id="resDlgNom" placeholder="Nom de famille">
         <label class="gho-dlg-label">Prénom</label>
@@ -354,9 +359,17 @@ function openResDialog(id) {
   if (!backdrop) return;
   const r = id ? resources.find(x => x.id === id) : null;
   document.getElementById('resDialogTitle').textContent = r ? '✎ Modifier la ressource' : 'Nouvelle ressource';
-  document.getElementById('resDlgNom').value = r?.nom || '';
-  document.getElementById('resDlgPrenom').value = r?.prenom || '';
-  document.getElementById('resDlgProf').value = r?.profession || '';
+  document.getElementById('resDlgNom').value    = r?.nom        || '';
+  document.getElementById('resDlgPrenom').value = r?.prenom     || '';
+  document.getElementById('resDlgProf').value   = r?.profession || '';
+  /* Affiche l'ID externe uniquement si la ressource en possède un */
+  const idRow = document.getElementById('resDlgIdRow');
+  if (r?.externalId) {
+    document.getElementById('resDlgId').value = r.externalId;
+    idRow.style.display = '';
+  } else {
+    idRow.style.display = 'none';
+  }
   backdrop.style.display = 'flex';
   setTimeout(() => document.getElementById('resDlgNom').focus(), 50);
 }
@@ -429,6 +442,92 @@ function _attachResEvents() {
 /* ══════════════════════════════════
    IMPORT GHO EXCEL (SheetJS)
    ══════════════════════════════════ */
+/* ══════════════════════════════════
+   IMPORT LISTE RESSOURCES (Excel 3 colonnes : ID / Name / Profession)
+   ══════════════════════════════════ */
+function triggerListImport() {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = '.xlsx,.xls';
+  input.onchange = e => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = evt => parseListExcel(evt.target.result);
+    reader.readAsArrayBuffer(file);
+  };
+  input.click();
+}
+
+function _parseNameParts(fullName) {
+  /* Détecte NOM (mots entièrement en majuscules) et prénom (reste) */
+  const parts = fullName.trim().split(/\s+/);
+  const nomParts    = parts.filter(p => p.length > 1 && p === p.toUpperCase() && !/\d/.test(p));
+  const prenomParts = parts.filter(p => !nomParts.includes(p));
+  return {
+    nom:    nomParts.join(' ')    || parts[parts.length - 1] || fullName,
+    prenom: prenomParts.join(' '),
+  };
+}
+
+function parseListExcel(buffer) {
+  try {
+    if (typeof XLSX === 'undefined') {
+      alert('SheetJS non disponible — vérifiez le chargement de la librairie.');
+      return;
+    }
+    const wb  = XLSX.read(buffer, { type: 'array', cellDates: false });
+    const ws  = wb.Sheets[wb.SheetNames[0]];
+    const raw = XLSX.utils.sheet_to_json(ws, { header: 1, defval: null });
+
+    if (raw.length < 2) { alert('Fichier vide ou format invalide.'); return; }
+
+    /* Détection automatique des colonnes à partir de la ligne d'en-tête */
+    const header  = (raw[0] || []).map(h => String(h ?? '').trim().toLowerCase());
+    const colId   = header.findIndex(h => /^id$/i.test(h));
+    const colName = header.findIndex(h => /name|nom/i.test(h));
+    const colProf = header.findIndex(h => /prof/i.test(h));
+
+    if (colId < 0 || colName < 0) {
+      alert('Colonnes "ID" et "Name" (ou "Nom") requises — non trouvées dans la première ligne.');
+      return;
+    }
+
+    let created = 0, updated = 0;
+
+    for (let ri = 1; ri < raw.length; ri++) {
+      const row = raw[ri];
+      if (!row) continue;
+      const externalId = row[colId]   != null ? String(row[colId]).trim()   : '';
+      const fullName   = row[colName] != null ? String(row[colName]).trim() : '';
+      const profession = colProf >= 0 && row[colProf] != null ? String(row[colProf]).trim() : '';
+
+      if (!externalId && !fullName) continue;
+
+      const { nom, prenom } = _parseNameParts(fullName);
+
+      /* Mise à jour si l'ID existe déjà, création sinon */
+      const existing = externalId ? resources.find(r => r.externalId === externalId) : null;
+      if (existing) {
+        existing.nom        = nom;
+        existing.prenom     = prenom;
+        existing.profession = profession;
+        updated++;
+      } else {
+        resources.push({ id: genResId(), externalId, nom, prenom, profession });
+        created++;
+      }
+    }
+
+    saveResources();
+    _refreshResView();
+    alert(`Import Liste ✓\n• ${created} ressource(s) créée(s)\n• ${updated} mise(s) à jour`);
+  } catch (err) {
+    console.error('List import error:', err);
+    alert('Erreur import Liste : ' + err.message);
+  }
+}
+
 function triggerGHOImport() {
   const input = document.createElement('input');
   input.type = 'file';

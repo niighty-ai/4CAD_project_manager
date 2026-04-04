@@ -74,6 +74,19 @@
   text-align: center;
 }
 
+.gho-btn-import-list {
+  padding: 4px 10px;
+  border-radius: 4px;
+  border: 1px solid rgba(114,182,236,.5);
+  background: rgba(114,182,236,.12);
+  color: var(--text);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all .12s;
+}
+.gho-btn-import-list:hover { background: rgba(114,182,236,.28); }
+
 .gho-btn-import {
   padding: 4px 10px;
   border-radius: 4px;
@@ -440,6 +453,16 @@
   cursor: pointer;
 }
 .gho-dlg-save:hover { opacity: .9; }
+
+/* ── ID externe (lecture seule) dans le dialog ── */
+.gho-dlg-input-id {
+  font-family: 'Courier New', monospace;
+  font-size: 11px;
+  color: var(--muted);
+  background: var(--surface2);
+  cursor: default;
+  opacity: .85;
+}
 
 /* ── Search bar in Ressource header ── */
 .gho-search {
