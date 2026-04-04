@@ -473,6 +473,21 @@ function _parseNameParts(fullName) {
   };
 }
 
+/* Normalise une chaîne lue depuis Excel :
+   - apostrophes typographiques (' ') → apostrophe standard (')
+   - guillemets typographiques (" ") → guillemets droits (")
+   - espaces insécables et espaces spéciaux → espace normal
+   - NFC pour les caractères accentués composés */
+function _normalizeExcelStr(val) {
+  if (val == null) return '';
+  return String(val)
+    .normalize('NFC')
+    .replace(/[\u2018\u2019\u201A\u201B\u02BC\uFF07]/g, "'")
+    .replace(/[\u201C\u201D\u201E\u201F]/g, '"')
+    .replace(/[\u00A0\u202F\u2009\u2007\u2008\u200B]/g, ' ')
+    .trim();
+}
+
 function parseListExcel(buffer) {
   try {
     if (typeof XLSX === 'undefined') {
@@ -507,9 +522,9 @@ function parseListExcel(buffer) {
     for (let ri = 1; ri < raw.length; ri++) {
       const row = raw[ri];
       if (!row) continue;
-      const externalId = row[colId]   != null ? String(row[colId]).trim()   : '';
-      const fullName   = row[colName] != null ? String(row[colName]).trim() : '';
-      const profession = colProf >= 0 && row[colProf] != null ? String(row[colProf]).trim() : '';
+      const externalId = _normalizeExcelStr(row[colId]);
+      const fullName   = _normalizeExcelStr(row[colName]);
+      const profession = _normalizeExcelStr(colProf >= 0 ? row[colProf] : null);
 
       if (!externalId && !fullName) continue;
 
