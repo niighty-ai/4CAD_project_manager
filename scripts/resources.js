@@ -192,7 +192,10 @@ function _buildResViewHTML() {
 function _filteredResources() {
   if (!_resFilter) return resources;
   const f = _resFilter.toLowerCase();
-  return resources.filter(r => [r.prenom, r.nom].join(' ').toLowerCase().includes(f));
+  return resources.filter(r =>
+    [r.prenom, r.nom].join(' ').toLowerCase().includes(f) ||
+    (r.externalId || '').toLowerCase().includes(f)
+  );
 }
 
 /* ── Single table rows: res col + act col + all day cols ── */
