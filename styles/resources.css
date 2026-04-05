@@ -385,7 +385,10 @@
   padding: 1px 4px;
   white-space: nowrap;
   flex-shrink: 0;
+  opacity: 0;
+  transition: opacity .15s;
 }
+.gho-row-task:hover .gho-task-id { opacity: 1; }
 .gho-task-name {
   flex: 1;
   min-width: 0;
