@@ -52,14 +52,21 @@ function parseMSProjectXML(xmlText, projectName) {
     const normalizedKey = _normResKey(fullName);
 
     const existing = (typeof resources !== 'undefined' && resources.length)
-      ? resources.find(r => _normResKey(r.fullName || '') === normalizedKey)
+      ? resources.find(r => {
+          const rKey = _normResKey(r.fullName || '');
+          return rKey === normalizedKey;
+        })
       : null;
 
     if (existing) {
       if (!existing.xmlUid) existing.xmlUid = uid;
       uidToAppId[uid] = existing.id;
     } else {
-      /* Ressource absente de la liste → on bloque l'import */
+      console.warn(`[XML Import] Ressource introuvable: "${fullName}" (clé normalisée: "${normalizedKey}")`);
+      if (typeof resources !== 'undefined') {
+        console.log(`[XML Import] Ressources disponibles (${resources.length}):`,
+          resources.slice(0, 5).map(r => `"${r.fullName}"→"${_normResKey(r.fullName||'')}"`));
+      }
       missingResources.push(fullName);
     }
   }
@@ -227,7 +234,7 @@ function parseMSProjectXML(xmlText, projectName) {
     });
   }
 
-  return { rows, jalons, importedResources };
+  return { rows, jalons };
 }
 
 /* ──────────────────────────────────────────────────────────
@@ -243,7 +250,7 @@ function handleXMLImport(file) {
         ? proj.name
         : file.name.replace(/\.[^.]+$/, '').replace(/[_-]/g, ' ');
 
-      const { rows: parsedRows, jalons: parsedJalons, importedResources } =
+      const { rows: parsedRows, jalons: parsedJalons } =
         parseMSProjectXML(ev.target.result, projectName);
 
       if (!parsedRows.length && !parsedJalons.length) {
