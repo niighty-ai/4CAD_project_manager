@@ -561,9 +561,20 @@ function parseListExcel(buffer) {
     });
     deleted = before - resources.length;
 
+    /* ── 4. Auto-reset du filtre type si aucune ressource ne correspond ── */
+    const typesFound = [...new Set(resources.map(r => r.resourceType || '').filter(Boolean))].sort();
+    if (_resTypeFilter && !resources.some(r =>
+      (r.resourceType || '').toLowerCase() === _resTypeFilter.toLowerCase()
+    )) {
+      _resTypeFilter = typesFound.length ? typesFound[0] : '';
+    }
+
     saveResources();
     _refreshResView();
-    alert(`Import Liste ✓\n• ${created} créée(s)\n• ${updated} mise(s) à jour\n• ${deleted} supprimée(s)`);
+    const typesSummary = typesFound.length
+      ? `\n• Types détectés : ${typesFound.join(', ')}`
+      : '\n• ⚠ Colonne "Resource Type" non détectée (filtre réinitialisé à "Tous")';
+    alert(`Import Liste ✓\n• ${created} créée(s)\n• ${updated} mise(s) à jour\n• ${deleted} supprimée(s)${typesSummary}`);
   } catch (err) {
     console.error('List import error:', err);
     alert('Erreur import Liste : ' + err.message);
