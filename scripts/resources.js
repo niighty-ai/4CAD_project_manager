@@ -15,6 +15,8 @@ let _fbResLastSaveTs  = 0;
 
 /* ── Collapse state : set of resource IDs that are expanded ── */
 const _resExpanded = new Set();
+/* ── Collapse state projets : set de "resId::projName" ── */
+const _projExpanded = new Set();
 let _resFilter     = '';           // filtre texte recherche
 let _resTypeFilter = 'Employee';   // filtre type de ressource (défaut : Employee)
 
@@ -258,13 +260,29 @@ function _buildRows(days) {
 
   return fr.map(r => {
     const fullName = r.fullName || '—';
-    const acts = (r.ghoData?.activities || []).filter(a => Object.values(a.daily).some(v=>v>0));
-    const isExp = _resExpanded.has(r.id);
+    const isExp    = _resExpanded.has(r.id);
+
+    /* ── Calcul des totaux journaliers + nombre de projets (compatible ancien format) ── */
     const dayTotals = {};
-    acts.forEach(a => Object.entries(a.daily).forEach(([k,v]) => {
-      dayTotals[k] = (dayTotals[k]||0) + v;
-    }));
-    /* Resource summary row */
+    let   projCount = 0;
+
+    if (r.ghoData?.projects) {
+      /* Nouveau format : Ressource → Projets → Tâches */
+      const projs = r.ghoData.projects.filter(p => p.tasks?.length > 0);
+      projCount = projs.length;
+      projs.forEach(p => p.tasks.forEach(t =>
+        Object.entries(t.daily || {}).forEach(([k,v]) => { dayTotals[k] = (dayTotals[k]||0) + v; })
+      ));
+    } else if (r.ghoData?.activities) {
+      /* Ancien format : Ressource → Activités */
+      const acts = r.ghoData.activities.filter(a => Object.values(a.daily).some(v=>v>0));
+      projCount = acts.length;
+      acts.forEach(a => Object.entries(a.daily).forEach(([k,v]) => {
+        dayTotals[k] = (dayTotals[k]||0) + v;
+      }));
+    }
+
+    /* ── Ligne ressource ── */
     let rows = `<tr class="gho-row-res" data-rid="${r.id}">
       <td class="gho-td-res gho-sticky-res" onclick="openResInfo('${r.id}')" title="Voir les infos">
         <div class="gho-td-res-inner">
@@ -274,24 +292,68 @@ function _buildRows(days) {
       </td>
       <td class="gho-td-act gho-td-act-total gho-sticky-act">
         <div class="gho-td-act-inner" onclick="_toggleRes('${r.id}')">
-          <span class="gho-toggle">${acts.length?(isExp?'▾':'▸'):'·'}</span>
-          ${acts.length
-            ? `<span class="gho-act-count">${acts.length}&nbsp;projet${acts.length>1?'s':''}</span>`
+          <span class="gho-toggle">${projCount?(isExp?'▾':'▸'):'·'}</span>
+          ${projCount
+            ? `<span class="gho-act-count">${projCount}&nbsp;projet${projCount>1?'s':''}</span>`
             : '<span class="gho-no-data">—</span>'}
         </div>
       </td>
       ${dayMeta.map(m => mkDay(dayTotals, m)).join('')}
     </tr>`;
-    /* Activity rows */
-    if (isExp) acts.forEach(a => {
-      rows += `<tr class="gho-row-act" data-rid="${r.id}">
-        <td class="gho-td-res gho-td-res-empty gho-sticky-res"></td>
-        <td class="gho-td-act gho-sticky-act">
-          <div class="gho-td-act-name" title="${escH(a.name)}">${escH(a.name)}</div>
-        </td>
-        ${dayMeta.map(m => mkDay(a.daily, m)).join('')}
-      </tr>`;
-    });
+
+    if (isExp) {
+      if (r.ghoData?.projects) {
+        /* ── Nouveau format : lignes projet puis tâches ── */
+        r.ghoData.projects.filter(p => p.tasks?.length > 0).forEach(p => {
+          const projKey   = `${r.id}::${p.name}`;
+          const isProjExp = _projExpanded.has(projKey);
+          const projTotals = {};
+          p.tasks.forEach(t => Object.entries(t.daily||{}).forEach(([k,v]) => {
+            projTotals[k] = (projTotals[k]||0) + v;
+          }));
+
+          /* Ligne projet */
+          rows += `<tr class="gho-row-proj" data-rid="${r.id}">
+            <td class="gho-td-res gho-td-res-empty gho-sticky-res"></td>
+            <td class="gho-td-act gho-sticky-act">
+              <div class="gho-td-proj-inner" data-rid="${escH(r.id)}" data-proj="${escH(p.name)}" onclick="_toggleProj(this.dataset.rid, this.dataset.proj)">
+                <span class="gho-toggle">${isProjExp?'▾':'▸'}</span>
+                <span class="gho-proj-name" title="${escH(p.name)}">${escH(p.name)}</span>
+                <span class="gho-task-count">${p.tasks.length}&nbsp;tâche${p.tasks.length>1?'s':''}</span>
+              </div>
+            </td>
+            ${dayMeta.map(m => mkDay(projTotals, m)).join('')}
+          </tr>`;
+
+          /* Lignes tâche (si projet déployé) */
+          if (isProjExp) p.tasks.forEach(t => {
+            const label = t.taskName || t.taskId || '—';
+            rows += `<tr class="gho-row-task" data-rid="${r.id}">
+              <td class="gho-td-res gho-td-res-empty gho-sticky-res"></td>
+              <td class="gho-td-act gho-sticky-act">
+                <div class="gho-td-task-inner">
+                  ${t.taskId ? `<span class="gho-task-id">#${escH(t.taskId)}</span>` : ''}
+                  <span class="gho-task-name" title="${escH(label)}">${escH(label)}</span>
+                </div>
+              </td>
+              ${dayMeta.map(m => mkDay(t.daily, m)).join('')}
+            </tr>`;
+          });
+        });
+      } else if (r.ghoData?.activities) {
+        /* ── Ancien format : lignes activité ── */
+        r.ghoData.activities.filter(a => Object.values(a.daily).some(v=>v>0)).forEach(a => {
+          rows += `<tr class="gho-row-act" data-rid="${r.id}">
+            <td class="gho-td-res gho-td-res-empty gho-sticky-res"></td>
+            <td class="gho-td-act gho-sticky-act">
+              <div class="gho-td-act-name" title="${escH(a.name)}">${escH(a.name)}</div>
+            </td>
+            ${dayMeta.map(m => mkDay(a.daily, m)).join('')}
+          </tr>`;
+        });
+      }
+    }
+
     return rows;
   }).join('');
 }
@@ -328,7 +390,14 @@ function _fmtJ(jours) {
 function _toggleRes(id) {
   if (_resExpanded.has(id)) _resExpanded.delete(id);
   else _resExpanded.add(id);
-  _refreshTbody(); // partial refresh — no scroll reset
+  _refreshTbody();
+}
+
+function _toggleProj(resId, projName) {
+  const key = `${resId}::${projName}`;
+  if (_projExpanded.has(key)) _projExpanded.delete(key);
+  else _projExpanded.add(key);
+  _refreshTbody();
 }
 
 /* Partial refresh: only rebuild tbody (preserves scroll + focus) */
@@ -592,6 +661,58 @@ function triggerGHOImport() {
   input.click();
 }
 
+/* ── Convertit un en-tête de colonne en clé "DD/MM/YYYY", ou null si non-date ── */
+function _parseDateHeader(headerStr, rawVal) {
+  /* 1. Valeur brute Excel : numéro de série de date */
+  if (typeof rawVal === 'number' && rawVal > 20000 && rawVal < 80000) {
+    /* Epoch Excel : 1er jan 1900 = 1 (avec le bug leap year 1900) → offset -2 */
+    const d = new Date(Date.UTC(1900, 0, 1) + (rawVal - 2) * 86400000);
+    const dd = String(d.getUTCDate()).padStart(2,'0');
+    const mm = String(d.getUTCMonth()+1).padStart(2,'0');
+    return `${dd}/${mm}/${d.getUTCFullYear()}`;
+  }
+  const s = String(headerStr || '').trim();
+  /* 2. DD/MM/YYYY ou DD-MM-YYYY ou DD.MM.YYYY */
+  let m = s.match(/^(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{2,4})$/);
+  if (m) {
+    const dd = m[1].padStart(2,'0'), mm2 = m[2].padStart(2,'0');
+    const yyyy = m[3].length === 2 ? '20' + m[3] : m[3];
+    return `${dd}/${mm2}/${yyyy}`;
+  }
+  /* 3. YYYY-MM-DD ou YYYY/MM/DD */
+  m = s.match(/^(\d{4})[\/\-\.](\d{1,2})[\/\-\.](\d{1,2})$/);
+  if (m) {
+    return `${m[3].padStart(2,'0')}/${m[2].padStart(2,'0')}/${m[1]}`;
+  }
+  return null;
+}
+
+function _showMissingResPopup(missingNames, updatedCount) {
+  const existing = document.getElementById('ghoMissingBackdrop');
+  if (existing) existing.remove();
+
+  const listHtml = missingNames.map(n => `<li class="gho-missing-item">${escH(n)}</li>`).join('');
+  const el = document.createElement('div');
+  el.id = 'ghoMissingBackdrop';
+  el.className = 'gho-dialog-backdrop';
+  el.style.display = 'flex';
+  el.innerHTML = `
+    <div class="gho-dialog gho-dialog-wide" onclick="event.stopPropagation()">
+      <div class="gho-dialog-title">⚠ Ressources introuvables</div>
+      <div class="gho-dialog-body">
+        ${updatedCount > 0 ? `<p class="gho-missing-ok">✓ ${updatedCount} ressource(s) mise(s) à jour avec succès.</p>` : ''}
+        <p class="gho-missing-warn">Les ressources suivantes sont absentes de la liste et n'ont <strong>pas</strong> été importées :</p>
+        <ul class="gho-missing-list">${listHtml}</ul>
+        <p class="gho-missing-hint">Importez d'abord ces ressources via <strong>↑ Import Liste</strong>, puis relancez l'import GHO.</p>
+      </div>
+      <div class="gho-dialog-footer">
+        <button class="gho-dlg-save" onclick="document.getElementById('ghoMissingBackdrop').remove()">Fermer</button>
+      </div>
+    </div>`;
+  el.onclick = () => el.remove();
+  document.body.appendChild(el);
+}
+
 function parseGHOExcel(buffer) {
   try {
     if (typeof XLSX === 'undefined') {
@@ -602,64 +723,98 @@ function parseGHOExcel(buffer) {
     const ws = wb.Sheets[wb.SheetNames[0]];
     const raw = XLSX.utils.sheet_to_json(ws, { header: 1, defval: null });
 
-    /* Row 12 (index 11) = dates, col E+ (index 4+) */
-    const DATE_ROW = 11;
-    const DATA_START = 13;
-    const COL_RES = 1, COL_ACT = 2, COL_FIRST = 4;
+    if (raw.length < 2) { alert('Fichier vide ou format invalide.'); return; }
 
-    const dateRow = raw[DATE_ROW] || [];
-    const dates = [];
-    for (let c = COL_FIRST; c < dateRow.length; c++) {
-      const v = dateRow[c];
-      if (v != null) dates.push({ col: c, label: String(v).trim() });
-    }
-    if (!dates.length) { alert('Format GHO non reconnu — ligne 12 vide.'); return; }
+    /* ── Trouver la première ligne non-vide = en-têtes ── */
+    let headerRowIdx = 0;
+    while (headerRowIdx < raw.length && !(raw[headerRowIdx] || []).some(v => v != null)) headerRowIdx++;
+    const headerRaw = raw[headerRowIdx] || [];
+    const header = headerRaw.map(h => _normalizeExcelStr(h).toLowerCase());
 
-    /* Parse data rows */
-    const parsed = {}; // { resName → { actName → { dateLabel → minutes } } }
-    let curRes = null;
-    for (let ri = DATA_START; ri < raw.length; ri++) {
+    /* ── Détection flexible des colonnes clés ──
+       Les noms de colonnes peuvent évoluer → on cherche par mots-clés */
+    const _findCol = patterns => {
+      const idx = header.findIndex(h => patterns.some(p => p.test(h)));
+      return idx >= 0 ? idx : -1;
+    };
+
+    const colRes     = _findCol([/ressource|resource[\s_-]?user|\buser\b|\bnom\b/]);
+    const colProj    = _findCol([/scoped[\s_:]?with|activit[éye]|projet|project/]);
+    const colTaskId  = _findCol([/\bid[\s_-]?task\b|\btask[\s_-]?id\b/]);
+    const colTaskName= _findCol([/task[\s_:]*name|nom[\s_-]?t[aâ]che/]);
+
+    if (colRes < 0)  { alert('Colonne "Ressource" introuvable.\nNoms acceptés : "Resource User", "Ressource", "User", "Nom"…'); return; }
+    if (colProj < 0) { alert('Colonne "Projet" introuvable.\nNoms acceptés : "Scoped With", "Activity Name", "Projet", "Project"…'); return; }
+
+    /* ── Colonnes de dates : toutes les autres colonnes avec un en-tête parseable ── */
+    const reservedCols = new Set([colRes, colProj, colTaskId, colTaskName].filter(c => c >= 0));
+    const dateColumns  = [];
+    headerRaw.forEach((rawVal, i) => {
+      if (reservedCols.has(i)) return;
+      const key = _parseDateHeader(header[i], rawVal);
+      if (key) dateColumns.push({ col: i, key });
+    });
+
+    if (!dateColumns.length) { alert('Aucune colonne de date détectée.\nLes en-têtes doivent être au format JJ/MM/AAAA ou être des dates Excel.'); return; }
+
+    /* ── Lecture des lignes de données ── */
+    /* parsed : { resName → { projName → { taskKey → { taskId, taskName, daily } } } } */
+    const parsed = {};
+    for (let ri = headerRowIdx + 1; ri < raw.length; ri++) {
       const row = raw[ri];
       if (!row) continue;
-      const resCell = row[COL_RES];
-      const actCell = row[COL_ACT];
-      if (resCell != null && String(resCell).trim()) curRes = String(resCell).trim();
-      if (!curRes || actCell == null || !String(actCell).trim()) continue;
-      const actName = String(actCell).trim();
-      if (!parsed[curRes]) parsed[curRes] = {};
-      if (!parsed[curRes][actName]) parsed[curRes][actName] = {};
-      dates.forEach(({ col, label }) => {
+      const resName  = _normalizeExcelStr(row[colRes]);
+      const projName = _normalizeExcelStr(row[colProj]);
+      if (!resName || !projName) continue;
+
+      const taskId   = colTaskId   >= 0 ? _normalizeExcelStr(row[colTaskId])   : '';
+      const taskName = colTaskName >= 0 ? _normalizeExcelStr(row[colTaskName]) : '';
+      const tKey     = taskId || taskName || '__default__';
+
+      if (!parsed[resName])              parsed[resName]              = {};
+      if (!parsed[resName][projName])    parsed[resName][projName]    = {};
+      if (!parsed[resName][projName][tKey]) {
+        parsed[resName][projName][tKey] = { taskId, taskName: taskName || taskId, daily: {} };
+      }
+      const daily = parsed[resName][projName][tKey].daily;
+      dateColumns.forEach(({ col, key }) => {
         const v = row[col];
         const mins = (v != null && !isNaN(parseFloat(v))) ? parseFloat(v) : 0;
-        if (mins > 0) {
-          parsed[curRes][actName][label] = Math.round(((parsed[curRes][actName][label]||0) + mins) * 100) / 100;
-        }
+        if (mins > 0) daily[key] = Math.round(((daily[key] || 0) + mins) * 100) / 100;
       });
     }
 
-    const now = new Date();
+    /* ── Correspondance ressources : jamais de création ── */
+    const now        = new Date();
     const importDate = `${String(now.getDate()).padStart(2,'0')}/${String(now.getMonth()+1).padStart(2,'0')}/${now.getFullYear()}`;
-    let created = 0, updated = 0;
+    const missing    = [];
+    let   updated    = 0;
 
-    Object.entries(parsed).forEach(([resName, actMap]) => {
-      const hasData = Object.values(actMap).some(d => Object.values(d).some(v=>v>0));
-      if (!hasData) return;
-      let res = _findResourceByName(resName);
-      if (!res) {
-        res = { id: genResId(), fullName: resName, profession: '' };
-        resources.push(res);
-        created++;
-      } else { updated++; }
+    Object.entries(parsed).forEach(([resName, projMap]) => {
+      const res = _findResourceByName(resName);
+      if (!res) { missing.push(resName); return; }
 
-      const activities = Object.entries(actMap)
-        .map(([name, daily]) => ({ name, daily }))
-        .filter(a => Object.values(a.daily).some(v=>v>0));
-      res.ghoData = { importDate, activities };
+      const projects = Object.entries(projMap)
+        .map(([projName, taskMap]) => ({
+          name: projName,
+          tasks: Object.values(taskMap).filter(t => Object.values(t.daily).some(v => v > 0))
+        }))
+        .filter(p => p.tasks.length > 0);
+
+      if (projects.length) {
+        res.ghoData = { importDate, projects };
+        updated++;
+      }
     });
 
     saveResources();
     _refreshResView();
-    alert(`Import GHO ✓\n• ${created} ressource(s) créée(s)\n• ${updated} mise(s) à jour`);
+
+    if (missing.length > 0) {
+      _showMissingResPopup(missing, updated);
+    } else {
+      alert(`Import GHO ✓\n• ${updated} ressource(s) mise(s) à jour`);
+    }
   } catch(err) {
     console.error('GHO import error:', err);
     alert('Erreur import GHO : ' + err.message);
@@ -772,5 +927,11 @@ function getChargeForResourceDay(resourceId, date) {
   const r = resources.find(x => x.id === resourceId);
   if (!r || !r.ghoData) return 0;
   const key = _dayKey(date);
-  return (r.ghoData.activities||[]).reduce((s,a) => s+(a.daily[key]||0), 0);
+  /* Nouveau format : Projets → Tâches */
+  if (r.ghoData.projects) {
+    return r.ghoData.projects.reduce((s, p) =>
+      s + (p.tasks || []).reduce((ts, t) => ts + (t.daily[key] || 0), 0), 0);
+  }
+  /* Ancien format : Activités */
+  return (r.ghoData.activities || []).reduce((s, a) => s + (a.daily[key] || 0), 0);
 }

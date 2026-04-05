@@ -290,12 +290,11 @@
 }
 .gho-no-data { color: var(--muted); opacity: .5; font-style: italic; }
 
-/* ── Activity detail rows ── */
+/* ── Activity detail rows (ancien format) ── */
 .gho-row-act {
   border-top: 1px solid rgba(0,0,0,.06);
   background: var(--bg);
 }
-/* First activity row: stronger border below the total row */
 .gho-row-res + .gho-row-act {
   border-top: 2px solid var(--border);
 }
@@ -307,6 +306,93 @@
 .gho-td-res-empty {
   border-right: 1px solid var(--border);
 }
+
+/* ── Projet rows (nouveau format) ── */
+.gho-row-proj {
+  border-top: 2px solid var(--border);
+  background: var(--bg);
+}
+.gho-row-proj:hover .gho-sticky-res,
+.gho-row-proj:hover .gho-sticky-act { background: rgba(var(--accent-rgb, 236,114,6),.06); }
+.gho-td-proj-inner {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px 4px 16px;
+  cursor: pointer;
+  user-select: none;
+}
+.gho-td-proj-inner:hover { background: rgba(var(--accent-rgb, 236,114,6),.08); }
+.gho-proj-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text);
+}
+.gho-task-count {
+  font-size: 9px;
+  color: var(--muted);
+  white-space: nowrap;
+  opacity: .8;
+}
+
+/* ── Task rows (nouveau format) ── */
+.gho-row-task {
+  border-top: 1px solid rgba(0,0,0,.04);
+  background: var(--bg);
+}
+.gho-td-task-inner {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 8px 3px 28px;
+}
+.gho-task-id {
+  font-size: 9px;
+  font-family: 'Courier New', monospace;
+  color: var(--muted);
+  background: var(--surface2);
+  border-radius: 3px;
+  padding: 1px 4px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.gho-task-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 10px;
+  color: var(--text);
+}
+
+/* ── Popup ressources manquantes ── */
+.gho-dialog-wide { min-width: 380px; max-width: 520px; }
+.gho-missing-ok   { font-size: 11px; color: #2e7d32; margin: 0 0 6px; }
+.gho-missing-warn { font-size: 11px; color: var(--text); margin: 0 0 6px; }
+.gho-missing-hint { font-size: 10px; color: var(--muted); margin: 8px 0 0; }
+.gho-missing-list {
+  list-style: none;
+  padding: 6px 10px;
+  margin: 0;
+  background: var(--surface2);
+  border-radius: 4px;
+  max-height: 200px;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+}
+.gho-missing-item {
+  font-size: 11px;
+  color: var(--text);
+  padding: 3px 0;
+  border-bottom: 1px solid rgba(0,0,0,.05);
+}
+.gho-missing-item:last-child { border-bottom: none; }
 
 /* ── Day cells ── */
 .gho-td-day {
