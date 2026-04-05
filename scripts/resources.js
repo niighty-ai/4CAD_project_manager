@@ -676,14 +676,23 @@ function _findResourceByName(fullName) {
    FIREBASE RESSOURCES — save / load
    ══════════════════════════════════ */
 function scheduleFirebaseSaveResources() {
-  if (typeof window._fbSetResources !== 'function') return;
+  /* Ne pas vérifier _fbSetResources ici : on attendra qu'il soit dispo dans _doFirebaseSaveResources */
   clearTimeout(_fbResSaveTimer);
   _fbResSaveTimer = setTimeout(_doFirebaseSaveResources, 1500);
 }
 
 async function _doFirebaseSaveResources() {
   if (_fbResSaving) return;
-  if (typeof window._fbSetResources !== 'function') return;
+  /* Attendre que le SDK Firebase soit prêt (jusqu'à 15 s) */
+  let waited = 0;
+  while (typeof window._fbSetResources !== 'function' && waited < 15000) {
+    await new Promise(r => setTimeout(r, 300));
+    waited += 300;
+  }
+  if (typeof window._fbSetResources !== 'function') {
+    console.warn('[Resources] Firebase indisponible après 15 s — sauvegarde annulée');
+    return;
+  }
   _fbResSaving = true;
   try {
     _fbResLastSaveTs = Date.now();
@@ -701,24 +710,46 @@ async function _doFirebaseSaveResources() {
 function initResources() {
   loadResources(); // localStorage en premier (immédiat)
 
-  /* Attendre que le SDK Firebase soit prêt puis charger les ressources */
+  /* Attendre que le SDK Firebase soit prêt puis synchroniser */
   let _attempts = 0;
   const _iv = setInterval(() => {
     _attempts++;
     if (typeof window._fbOnValueResources === 'function') {
       clearInterval(_iv);
       window._fbOnValueResources(val => {
-        /* Ignorer les mises à jour en temps réel si on vient juste de sauvegarder */
+        /* Ignorer les mises à jour juste après notre propre sauvegarde */
         if (_fbResInitLoaded && (Date.now() - _fbResLastSaveTs) < 4000) return;
-        if (val && Array.isArray(val) && val.length) {
-          resources = _migrateResources(val);
+
+        const fbResources = (val && Array.isArray(val) && val.length)
+          ? _migrateResources(val)
+          : [];
+
+        if (!_fbResInitLoaded) {
+          /* Première connexion : décider quelle source est autoritaire */
+          _fbResInitLoaded = true;
+          if (fbResources.length > 0 && fbResources.length >= resources.length) {
+            /* Firebase a autant ou plus de données → utiliser Firebase */
+            resources = fbResources;
+            try { localStorage.setItem(RESOURCES_KEY, JSON.stringify(resources)); } catch(e) {}
+            if (document.getElementById('viewRessources')?.style.display !== 'none') {
+              _refreshResView();
+            }
+          } else if (resources.length > 0) {
+            /* localStorage a plus de données (import récent non encore sauvegardé) → pousser vers Firebase */
+            console.log(`[Resources] localStorage (${resources.length}) > Firebase (${fbResources.length}) — push vers Firebase`);
+            scheduleFirebaseSaveResources();
+          }
+          return;
+        }
+
+        /* Mises à jour temps réel d'un autre client */
+        if (fbResources.length) {
+          resources = fbResources;
           try { localStorage.setItem(RESOURCES_KEY, JSON.stringify(resources)); } catch(e) {}
-          /* Rafraîchir la vue si elle est active */
           if (document.getElementById('viewRessources')?.style.display !== 'none') {
             _refreshResView();
           }
         }
-        _fbResInitLoaded = true;
       });
     } else if (_attempts > 60) {
       clearInterval(_iv); // Firebase indisponible, localStorage suffit
