@@ -720,9 +720,13 @@ function initResources() {
         /* Ignorer les mises à jour juste après notre propre sauvegarde */
         if (_fbResInitLoaded && (Date.now() - _fbResLastSaveTs) < 4000) return;
 
-        const fbResources = (val && Array.isArray(val) && val.length)
-          ? _migrateResources(val)
-          : [];
+        /* Firebase Realtime DB convertit les arrays en objets {0:{…},1:{…}} —
+           on normalise en array dans tous les cas */
+        let fbResources = [];
+        if (val) {
+          const raw = Array.isArray(val) ? val : Object.values(val);
+          fbResources = _migrateResources(raw.filter(Boolean));
+        }
 
         if (!_fbResInitLoaded) {
           /* Première connexion : décider quelle source est autoritaire */

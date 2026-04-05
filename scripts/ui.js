@@ -1074,7 +1074,7 @@ function renderAffectList(r) {
 
   const rows_html = asgns.map((a, i) => {
     const resOpts = (typeof resources !== 'undefined' ? resources : []).map(res => {
-      const name = [res.prenom, res.nom].filter(Boolean).join(' ');
+      const name = res.fullName || [res.prenom, res.nom].filter(Boolean).join(' ') || '?';
       const sel  = a.resourceId === res.id ? 'selected' : '';
       return `<option value="${escH(res.id)}" ${sel}>${escH(name)}</option>`;
     }).join('');
@@ -1139,7 +1139,7 @@ function affectChangeRes(idx, resId) {
   if (!r.assignments) r.assignments = [];
   const res = (typeof resources !== 'undefined' ? resources : []).find(x => x.id === resId);
   r.assignments[idx].resourceId  = resId;
-  r.assignments[idx].resourceNom = res ? [res.prenom, res.nom].filter(Boolean).join(' ') : '?';
+  r.assignments[idx].resourceNom = res ? (res.fullName || [res.prenom, res.nom].filter(Boolean).join(' ') || '?') : '?';
   saveAndRefreshAffect(r);
 }
 
