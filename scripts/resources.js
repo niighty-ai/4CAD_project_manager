@@ -133,7 +133,7 @@ function _refreshResView() {
 function _buildResViewHTML() {
   const days = _getDaysOfYear(_resYear);
   const COL_W = 34;
-  const RES_W = 200, ACT_W = 240;
+  const RES_W = 200, ACT_W = 200, TASK_W = 240;
 
   const _lastImport = resources.reduce((best,r) =>
     r.ghoData?.importDate && r.ghoData.importDate > best ? r.ghoData.importDate : best, '');
@@ -151,10 +151,11 @@ function _buildResViewHTML() {
       </div>
     </div>
     <div class="gho-scroll-wrap" id="ghoScrollWrap">
-      <table class="gho-table" style="width:${RES_W+ACT_W+days.length*COL_W}px">
+      <table class="gho-table" style="width:${RES_W+ACT_W+TASK_W+days.length*COL_W}px">
         <colgroup>
           <col style="width:${RES_W}px">
           <col style="width:${ACT_W}px">
+          <col style="width:${TASK_W}px">
           ${days.map(()=>`<col style="width:${COL_W}px">`).join('')}
         </colgroup>
         <thead>
@@ -177,7 +178,8 @@ function _buildResViewHTML() {
                 </select>
               </div>
             </th>
-            <th class="gho-th-act gho-sticky-act" rowspan="2">ACTIVITÉ / PROJET</th>
+            <th class="gho-th-act gho-sticky-act" rowspan="2">PROJET</th>
+            <th class="gho-th-task gho-sticky-task" rowspan="2">TÂCHE</th>
             ${_buildMonthHeaders(days, COL_W)}
           </tr>
           <tr class="gho-thead-days">
@@ -236,7 +238,7 @@ function _buildRows(days) {
     } else {
       emptyMsg = 'Aucune ressource trouvée.';
     }
-    return `<tr><td colspan="${days.length+2}" class="gho-empty">${emptyMsg}</td></tr>`;
+    return `<tr><td colspan="${days.length+3}" class="gho-empty">${emptyMsg}</td></tr>`;
   }
 
   /* Pré-calcul des métadonnées par jour (1×365 au lieu de N×365) */
@@ -301,6 +303,7 @@ function _buildRows(days) {
             : '<span class="gho-no-data">—</span>'}
         </div>
       </td>
+      <td class="gho-td-task gho-sticky-task gho-td-empty"></td>
       ${r.ghoData?.projects
           ? dayMeta.map(m => mkDay(dayTotals, m, true)).join('')
           : dayMeta.map(m => mkDay(dayTotals, m)).join('')}
@@ -327,6 +330,7 @@ function _buildRows(days) {
                 <span class="gho-task-count">${p.tasks.length}&nbsp;tâche${p.tasks.length>1?'s':''}</span>
               </div>
             </td>
+            <td class="gho-td-task gho-sticky-task gho-td-empty"></td>
             ${dayMeta.map(m => mkDay(projTotals, m, true)).join('')}
           </tr>`;
 
@@ -335,7 +339,8 @@ function _buildRows(days) {
             const label = t.taskName || t.taskId || '—';
             rows += `<tr class="gho-row-task" data-rid="${r.id}">
               <td class="gho-td-res gho-td-res-empty gho-sticky-res"></td>
-              <td class="gho-td-act gho-sticky-act">
+              <td class="gho-td-act gho-td-empty gho-sticky-act"></td>
+              <td class="gho-td-task gho-sticky-task">
                 <div class="gho-td-task-inner">
                   ${t.taskId ? `<span class="gho-task-id">#${escH(t.taskId)}</span>` : ''}
                   <span class="gho-task-name" title="${escH(label)}">${escH(label)}</span>
@@ -353,6 +358,7 @@ function _buildRows(days) {
             <td class="gho-td-act gho-sticky-act">
               <div class="gho-td-act-name" title="${escH(a.name)}">${escH(a.name)}</div>
             </td>
+            <td class="gho-td-task gho-sticky-task gho-td-empty"></td>
             ${dayMeta.map(m => mkDay(a.daily, m)).join('')}
           </tr>`;
         });
@@ -666,23 +672,54 @@ function triggerGHOImport() {
   input.click();
 }
 
-/* ── Convertit une valeur (cellule ou en-tête) en clé "DD/MM/YYYY", ou null ── */
+/* ── Convertit une valeur de cellule en clé "DD/MM/YYYY", ou null ── */
 function _parseDateValue(rawVal) {
-  /* 1. Numéro de série Excel */
-  if (typeof rawVal === 'number' && rawVal > 20000 && rawVal < 80000) {
+  if (rawVal == null) return null;
+
+  /* 1. Numéro de série Excel (plage large pour couvrir 1950-2200) */
+  if (typeof rawVal === 'number' && rawVal > 1 && rawVal < 120000) {
     const d = new Date(Date.UTC(1900, 0, 1) + (rawVal - 2) * 86400000);
+    if (!isNaN(d.getTime())) {
+      return `${String(d.getUTCDate()).padStart(2,'0')}/${String(d.getUTCMonth()+1).padStart(2,'0')}/${d.getUTCFullYear()}`;
+    }
+  }
+
+  /* 2. Objet Date JS */
+  if (rawVal instanceof Date && !isNaN(rawVal.getTime())) {
+    return `${String(rawVal.getDate()).padStart(2,'0')}/${String(rawVal.getMonth()+1).padStart(2,'0')}/${rawVal.getFullYear()}`;
+  }
+
+  const s = _normalizeExcelStr(rawVal);
+  if (!s) return null;
+
+  /* Supprimer la partie heure si présente ("01/03/2026 00:00" ou "01/03/2026T00:00:00") */
+  const datePart = s.replace(/[\sT]\d{1,2}:\d{2}(:\d{2})?(\.\d+)?(Z|[+-]\d{2}:?\d{2})?$/, '').trim();
+
+  /* 3. DD/MM/YYYY, DD-MM-YYYY, DD.MM.YYYY (avec ou sans padding) */
+  let m = datePart.match(/^(\d{1,2})[\/\-\.\s](\d{1,2})[\/\-\.\s](\d{2,4})$/);
+  if (m) {
+    const d = parseInt(m[1]), mo = parseInt(m[2]);
+    const yyyy = m[3].length === 2 ? '20' + m[3] : m[3];
+    if (d >= 1 && d <= 31 && mo >= 1 && mo <= 12)
+      return `${String(d).padStart(2,'0')}/${String(mo).padStart(2,'0')}/${yyyy}`;
+  }
+
+  /* 4. YYYY-MM-DD ou YYYY/MM/DD */
+  m = datePart.match(/^(\d{4})[\/\-\.](\d{1,2})[\/\-\.](\d{1,2})$/);
+  if (m) {
+    const d = parseInt(m[3]), mo = parseInt(m[2]);
+    if (d >= 1 && d <= 31 && mo >= 1 && mo <= 12)
+      return `${String(d).padStart(2,'0')}/${String(mo).padStart(2,'0')}/${m[1]}`;
+  }
+
+  /* 5. Fallback Date.parse — réinterprète DD/MM → ISO avant de parser */
+  const iso = s.replace(/^(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{4})/, '$3-$2-$1');
+  const ts  = Date.parse(iso);
+  if (!isNaN(ts)) {
+    const d = new Date(ts);
     return `${String(d.getUTCDate()).padStart(2,'0')}/${String(d.getUTCMonth()+1).padStart(2,'0')}/${d.getUTCFullYear()}`;
   }
-  const s = _normalizeExcelStr(rawVal);
-  /* 2. DD/MM/YYYY ou DD-MM-YYYY ou DD.MM.YYYY */
-  let m = s.match(/^(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{2,4})$/);
-  if (m) {
-    const yyyy = m[3].length === 2 ? '20' + m[3] : m[3];
-    return `${m[1].padStart(2,'0')}/${m[2].padStart(2,'0')}/${yyyy}`;
-  }
-  /* 3. YYYY-MM-DD ou YYYY/MM/DD */
-  m = s.match(/^(\d{4})[\/\-\.](\d{1,2})[\/\-\.](\d{1,2})$/);
-  if (m) return `${m[3].padStart(2,'0')}/${m[2].padStart(2,'0')}/${m[1]}`;
+
   return null;
 }
 /* Alias pour la détection en en-tête (même logique) */

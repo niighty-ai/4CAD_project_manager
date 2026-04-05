@@ -165,24 +165,40 @@
   left: 200px;
   z-index: 3;
   background: var(--bg);
+}
+.gho-sticky-task {
+  position: sticky;
+  left: 400px; /* RES_W(200) + ACT_W(200) */
+  z-index: 3;
+  background: var(--bg);
   border-right: 2px solid var(--border) !important;
   box-shadow: 3px 0 6px rgba(0,0,0,.1);
 }
 /* Corner cells: sticky both top and left — highest z-index */
 .gho-table thead th.gho-sticky-res,
-.gho-table thead th.gho-sticky-act {
+.gho-table thead th.gho-sticky-act,
+.gho-table thead th.gho-sticky-task {
   z-index: 7;
   background: var(--surface2);
 }
 /* Row hover: keep sticky bg */
 .gho-row-res:hover .gho-sticky-res,
-.gho-row-res:hover .gho-sticky-act { background: var(--surface2); }
+.gho-row-res:hover .gho-sticky-act,
+.gho-row-res:hover .gho-sticky-task { background: var(--surface2); }
 .gho-row-act .gho-sticky-res,
-.gho-row-act .gho-sticky-act       { background: var(--bg); }
+.gho-row-act .gho-sticky-act,
+.gho-row-act .gho-sticky-task       { background: var(--bg); }
+.gho-row-proj .gho-sticky-res,
+.gho-row-proj .gho-sticky-act,
+.gho-row-proj .gho-sticky-task      { background: var(--bg); }
+.gho-row-task .gho-sticky-res,
+.gho-row-task .gho-sticky-act,
+.gho-row-task .gho-sticky-task      { background: var(--bg); }
 
 /* ── Column widths ── */
-.gho-th-res, .gho-td-res { width: 200px; min-width: 200px; }
-.gho-th-act, .gho-td-act { width: 240px; min-width: 240px; }
+.gho-th-res, .gho-td-res   { width: 200px; min-width: 200px; }
+.gho-th-act, .gho-td-act   { width: 200px; min-width: 200px; }
+.gho-th-task, .gho-td-task { width: 240px; min-width: 240px; }
 
 /* Rows aligned by single table — no JS sync needed */
 .gho-table tr { vertical-align: middle; }
@@ -345,11 +361,20 @@
   border-top: 1px solid rgba(0,0,0,.04);
   background: var(--bg);
 }
+/* Cellule vide (placeholder dans les colonnes non utilisées) */
+.gho-td-empty {
+  border-right: 1px solid var(--border);
+}
+.gho-td-task {
+  padding: 0;
+  vertical-align: middle;
+  overflow: hidden;
+}
 .gho-td-task-inner {
   display: flex;
   align-items: center;
   gap: 5px;
-  padding: 3px 8px 3px 28px;
+  padding: 3px 8px;
 }
 .gho-task-id {
   font-size: 9px;
