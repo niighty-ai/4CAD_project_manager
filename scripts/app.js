@@ -100,6 +100,8 @@ document.addEventListener('keydown',e=>{
   if(e.key==='Escape')closeEditPanel();
 }
 );
+/* Initialisation des ressources (localStorage + Firebase sync) */
+if (typeof initResources === 'function') initResources();
 (function waitForFbAndLoad(){
   let attempts = 0;
   const iv = setInterval(()=>{

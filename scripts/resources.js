@@ -694,11 +694,16 @@ async function _doFirebaseSaveResources() {
     return;
   }
   _fbResSaving = true;
+  if (typeof setFbStatus === 'function') setFbStatus('⏳ Sync ressources...', '#f7971e');
   try {
     _fbResLastSaveTs = Date.now();
     await window._fbSetResources(resources);
+    const now = new Date();
+    const hms = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+    if (typeof setFbStatus === 'function') setFbStatus('☁ ' + hms, '#2e7d32');
   } catch(e) {
     console.error('Firebase resources save error:', e);
+    if (typeof setFbStatus === 'function') setFbStatus('⚠ Erreur Firebase', '#e17055');
   } finally {
     _fbResSaving = false;
   }
