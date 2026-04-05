@@ -253,9 +253,12 @@ function _buildRows(days) {
     return { key, dc };
   });
 
-  const mkDay = (vals, meta) => {
-    const jours = (vals[meta.key]||0) / 480;
-    return `<td class="gho-td-day${meta.dc}">${jours>0 ? _fmtJ(jours) : ''}</td>`;
+  /* asJ=true : valeur déjà en jours (nouveau format projects)
+     asJ=false : valeur en minutes → /480 (ancien format activities) */
+  const mkDay = (vals, meta, asJ = false) => {
+    const raw = vals[meta.key] || 0;
+    const jours = asJ ? raw : raw / 480;
+    return `<td class="gho-td-day${meta.dc}">${jours > 0 ? _fmtJ(jours) : ''}</td>`;
   };
 
   return fr.map(r => {
@@ -298,12 +301,14 @@ function _buildRows(days) {
             : '<span class="gho-no-data">—</span>'}
         </div>
       </td>
-      ${dayMeta.map(m => mkDay(dayTotals, m)).join('')}
+      ${r.ghoData?.projects
+          ? dayMeta.map(m => mkDay(dayTotals, m, true)).join('')
+          : dayMeta.map(m => mkDay(dayTotals, m)).join('')}
     </tr>`;
 
     if (isExp) {
       if (r.ghoData?.projects) {
-        /* ── Nouveau format : lignes projet puis tâches ── */
+        /* ── Nouveau format : lignes projet puis tâches (valeurs en jours) ── */
         r.ghoData.projects.filter(p => p.tasks?.length > 0).forEach(p => {
           const projKey   = `${r.id}::${p.name}`;
           const isProjExp = _projExpanded.has(projKey);
@@ -322,7 +327,7 @@ function _buildRows(days) {
                 <span class="gho-task-count">${p.tasks.length}&nbsp;tâche${p.tasks.length>1?'s':''}</span>
               </div>
             </td>
-            ${dayMeta.map(m => mkDay(projTotals, m)).join('')}
+            ${dayMeta.map(m => mkDay(projTotals, m, true)).join('')}
           </tr>`;
 
           /* Lignes tâche (si projet déployé) */
@@ -336,12 +341,12 @@ function _buildRows(days) {
                   <span class="gho-task-name" title="${escH(label)}">${escH(label)}</span>
                 </div>
               </td>
-              ${dayMeta.map(m => mkDay(t.daily, m)).join('')}
+              ${dayMeta.map(m => mkDay(t.daily, m, true)).join('')}
             </tr>`;
           });
         });
       } else if (r.ghoData?.activities) {
-        /* ── Ancien format : lignes activité ── */
+        /* ── Ancien format : lignes activité (valeurs en minutes) ── */
         r.ghoData.activities.filter(a => Object.values(a.daily).some(v=>v>0)).forEach(a => {
           rows += `<tr class="gho-row-act" data-rid="${r.id}">
             <td class="gho-td-res gho-td-res-empty gho-sticky-res"></td>
@@ -661,31 +666,27 @@ function triggerGHOImport() {
   input.click();
 }
 
-/* ── Convertit un en-tête de colonne en clé "DD/MM/YYYY", ou null si non-date ── */
-function _parseDateHeader(headerStr, rawVal) {
-  /* 1. Valeur brute Excel : numéro de série de date */
+/* ── Convertit une valeur (cellule ou en-tête) en clé "DD/MM/YYYY", ou null ── */
+function _parseDateValue(rawVal) {
+  /* 1. Numéro de série Excel */
   if (typeof rawVal === 'number' && rawVal > 20000 && rawVal < 80000) {
-    /* Epoch Excel : 1er jan 1900 = 1 (avec le bug leap year 1900) → offset -2 */
     const d = new Date(Date.UTC(1900, 0, 1) + (rawVal - 2) * 86400000);
-    const dd = String(d.getUTCDate()).padStart(2,'0');
-    const mm = String(d.getUTCMonth()+1).padStart(2,'0');
-    return `${dd}/${mm}/${d.getUTCFullYear()}`;
+    return `${String(d.getUTCDate()).padStart(2,'0')}/${String(d.getUTCMonth()+1).padStart(2,'0')}/${d.getUTCFullYear()}`;
   }
-  const s = String(headerStr || '').trim();
+  const s = _normalizeExcelStr(rawVal);
   /* 2. DD/MM/YYYY ou DD-MM-YYYY ou DD.MM.YYYY */
   let m = s.match(/^(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{2,4})$/);
   if (m) {
-    const dd = m[1].padStart(2,'0'), mm2 = m[2].padStart(2,'0');
     const yyyy = m[3].length === 2 ? '20' + m[3] : m[3];
-    return `${dd}/${mm2}/${yyyy}`;
+    return `${m[1].padStart(2,'0')}/${m[2].padStart(2,'0')}/${yyyy}`;
   }
   /* 3. YYYY-MM-DD ou YYYY/MM/DD */
   m = s.match(/^(\d{4})[\/\-\.](\d{1,2})[\/\-\.](\d{1,2})$/);
-  if (m) {
-    return `${m[3].padStart(2,'0')}/${m[2].padStart(2,'0')}/${m[1]}`;
-  }
+  if (m) return `${m[3].padStart(2,'0')}/${m[2].padStart(2,'0')}/${m[1]}`;
   return null;
 }
+/* Alias pour la détection en en-tête (même logique) */
+const _parseDateHeader = _parseDateValue;
 
 function _showMissingResPopup(missingNames, updatedCount) {
   const existing = document.getElementById('ghoMissingBackdrop');
@@ -714,6 +715,9 @@ function _showMissingResPopup(missingNames, updatedCount) {
 }
 
 function parseGHOExcel(buffer) {
+  /* Format attendu (vertical) :
+     Resource User | Activity Name | ID Task | Task Name | Date | Charge (J)
+     Une ligne par jour/tâche. La charge est en jours (virgule décimale fr). */
   try {
     if (typeof XLSX === 'undefined') {
       alert('SheetJS non disponible — vérifiez le chargement de la librairie.');
@@ -728,37 +732,26 @@ function parseGHOExcel(buffer) {
     /* ── Trouver la première ligne non-vide = en-têtes ── */
     let headerRowIdx = 0;
     while (headerRowIdx < raw.length && !(raw[headerRowIdx] || []).some(v => v != null)) headerRowIdx++;
-    const headerRaw = raw[headerRowIdx] || [];
-    const header = headerRaw.map(h => _normalizeExcelStr(h).toLowerCase());
+    const header = (raw[headerRowIdx] || []).map(h => _normalizeExcelStr(h).toLowerCase());
 
-    /* ── Détection flexible des colonnes clés ──
-       Les noms de colonnes peuvent évoluer → on cherche par mots-clés */
-    const _findCol = patterns => {
+    /* ── Détection flexible des colonnes ── */
+    const _findCol = (patterns, label) => {
       const idx = header.findIndex(h => patterns.some(p => p.test(h)));
-      return idx >= 0 ? idx : -1;
+      if (idx < 0) { alert(`Colonne "${label}" introuvable dans le fichier.`); }
+      return idx;
     };
 
-    const colRes     = _findCol([/ressource|resource[\s_-]?user|\buser\b|\bnom\b/]);
-    const colProj    = _findCol([/scoped[\s_:]?with|activit[éye]|projet|project/]);
-    const colTaskId  = _findCol([/\bid[\s_-]?task\b|\btask[\s_-]?id\b/]);
-    const colTaskName= _findCol([/task[\s_:]*name|nom[\s_-]?t[aâ]che/]);
+    const colRes      = _findCol([/ressource|resource[\s_-]?user|\buser\b|\bnom\b/],         'Resource / Ressource');
+    const colProj     = _findCol([/activit[yé][\s_-]?name|scoped[\s_:]?with|activit[éye]|projet|project/], 'Activity Name / Projet');
+    const colTaskId   = _findCol([/\bid[\s_-]?task\b|\btask[\s_-]?id\b/],                    'ID Task');
+    const colTaskName = _findCol([/task[\s_:]+name|nom[\s_-]?t[aâ]che/],                      'Task Name');
+    const colDate     = _findCol([/\bdate\b/],                                                'Date');
+    const colCharge   = _findCol([/charge|effort|load|jours?\b/],                             'Charge (J)');
 
-    if (colRes < 0)  { alert('Colonne "Ressource" introuvable.\nNoms acceptés : "Resource User", "Ressource", "User", "Nom"…'); return; }
-    if (colProj < 0) { alert('Colonne "Projet" introuvable.\nNoms acceptés : "Scoped With", "Activity Name", "Projet", "Project"…'); return; }
+    if ([colRes, colProj, colDate, colCharge].some(c => c < 0)) return;
 
-    /* ── Colonnes de dates : toutes les autres colonnes avec un en-tête parseable ── */
-    const reservedCols = new Set([colRes, colProj, colTaskId, colTaskName].filter(c => c >= 0));
-    const dateColumns  = [];
-    headerRaw.forEach((rawVal, i) => {
-      if (reservedCols.has(i)) return;
-      const key = _parseDateHeader(header[i], rawVal);
-      if (key) dateColumns.push({ col: i, key });
-    });
-
-    if (!dateColumns.length) { alert('Aucune colonne de date détectée.\nLes en-têtes doivent être au format JJ/MM/AAAA ou être des dates Excel.'); return; }
-
-    /* ── Lecture des lignes de données ── */
-    /* parsed : { resName → { projName → { taskKey → { taskId, taskName, daily } } } } */
+    /* ── Lecture des lignes (format vertical : 1 ligne = 1 jour pour 1 tâche) ── */
+    /* parsed : { resName → { projName → { taskKey → { taskId, taskName, daily: {dateKey: jours} } } } } */
     const parsed = {};
     for (let ri = headerRowIdx + 1; ri < raw.length; ri++) {
       const row = raw[ri];
@@ -767,21 +760,25 @@ function parseGHOExcel(buffer) {
       const projName = _normalizeExcelStr(row[colProj]);
       if (!resName || !projName) continue;
 
+      /* Date de la ligne */
+      const dateKey = _parseDateValue(row[colDate]);
+      if (!dateKey) continue;
+
+      /* Charge en jours — séparateur décimal fr (virgule) ou en (point) */
+      const chargeRaw = row[colCharge];
+      const jours = parseFloat(String(chargeRaw ?? '').replace(',', '.'));
+      if (!jours || jours <= 0) continue;
+
       const taskId   = colTaskId   >= 0 ? _normalizeExcelStr(row[colTaskId])   : '';
       const taskName = colTaskName >= 0 ? _normalizeExcelStr(row[colTaskName]) : '';
       const tKey     = taskId || taskName || '__default__';
 
-      if (!parsed[resName])              parsed[resName]              = {};
-      if (!parsed[resName][projName])    parsed[resName][projName]    = {};
-      if (!parsed[resName][projName][tKey]) {
-        parsed[resName][projName][tKey] = { taskId, taskName: taskName || taskId, daily: {} };
-      }
+      if (!parsed[resName])                       parsed[resName]              = {};
+      if (!parsed[resName][projName])             parsed[resName][projName]    = {};
+      if (!parsed[resName][projName][tKey])       parsed[resName][projName][tKey] = { taskId, taskName: taskName || taskId, daily: {} };
+
       const daily = parsed[resName][projName][tKey].daily;
-      dateColumns.forEach(({ col, key }) => {
-        const v = row[col];
-        const mins = (v != null && !isNaN(parseFloat(v))) ? parseFloat(v) : 0;
-        if (mins > 0) daily[key] = Math.round(((daily[key] || 0) + mins) * 100) / 100;
-      });
+      daily[dateKey] = Math.round(((daily[dateKey] || 0) + jours) * 1000) / 1000;
     }
 
     /* ── Correspondance ressources : jamais de création ── */
@@ -796,7 +793,7 @@ function parseGHOExcel(buffer) {
 
       const projects = Object.entries(projMap)
         .map(([projName, taskMap]) => ({
-          name: projName,
+          name : projName,
           tasks: Object.values(taskMap).filter(t => Object.values(t.daily).some(v => v > 0))
         }))
         .filter(p => p.tasks.length > 0);
