@@ -36,7 +36,7 @@ function saveResources() {
 function loadResources() {
   try {
     const raw = localStorage.getItem(RESOURCES_KEY);
-    if (raw) resources = JSON.parse(raw);
+    if (raw) resources = _migrateResources(JSON.parse(raw));
   } catch(e) { resources = []; }
 }
 
@@ -45,10 +45,22 @@ function genResId() {
 }
 
 
-function getInitials(prenom, nom) {
-  const p = (prenom||'').trim()[0]||'';
-  const n = (nom||'').trim()[0]||'';
-  return (p + n).toUpperCase() || '?';
+function getInitials(fullName) {
+  return (fullName || '').trim().split(/\s+/)
+    .filter(w => /^[a-zA-ZÀ-ÿ]/i.test(w))
+    .slice(0, 2)
+    .map(w => w[0].toUpperCase())
+    .join('') || '?';
+}
+
+/* Migration données anciennes : {nom, prenom} → {fullName} */
+function _migrateResources(list) {
+  return (list || []).map(r => {
+    if (!r.fullName && (r.nom !== undefined || r.prenom !== undefined)) {
+      r = { ...r, fullName: [r.prenom, r.nom].filter(Boolean).join(' ') };
+    }
+    return r;
+  });
 }
 
 /* ══════════════════════════════════
@@ -194,11 +206,11 @@ function _filteredResources() {
   if (_resTypeFilter) {
     list = list.filter(r => (r.resourceType || '').toLowerCase() === _resTypeFilter.toLowerCase());
   }
-  /* Filtre texte (nom, prénom, ID) */
+  /* Filtre texte (nom complet, ID) */
   if (_resFilter) {
     const f = _resFilter.toLowerCase();
     list = list.filter(r =>
-      [r.prenom, r.nom].join(' ').toLowerCase().includes(f) ||
+      (r.fullName || '').toLowerCase().includes(f) ||
       (r.externalId || '').toLowerCase().includes(f)
     );
   }
@@ -245,7 +257,7 @@ function _buildRows(days) {
   };
 
   return fr.map(r => {
-    const fullName = [r.prenom, r.nom].filter(Boolean).join(' ') || '—';
+    const fullName = r.fullName || '—';
     const acts = (r.ghoData?.activities || []).filter(a => Object.values(a.daily).some(v=>v>0));
     const isExp = _resExpanded.has(r.id);
     const dayTotals = {};
@@ -256,7 +268,7 @@ function _buildRows(days) {
     let rows = `<tr class="gho-row-res" data-rid="${r.id}">
       <td class="gho-td-res gho-sticky-res" onclick="openResInfo('${r.id}')" title="Voir les infos">
         <div class="gho-td-res-inner">
-          <span class="gho-avatar">${getInitials(r.prenom, r.nom)}</span>
+          <span class="gho-avatar">${getInitials(r.fullName)}</span>
           <span class="gho-res-name">${escH(fullName)}</span>
         </div>
       </td>
@@ -354,10 +366,8 @@ function _buildResDialog() {
           <label class="gho-dlg-label">ID</label>
           <input class="gho-dlg-input gho-dlg-input-id" id="resInfoId" readonly tabindex="-1">
         </div>
-        <label class="gho-dlg-label">Prénom</label>
-        <input class="gho-dlg-input gho-dlg-input-id" id="resInfoPrenom" readonly tabindex="-1">
-        <label class="gho-dlg-label">Nom</label>
-        <input class="gho-dlg-input gho-dlg-input-id" id="resInfoNom" readonly tabindex="-1">
+        <label class="gho-dlg-label">Nom complet</label>
+        <input class="gho-dlg-input gho-dlg-input-id" id="resInfoFullName" readonly tabindex="-1">
         <label class="gho-dlg-label">Profession / Rôle</label>
         <input class="gho-dlg-input gho-dlg-input-id" id="resInfoProf" readonly tabindex="-1">
         <label class="gho-dlg-label">Type de ressource</label>
@@ -375,12 +385,11 @@ function openResInfo(id) {
   if (!backdrop) return;
   const r = resources.find(x => x.id === id);
   if (!r) return;
-  document.getElementById('resInfoTitle').textContent =
-    [r.prenom, r.nom].filter(Boolean).join(' ') || '—';
-  document.getElementById('resInfoPrenom').value = r.prenom       || '—';
-  document.getElementById('resInfoNom').value    = r.nom          || '—';
-  document.getElementById('resInfoProf').value   = r.profession   || '—';
-  document.getElementById('resInfoType').value   = r.resourceType || '—';
+  const name = r.fullName || '—';
+  document.getElementById('resInfoTitle').textContent = name;
+  document.getElementById('resInfoFullName').value    = name;
+  document.getElementById('resInfoProf').value        = r.profession   || '—';
+  document.getElementById('resInfoType').value        = r.resourceType || '—';
   const idRow = document.getElementById('resInfoIdRow');
   if (r.externalId) {
     document.getElementById('resInfoId').value = r.externalId;
@@ -449,17 +458,6 @@ function triggerListImport() {
   input.click();
 }
 
-function _parseNameParts(fullName) {
-  /* Détecte NOM (mots entièrement en majuscules) et prénom (reste) */
-  const parts = fullName.trim().split(/\s+/);
-  const nomParts    = parts.filter(p => p.length > 1 && p === p.toUpperCase() && !/\d/.test(p));
-  const prenomParts = parts.filter(p => !nomParts.includes(p));
-  return {
-    nom:    nomParts.join(' ')    || parts[parts.length - 1] || fullName,
-    prenom: prenomParts.join(' '),
-  };
-}
-
 /* Normalise une chaîne lue depuis Excel :
    - apostrophes typographiques (' ') → apostrophe standard (')
    - guillemets typographiques (" ") → guillemets droits (")
@@ -492,7 +490,8 @@ function parseListExcel(buffer) {
          1. Cherche la première colonne dont l'en-tête contient le mot-clé
          2. Si non trouvée, fallback sur la position (0=ID, 1=Nom, 2=Rôle)
        → l'import ne se bloque jamais sur un nom de colonne inattendu        */
-    const header = (raw[0] || []).map(h => String(h ?? '').trim().toLowerCase());
+    /* Normaliser les en-têtes (espaces insécables, apostrophes typographiques, etc.) */
+    const header = (raw[0] || []).map(h => _normalizeExcelStr(h).toLowerCase());
 
     const _findCol = (patterns, fallback) => {
       const idx = header.findIndex(h => patterns.some(p => p.test(h)));
@@ -532,20 +531,18 @@ function parseListExcel(buffer) {
     let created = 0, updated = 0, deleted = 0;
 
     for (const { externalId, fullName, profession, resourceType, key } of importRows) {
-      const { nom, prenom } = _parseNameParts(fullName);
       /* Correspondance par couple ID + Nom (normalisé) */
       const existing = resources.find(r =>
-        _matchKey(r.externalId || '', [r.prenom, r.nom].filter(Boolean).join(' ')) === key
+        _matchKey(r.externalId || '', r.fullName || '') === key
       );
       if (existing) {
-        existing.nom          = nom;
-        existing.prenom       = prenom;
+        existing.fullName     = fullName;
         existing.profession   = profession;
         existing.externalId   = externalId;
         existing.resourceType = resourceType || existing.resourceType || '';
         updated++;
       } else {
-        resources.push({ id: genResId(), externalId, nom, prenom, profession, resourceType: resourceType || '' });
+        resources.push({ id: genResId(), externalId, fullName, profession, resourceType: resourceType || '' });
         created++;
       }
     }
@@ -556,7 +553,7 @@ function parseListExcel(buffer) {
     const before = resources.length;
     resources = resources.filter(r => {
       if (!r.externalId) return true; // ressource manuelle → conserver
-      const key = _matchKey(r.externalId, [r.prenom, r.nom].filter(Boolean).join(' '));
+      const key = _matchKey(r.externalId, r.fullName || '');
       return importedKeys.has(key);
     });
     deleted = before - resources.length;
@@ -649,11 +646,7 @@ function parseGHOExcel(buffer) {
       if (!hasData) return;
       let res = _findResourceByName(resName);
       if (!res) {
-        /* Créer la ressource : détecter NOM (majuscules) et prénom */
-        const parts = resName.split(' ');
-        const nomParts   = parts.filter(p => p.length>1 && p === p.toUpperCase() && !/\d/.test(p));
-        const prenomParts = parts.filter(p => !nomParts.includes(p));
-        res = { id: genResId(), nom: nomParts.join(' ')||parts[parts.length-1], prenom: prenomParts.join(' '), profession: '' };
+        res = { id: genResId(), fullName: resName, profession: '' };
         resources.push(res);
         created++;
       } else { updated++; }
@@ -674,13 +667,9 @@ function parseGHOExcel(buffer) {
 }
 
 function _findResourceByName(fullName) {
-  const norm = s => s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim();
+  const norm = s => s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\s+/g,' ').trim();
   const t = norm(fullName);
-  return resources.find(r => {
-    const a = norm([r.prenom, r.nom].filter(Boolean).join(' '));
-    const b = norm([r.nom, r.prenom].filter(Boolean).join(' '));
-    return a===t || b===t;
-  }) || null;
+  return resources.find(r => norm(r.fullName || '') === t) || null;
 }
 
 /* ══════════════════════════════════
@@ -722,7 +711,7 @@ function initResources() {
         /* Ignorer les mises à jour en temps réel si on vient juste de sauvegarder */
         if (_fbResInitLoaded && (Date.now() - _fbResLastSaveTs) < 4000) return;
         if (val && Array.isArray(val) && val.length) {
-          resources = val;
+          resources = _migrateResources(val);
           try { localStorage.setItem(RESOURCES_KEY, JSON.stringify(resources)); } catch(e) {}
           /* Rafraîchir la vue si elle est active */
           if (document.getElementById('viewRessources')?.style.display !== 'none') {

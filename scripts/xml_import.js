@@ -44,16 +44,15 @@ function parseMSProjectXML(xmlText, projectName) {
     // On ignore la ressource "vide" (UID=0) et les ressources matérielles (Type=0)
     if (!uid || uid === '0' || type === '0' || !fullName) continue;
 
-    const { prenom, nom } = parseResourceName(fullName);
-
-    // Clé de correspondance : Prénom NOM normalisé
-    const normalizedKey = (prenom + ' ' + nom).toLowerCase().replace(/\s+/g, ' ').trim();
+    /* Normalisation pour la correspondance :
+       - supprime la partie profession après " - " (ex: "DUPONT Jean - Chef de projet")
+       - insensible à la casse et aux accents */
+    const _normResKey = s => s.split(/\s*[-–]\s*/)[0]
+      .toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ').trim();
+    const normalizedKey = _normResKey(fullName);
 
     const existing = (typeof resources !== 'undefined' && resources.length)
-      ? resources.find(r => {
-          const rKey = ((r.prenom || '') + ' ' + (r.nom || '')).toLowerCase().replace(/\s+/g, ' ').trim();
-          return rKey === normalizedKey;
-        })
+      ? resources.find(r => _normResKey(r.fullName || '') === normalizedKey)
       : null;
 
     if (existing) {
@@ -147,9 +146,7 @@ function parseMSProjectXML(xmlText, projectName) {
         const res   = typeof resources !== 'undefined'
           ? resources.find(r => r.id === appId)
           : null;
-        const resourceNom = res
-          ? [res.prenom, res.nom].filter(Boolean).join(' ')
-          : '?';
+        const resourceNom = res?.fullName || '?';
         return {
           xmlUid:         a.xmlUid || null,
           resourceId:     appId,
