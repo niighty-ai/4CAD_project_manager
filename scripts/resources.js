@@ -214,9 +214,15 @@ function _resTypes() {
 function _buildRows(days) {
   const fr = _filteredResources();
   if (!fr.length) {
-    return `<tr><td colspan="${days.length+2}" class="gho-empty">${
-      resources.length ? 'Aucune ressource trouvée.' : 'Aucune ressource — cliquez "+ Ressource".'
-    }</td></tr>`;
+    let emptyMsg;
+    if (!resources.length) {
+      emptyMsg = 'Aucune ressource — importez un fichier Excel via "↑ Import Liste".';
+    } else if (_resTypeFilter && !resources.some(r => (r.resourceType||'').toLowerCase() === _resTypeFilter.toLowerCase())) {
+      emptyMsg = `Aucune ressource de type &laquo;&nbsp;${escH(_resTypeFilter)}&nbsp;&raquo; — la colonne "Resource Type" n'a peut-être pas été détectée. Sélectionnez "Tous" pour voir toutes les ressources.`;
+    } else {
+      emptyMsg = 'Aucune ressource trouvée.';
+    }
+    return `<tr><td colspan="${days.length+2}" class="gho-empty">${emptyMsg}</td></tr>`;
   }
 
   /* Pré-calcul des métadonnées par jour (1×365 au lieu de N×365) */
@@ -401,7 +407,7 @@ function _attachResEvents() {
   if (wrap) {
     let isDragging = false, startX = 0, startY = 0, startSL = 0, startST = 0;
     wrap.addEventListener('mousedown', e => {
-      if (e.target.closest('button') || e.target.closest('input')) return;
+      if (e.target.closest('button') || e.target.closest('input') || e.target.closest('select')) return;
       isDragging = true;
       startX = e.pageX; startY = e.pageY;
       startSL = wrap.scrollLeft; startST = wrap.scrollTop;
