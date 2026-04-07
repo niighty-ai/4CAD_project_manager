@@ -538,7 +538,9 @@ function renderChart(layout,legend,visible,minD0,maxD0,today,leftHTML,mode,hasTr
             const cx=xOf(dc2);
             if(val>0){
               const txt=val%1===0?val.toFixed(0):parseFloat(val.toFixed(2)).toString();
-              const cls=val>=1?'c-over':val>=0.5?'c-high':'c-low';
+              const totalLoad = (typeof getChargeForResourceDay==='function' && a.resourceId)
+                ? getChargeForResourceDay(a.resourceId, dc2) : val;
+              const cls=totalLoad>1?'c-over':'';
               dayCells+=`<div class="gantt-daily-cell ${cls}" style="left:${cx}px;width:${dayWidth}px">${txt}</div>`;
             }
             dc2.setDate(dc2.getDate()+1);

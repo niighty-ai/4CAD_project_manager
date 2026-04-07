@@ -419,18 +419,15 @@ function _buildMonthHeaders(days, colW) {
 }
 
 function _fmtJ(jours) {
-  /* Format charge in jours, with color class */
+  /* Format charge in jours: red if >= 1, white otherwise */
   const v = Math.round(jours * 100) / 100;
   const txt = v % 1 === 0 ? v.toFixed(0) : v.toFixed(2).replace(/\.?0+$/,'');
-  let cls = 'gho-cell';
-  if (jours >= 1) cls += ' c-over';
-  else if (jours >= 0.5) cls += ' c-high';
-  else cls += ' c-low';
+  const cls = jours >= 1 ? 'gho-cell c-over' : 'gho-cell c-ok';
   return `<span class="${cls}">${txt}</span>`;
 }
 
 function _fmtJRes(jours) {
-  /* Format charge for resource total row: white if <= 1, red if > 1 */
+  /* Format charge for resource total row: red if > 1 (overloaded), white otherwise */
   const v = Math.round(jours * 100) / 100;
   const txt = v % 1 === 0 ? v.toFixed(0) : v.toFixed(2).replace(/\.?0+$/,'');
   const cls = jours > 1 ? 'gho-cell c-over' : 'gho-cell c-ok';

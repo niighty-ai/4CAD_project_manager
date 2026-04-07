@@ -1098,12 +1098,9 @@
   box-sizing: border-box;
   pointer-events: none;
 }
+.gantt-daily-cell          { color: var(--text-muted, #666); }
 .gantt-daily-cell.c-over  { background: rgba(220, 53, 69, .18); color: #c0392b; }
-.gantt-daily-cell.c-high  { background: rgba(236,114,  6, .15); color: var(--accent); }
-.gantt-daily-cell.c-low   { background: rgba(114,182,236, .18); color: var(--blue); }
 [data-theme="dark"] .gantt-daily-cell.c-over { background: rgba(220,53,69,.25); color: #e74c3c; }
-[data-theme="dark"] .gantt-daily-cell.c-high { background: rgba(236,114,6,.22); color: #f39c12; }
-[data-theme="dark"] .gantt-daily-cell.c-low  { background: rgba(114,182,236,.22); color: #72b6ec; }
 
 /* ── Barre supérieure du Gantt (titre + toolbar sur la même ligne) ── */
 .gantt-topbar {
