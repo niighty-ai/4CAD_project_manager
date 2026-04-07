@@ -1250,6 +1250,30 @@
 [data-theme="dark"] .res-charge-pop { background: #1e1e2e; border-color: #333; }
 [data-theme="dark"] .rcp-table thead th { background: #252535; }
 
+/* ── Popup : modifications en attente ── */
+.rcp-table tbody tr.rcp-pending td { background: rgba(59,130,246,.10); }
+.rcp-table tbody tr.rcp-pending:hover td { background: rgba(59,130,246,.18); }
+.rcp-table tbody tr.rcp-pending .rcp-charge { color: #2563eb; }
+[data-theme="dark"] .rcp-table tbody tr.rcp-pending td { background: rgba(59,130,246,.18); }
+[data-theme="dark"] .rcp-table tbody tr.rcp-pending .rcp-charge { color: #60a5fa; }
+.rcp-pending-badge {
+  display: inline-block;
+  margin-left: 5px;
+  font-size: 11px;
+  color: #2563eb;
+  font-weight: 700;
+  vertical-align: middle;
+}
+.rcp-pending-hint {
+  padding: 3px 10px 5px;
+  font-size: 10px;
+  color: #2563eb;
+  font-style: italic;
+  border-top: 1px solid rgba(59,130,246,.2);
+  background: rgba(59,130,246,.05);
+}
+[data-theme="dark"] .rcp-pending-hint { color: #60a5fa; background: rgba(59,130,246,.12); }
+
 /* ── Barre supérieure du Gantt (titre + toolbar sur la même ligne) ── */
 .gantt-topbar {
   display: flex;

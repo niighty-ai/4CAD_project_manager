@@ -675,28 +675,73 @@ function showResChargeTip(e,resourceId,dateKey,resourceNom){
   if(_ganttDragging){hideResChargeTip();return;}
   clearTimeout(_rcpHideTimer);
   const pop=_ensureResChargePop();
-  const data=(typeof getTasksForResourceDay==='function')
+
+  /* ── Données GHO sauvegardées ── */
+  const gho=(typeof getTasksForResourceDay==='function')
     ?getTasksForResourceDay(resourceId,dateKey):{total:0,tasks:[]};
-  /* Précision 4 décimales dans la popup, heures entre parenthèses */
+
+  /* ── Éditions en cours (non sauvegardées) pour cette ressource + ce jour ── */
+  const pending={};   // ri → {charge, projet, tache}
+  if(typeof _ganttEdits!=='undefined'){
+    Object.entries(_ganttEdits).forEach(([ek,charge])=>{
+      const f=ek.indexOf('::'),l=ek.lastIndexOf('::');
+      const ri=parseInt(ek.slice(0,f));
+      const rsid=ek.slice(f+2,l);
+      const dk=ek.slice(l+2);
+      if(rsid!==resourceId||dk!==dateKey) return;
+      const row=(typeof rows!=='undefined')&&rows[ri];
+      if(!row) return;
+      pending[ri]={charge,projet:row.projet||'—',tache:row.tache||'—'};
+    });
+  }
+  const hasPending=Object.keys(pending).length>0;
+
+  /* ── Fusion : GHO + éditions en cours ──
+     Pour chaque ligne GHO : si une édition concerne le même projet+tâche,
+     remplacer la charge et marquer comme modifiée.
+     Les éditions sans correspondance GHO sont ajoutées en fin de liste. */
+  const usedRi=new Set();
+  const merged=gho.tasks.map(t=>{
+    const riKey=Object.keys(pending).find(k=>
+      pending[k].projet===t.projet&&pending[k].tache===t.tache);
+    if(riKey!==undefined){
+      usedRi.add(riKey);
+      return{...t,charge:pending[riKey].charge,edited:true};
+    }
+    return{...t,edited:false};
+  });
+  /* Nouvelles lignes uniquement dans _ganttEdits (tâche inconnue du GHO) */
+  Object.entries(pending).forEach(([ri,ed])=>{
+    if(!usedRi.has(ri)&&ed.charge>0)
+      merged.push({projet:ed.projet,tache:ed.tache,charge:ed.charge,edited:true});
+  });
+
+  /* ── Recalcul total avec éditions ── */
+  const total=Math.round(merged.reduce((s,t)=>s+(t.charge||0),0)*10000)/10000;
+  const libre=Math.max(0,Math.round((1-total)*10000)/10000);
+
   const fv=v=>{const r=Math.round(v*10000)/10000;return(r%1===0?r.toFixed(0):r.toFixed(4).replace(/\.?0+$/,''))+'j';};
   const fh=v=>{const h=Math.round(v*8*100)/100;return'('+(h%1===0?h.toFixed(0):h.toFixed(2).replace(/\.?0+$/,''))+'h)';};
-  const libre=Math.max(0,Math.round((1-data.total)*10000)/10000);
+  const libre_val=libre;
   const [dd,mm,yyyy]=dateKey.split('/');
-  const rows=data.tasks.map(t=>`<tr>
+
+  const rowsHtml=merged.map(t=>`<tr${t.edited?' class="rcp-pending"':''}>
     <td class="rcp-proj" title="${escH(t.projet)}">${escH(t.projet)}</td>
     <td class="rcp-task" title="${escH(t.tache)}">${escH(t.tache)}</td>
     <td class="rcp-charge">${fv(t.charge)}&thinsp;<span class="rcp-h">${fh(t.charge)}</span></td>
   </tr>`).join('');
+
   pop.innerHTML=`
-    <div class="rcp-header-res">${escH(resourceNom||resourceId)}</div>
+    <div class="rcp-header-res">${escH(resourceNom||resourceId)}${hasPending?'<span class="rcp-pending-badge" title="Modifications non sauvegardées">✎</span>':''}</div>
     <div class="rcp-date">${dd}/${mm}/${yyyy}</div>
-    <div class="rcp-summary${data.total>1?' rcp-over':''}">
-      <span>Total&nbsp;<strong>${fv(data.total)}</strong>&thinsp;<span class="rcp-h">${fh(data.total)}</span></span>
-      <span class="rcp-libre">Libre&nbsp;<strong>${fv(libre)}</strong>&thinsp;<span class="rcp-h">${fh(libre)}</span></span>
+    <div class="rcp-summary${total>1?' rcp-over':''}${hasPending?' rcp-has-pending':''}">
+      <span>Total&nbsp;<strong>${fv(total)}</strong>&thinsp;<span class="rcp-h">${fh(total)}</span></span>
+      <span class="rcp-libre">Libre&nbsp;<strong>${fv(libre_val)}</strong>&thinsp;<span class="rcp-h">${fh(libre_val)}</span></span>
     </div>
-    ${data.tasks.length?`<div class="rcp-scroll"><table class="rcp-table">
+    ${hasPending?'<div class="rcp-pending-hint">✎ Modifications non sauvegardées</div>':''}
+    ${merged.length?`<div class="rcp-scroll"><table class="rcp-table">
       <thead><tr><th>Projet</th><th>Tâche</th><th>Charge</th></tr></thead>
-      <tbody>${rows}</tbody>
+      <tbody>${rowsHtml}</tbody>
     </table></div>`:'<div class="rcp-empty">Aucune tâche</div>'}`;
   /* Affichage hors-écran pour mesurer la taille réelle */
   pop.style.visibility='hidden';
