@@ -606,6 +606,25 @@ function openEditPanel(rowIdx){
     document.getElementById('epDeleteBtn').style.display='none';
     _epSetTacheRequired(true);
   }
+  /* ── Task ID externe + badge de synchronisation ── */
+  const _extIdGrp   = document.getElementById('epExternalIdGroup');
+  const _extIdInput = document.getElementById('epExternalId');
+  const _syncBadge  = document.getElementById('epSyncBadge');
+  if (_extIdGrp && _extIdInput) {
+    const extId = (epMode === 'edit') ? (rows[epEditingIdx]?.externalTaskId || null) : null;
+    if (extId) {
+      _extIdInput.value  = extId;
+      _extIdGrp.style.display = '';
+      if (_syncBadge) {
+        const synced = typeof _isTaskSyncedWithGho === 'function' && _isTaskSyncedWithGho(extId);
+        _syncBadge.style.display = synced ? 'inline-flex' : 'none';
+      }
+    } else {
+      _extIdGrp.style.display = 'none';
+      if (_syncBadge) _syncBadge.style.display = 'none';
+    }
+  }
+
   panel.classList.add('open');
   _showBackdrop();
   setTimeout(()=>document.getElementById('epTache').focus(), 230);
