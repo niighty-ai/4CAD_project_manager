@@ -541,7 +541,7 @@ function renderChart(layout,legend,visible,minD0,maxD0,today,leftHTML,mode,hasTr
               const totalLoad = (typeof getChargeForResourceDay==='function' && a.resourceId)
                 ? getChargeForResourceDay(a.resourceId, dc2) : val;
               const cls=totalLoad>1?'c-over':'';
-              dayCells+=`<div class="gantt-daily-cell ${cls}" style="left:${cx}px;width:${dayWidth}px" onmouseenter="showResChargeTip(event,${JSON.stringify(a.resourceId)},${JSON.stringify(k)})" onmouseleave="_hideResChargeTipDelay()">${txt}</div>`;
+              dayCells+=`<div class="gantt-daily-cell ${cls}" style="left:${cx}px;width:${dayWidth}px" onmouseenter="showResChargeTip(event,${escH(JSON.stringify(a.resourceId))},${escH(JSON.stringify(k))})" onmouseleave="_hideResChargeTipDelay()">${txt}</div>`;
             }
             dc2.setDate(dc2.getDate()+1);
           }

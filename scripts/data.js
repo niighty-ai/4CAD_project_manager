@@ -133,7 +133,15 @@ function _serializePortfolio(data){
         const{_srcPid,...rest}=r;
         return{...rest,
           debut:r.debut?r.debut.toISOString():null,
-          fin:r.fin?r.fin.toISOString():null
+          fin:r.fin?r.fin.toISOString():null,
+          assignments:(Array.isArray(r.assignments)?r.assignments:[]).map(a=>({
+            ...a,
+            debut:a.debut instanceof Date?a.debut.toISOString():(a.debut||null),
+            fin:  a.fin   instanceof Date?a.fin.toISOString()  :(a.fin  ||null),
+            daily:a.daily?Object.fromEntries(
+              Object.entries(a.daily).map(([k,v])=>[k.replace(/\//g,'-'),v])
+            ):{}
+          }))
         };
       }),
     jalons: (p.jalons||[]).map(j=>{const{_srcPid,...rest}=j;return{...rest,
@@ -177,7 +185,15 @@ function _deserializePortfolio(data){
     rows: (p.rows||[]).filter(r=>r._type!=='jalon').map(r=>({
       ...r,
       debut: r.debut ? new Date(r.debut) : null,
-      fin:   r.fin   ? new Date(r.fin)   : null
+      fin:   r.fin   ? new Date(r.fin)   : null,
+      assignments: (Array.isArray(r.assignments)?r.assignments:[]).map(a=>({
+        ...a,
+        debut: a.debut ? new Date(a.debut) : null,
+        fin:   a.fin   ? new Date(a.fin)   : null,
+        daily: a.daily ? Object.fromEntries(
+          Object.entries(a.daily).map(([k,v])=>[k.includes('/')?k:k.replace(/-/g,'/'),v])
+        ) : {}
+      }))
     })),
     jalons: (p.jalons||[]).map(j=>({
       ...j,
