@@ -1169,6 +1169,7 @@
 .rcp-task  { white-space: normal; word-break: break-word; }
 .rcp-charge { text-align: right; font-weight: 700; white-space: nowrap; }
 .rcp-empty { padding: 8px 10px; color: var(--muted, #aaa); font-style: italic; }
+.rcp-h { color: var(--muted, #999); font-weight: 400; font-size: 10px; }
 [data-theme="dark"] .res-charge-pop { background: #1e1e2e; border-color: #333; }
 [data-theme="dark"] .rcp-table thead th { background: #252535; }
 

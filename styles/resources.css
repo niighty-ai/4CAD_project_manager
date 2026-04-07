@@ -74,6 +74,20 @@
   text-align: center;
 }
 
+.gho-btn-unit {
+  padding: 4px 10px;
+  border-radius: 4px;
+  border: 1px solid rgba(180,130,255,.5);
+  background: rgba(180,130,255,.1);
+  color: var(--text);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all .12s;
+}
+.gho-btn-unit:hover  { background: rgba(180,130,255,.25); }
+.gho-btn-unit.active { background: rgba(180,130,255,.3); border-color: rgba(180,130,255,.8); }
+
 .gho-btn-import-list {
   padding: 4px 10px;
   border-radius: 4px;

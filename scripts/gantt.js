@@ -616,20 +616,22 @@ function showResChargeTip(e,resourceId,dateKey,resourceNom){
   const pop=_ensureResChargePop();
   const data=(typeof getTasksForResourceDay==='function')
     ?getTasksForResourceDay(resourceId,dateKey):{total:0,tasks:[]};
-  const fv=v=>{const r=Math.round(v*100)/100;return r%1===0?r.toFixed(0):r.toFixed(2).replace(/\.?0+$/,'');};
-  const libre=Math.max(0,Math.round((1-data.total)*100)/100);
+  /* Précision 4 décimales dans la popup, heures entre parenthèses */
+  const fv=v=>{const r=Math.round(v*10000)/10000;return(r%1===0?r.toFixed(0):r.toFixed(4).replace(/\.?0+$/,''))+'j';};
+  const fh=v=>{const h=Math.round(v*8*100)/100;return'('+(h%1===0?h.toFixed(0):h.toFixed(2).replace(/\.?0+$/,''))+'h)';};
+  const libre=Math.max(0,Math.round((1-data.total)*10000)/10000);
   const [dd,mm,yyyy]=dateKey.split('/');
   const rows=data.tasks.map(t=>`<tr>
     <td class="rcp-proj" title="${escH(t.projet)}">${escH(t.projet)}</td>
     <td class="rcp-task" title="${escH(t.tache)}">${escH(t.tache)}</td>
-    <td class="rcp-charge">${fv(t.charge)}j</td>
+    <td class="rcp-charge">${fv(t.charge)}&thinsp;<span class="rcp-h">${fh(t.charge)}</span></td>
   </tr>`).join('');
   pop.innerHTML=`
     <div class="rcp-header-res">${escH(resourceNom||resourceId)}</div>
     <div class="rcp-date">${dd}/${mm}/${yyyy}</div>
     <div class="rcp-summary${data.total>1?' rcp-over':''}">
-      <span>Total&nbsp;<strong>${fv(data.total)}j</strong></span>
-      <span class="rcp-libre">Libre&nbsp;<strong>${fv(libre)}j</strong></span>
+      <span>Total&nbsp;<strong>${fv(data.total)}</strong>&thinsp;<span class="rcp-h">${fh(data.total)}</span></span>
+      <span class="rcp-libre">Libre&nbsp;<strong>${fv(libre)}</strong>&thinsp;<span class="rcp-h">${fh(libre)}</span></span>
     </div>
     ${data.tasks.length?`<div class="rcp-scroll"><table class="rcp-table">
       <thead><tr><th>Projet</th><th>Tâche</th><th>Charge</th></tr></thead>

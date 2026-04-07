@@ -27,6 +27,7 @@ const _resExpanded = new Set();
 const _projExpanded = new Set();
 let _resFilter     = '';           // filtre texte recherche
 let _resTypeFilter = 'Employee';   // filtre type de ressource (défaut : Employee)
+let _resUnitH      = false;        // false = jours, true = heures (affichage seulement)
 
 /* ── Année affichée ── */
 let _resYear = new Date().getFullYear();
@@ -177,6 +178,7 @@ function _buildResViewHTML() {
         <span class="gho-year-label">${_resYear}</span>
         <button class="gho-btn-year" onclick="_resYear++;_refreshResView()">${_resYear+1} ›</button>
         ${_lastImport ? `<span class="gho-last-import">↑ GHO : ${_lastImport}</span>` : ''}
+        <button class="gho-btn-unit${_resUnitH?' active':''}" id="btnResUnit" onclick="_toggleResUnit()">${_resUnitH?'Jours':'Heures'}</button>
         <button class="gho-btn-import-list" onclick="triggerListImport()">↑ Import Liste</button>
         <button class="gho-btn-import" onclick="triggerGHOImport()">↑ Import GHO</button>
       </div>
@@ -418,20 +420,37 @@ function _buildMonthHeaders(days, colW) {
   ).join('');
 }
 
-function _fmtJ(jours) {
-  /* Format charge in jours: red if >= 1, white otherwise */
+function _fmtCellVal(jours) {
+  /* Affichage cellule : max 2 décimales, unité selon _resUnitH */
+  if (_resUnitH) {
+    const h = Math.round(jours * 8 * 100) / 100;
+    const txt = h % 1 === 0 ? h.toFixed(0) : h.toFixed(2).replace(/\.?0+$/,'');
+    return txt + 'h';
+  }
   const v = Math.round(jours * 100) / 100;
-  const txt = v % 1 === 0 ? v.toFixed(0) : v.toFixed(2).replace(/\.?0+$/,'');
+  return v % 1 === 0 ? v.toFixed(0) : v.toFixed(2).replace(/\.?0+$/,'');
+}
+
+function _fmtJ(jours) {
+  /* Tâche / projet : rouge si >= 1j */
   const cls = jours >= 1 ? 'gho-cell c-over' : 'gho-cell c-ok';
-  return `<span class="${cls}">${txt}</span>`;
+  return `<span class="${cls}">${_fmtCellVal(jours)}</span>`;
 }
 
 function _fmtJRes(jours) {
-  /* Format charge for resource total row: red if > 1 (overloaded), white otherwise */
-  const v = Math.round(jours * 100) / 100;
-  const txt = v % 1 === 0 ? v.toFixed(0) : v.toFixed(2).replace(/\.?0+$/,'');
+  /* Total ressource : rouge si > 1j */
   const cls = jours > 1 ? 'gho-cell c-over' : 'gho-cell c-ok';
-  return `<span class="${cls}">${txt}</span>`;
+  return `<span class="${cls}">${_fmtCellVal(jours)}</span>`;
+}
+
+function _toggleResUnit() {
+  _resUnitH = !_resUnitH;
+  const btn = document.getElementById('btnResUnit');
+  if (btn) {
+    btn.textContent = _resUnitH ? 'Jours' : 'Heures';
+    btn.classList.toggle('active', _resUnitH);
+  }
+  _refreshTbody();
 }
 
 function _toggleRes(id) {
