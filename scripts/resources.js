@@ -1240,9 +1240,21 @@ function syncGanttFromResources(silent = false) {
     return;
   }
 
-  const taskRows = rows.filter(r => r._type === 'tache' && r.externalTaskId);
+  /* ── Étape 1 : vider TOUTES les affectations sur TOUTES les tâches ──
+     Le Sync Charge est un reset complet : les charges saisies manuellement
+     sont effacées, seules les données GHO feront foi après la sync.        */
+  rows.filter(r => r._type === 'tache').forEach(r => { r.assignments = []; });
+
+  /* Vider aussi les éditions en attente (non encore sauvegardées) */
+  if (typeof _ganttEdits !== 'undefined') {
+    Object.keys(_ganttEdits).forEach(k => delete _ganttEdits[k]);
+    if (typeof _updateSaveBtn === 'function') _updateSaveBtn();
+  }
+
+  /* ── Étape 2 : repeupler depuis GHO (toutes tâches, avec ou sans externalTaskId) ── */
+  const taskRows = rows.filter(r => r._type === 'tache');
   if (!taskRows.length) {
-    if (!silent) alert('Aucune tâche avec un Task ID dans ce Gantt.\nImportez un fichier XML MS Project pour associer les IDs.');
+    if (!silent) alert('Aucune tâche dans ce Gantt.');
     return;
   }
 
@@ -1256,8 +1268,16 @@ function syncGanttFromResources(silent = false) {
       (proj.tasks || []).forEach(t => {
         if (!t.taskId) return;
 
-        /* Trouver la tâche Gantt correspondante */
-        const matchedRow = taskRows.find(r => _matchTaskId(r.externalTaskId, t.taskId));
+        /* Trouver la tâche Gantt correspondante :
+           1) par externalTaskId (tâches importées XML)
+           2) par nom de tâche (tâches créées manuellement) */
+        let matchedRow = null;
+        if (typeof _matchTaskId === 'function') {
+          matchedRow = taskRows.find(r => r.externalTaskId && _matchTaskId(r.externalTaskId, t.taskId));
+        }
+        if (!matchedRow) {
+          matchedRow = taskRows.find(r => (r.tache || '') === (t.taskName || '') && r.projet === proj.name);
+        }
         if (!matchedRow) return;
         matchCount++;
 
@@ -1300,7 +1320,7 @@ function syncGanttFromResources(silent = false) {
   });
 
   if (matchCount === 0) {
-    if (!silent) alert('Aucune correspondance trouvée entre les Task IDs du Gantt et les données ressources.\nVérifiez que les IDs correspondent (champ ExtendedAttribute du XML).');
+    if (!silent) alert('Aucune correspondance trouvée entre les tâches du Gantt et les données ressources.');
     return;
   }
 
