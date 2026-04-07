@@ -541,7 +541,7 @@ function renderChart(layout,legend,visible,minD0,maxD0,today,leftHTML,mode,hasTr
               const totalLoad = (typeof getChargeForResourceDay==='function' && a.resourceId)
                 ? getChargeForResourceDay(a.resourceId, dc2) : val;
               const cls=totalLoad>1?'c-over':'';
-              dayCells+=`<div class="gantt-daily-cell ${cls}" style="left:${cx}px;width:${dayWidth}px" onmouseenter="showResChargeTip(event,${escH(JSON.stringify(a.resourceId))},${escH(JSON.stringify(k))})" onmouseleave="_hideResChargeTipDelay()">${txt}</div>`;
+              dayCells+=`<div class="gantt-daily-cell ${cls}" style="left:${cx}px;width:${dayWidth}px" onmouseenter="showResChargeTip(event,${escH(JSON.stringify(a.resourceId))},${escH(JSON.stringify(k))},${escH(JSON.stringify(a.resourceNom||a.resourceId||''))})" onmouseleave="_hideResChargeTipDelay()">${txt}</div>`;
             }
             dc2.setDate(dc2.getDate()+1);
           }
@@ -611,7 +611,7 @@ function _ensureResChargePop(){
   }
   return pop;
 }
-function showResChargeTip(e,resourceId,dateKey){
+function showResChargeTip(e,resourceId,dateKey,resourceNom){
   clearTimeout(_rcpHideTimer);
   const pop=_ensureResChargePop();
   const data=(typeof getTasksForResourceDay==='function')
@@ -625,6 +625,7 @@ function showResChargeTip(e,resourceId,dateKey){
     <td class="rcp-charge">${fv(t.charge)}j</td>
   </tr>`).join('');
   pop.innerHTML=`
+    <div class="rcp-header-res">${escH(resourceNom||resourceId)}</div>
     <div class="rcp-date">${dd}/${mm}/${yyyy}</div>
     <div class="rcp-summary${data.total>1?' rcp-over':''}">
       <span>Total&nbsp;<strong>${fv(data.total)}j</strong></span>
