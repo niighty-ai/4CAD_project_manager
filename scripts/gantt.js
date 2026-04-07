@@ -63,6 +63,26 @@ let _gcpCtx       = null;        // contexte de l'éditeur popup
 let _ganttChartMinD = null;      // date de début du chart (pour calcul survol)
 let _ganttDragging  = false;     // true pendant le drag du calendrier
 
+/* Calcule le total de charge pour une ressource+jour en incluant les _ganttEdits en attente */
+function _pendingTotalForResourceDay(rsid, dk){
+  // Base GHO sauvegardée
+  const ghoTotal=(typeof getChargeForResourceDay==='function'&&rsid)
+    ?getChargeForResourceDay(rsid,_dkToDate(dk)):0;
+  // Delta : pour chaque edit de cette ressource+jour, remplacer la charge sauvegardée par la valeur en attente
+  let delta=0;
+  Object.entries(_ganttEdits).forEach(([ek,pendingCharge])=>{
+    const f=ek.indexOf('::'),l=ek.lastIndexOf('::');
+    if(ek.slice(f+2,l)!==rsid||ek.slice(l+2)!==dk) return;
+    const ri=parseInt(ek.slice(0,f));
+    const row=(typeof rows!=='undefined')&&rows[ri];
+    const asgn=row&&(row.assignments||[]).find(a=>a.resourceId===rsid);
+    const saved=(asgn?.daily&&asgn.daily[dk])||0;
+    delta+=(pendingCharge-saved);
+  });
+  return ghoTotal+delta;
+}
+function _dkToDate(dk){ const[d,m,y]=dk.split('/'); const dt=new Date(+y,+m-1,+d); dt.setHours(0,0,0,0); return dt; }
+
 function initDrag(el){
   let down=false,startX,sl;
   const onMove=e=>{
@@ -584,8 +604,9 @@ function renderChart(layout,legend,visible,minD0,maxD0,today,leftHTML,mode,hasTr
               const cx=xOf(dc2);
               if(val>0){
                 const txt=val%1===0?val.toFixed(0):parseFloat(val.toFixed(2)).toString();
-                const totalLoad=(typeof getChargeForResourceDay==='function'&&a.resourceId)?getChargeForResourceDay(a.resourceId,dc2):val;
                 const isEdited=_ganttEdits[ek]!==undefined;
+                const totalLoad=isEdited?_pendingTotalForResourceDay(a.resourceId,k)
+                  :(typeof getChargeForResourceDay==='function'&&a.resourceId)?getChargeForResourceDay(a.resourceId,dc2):val;
                 const isOver=totalLoad>1;
                 const cls=isEdited?(isOver?'c-edited c-over':'c-edited'):(isOver?'c-over':'');
                 const inPer=tDeb&&tFin&&dc2>=tDeb&&dc2<=tFin;
