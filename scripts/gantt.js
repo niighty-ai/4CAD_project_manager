@@ -59,8 +59,6 @@ function buildGanttLeftWithEdit(visible, showDates, labelW){
   </div>`;
 }
 let _ganttEdits   = {};          // non sauvegardés  { "ri::rsid::dk": charge }
-let _ganttSaved   = new Set();   // sauvegardés (fond bleu persistant)
-let _ganttSavedByRes = {};       // { "rsid::dk": true } pour l'onglet ressource
 let _gcpCtx       = null;        // contexte de l'éditeur popup
 let _ganttChartMinD = null;      // date de début du chart (pour calcul survol)
 let _ganttDragging  = false;     // true pendant le drag du calendrier
@@ -587,7 +585,7 @@ function renderChart(layout,legend,visible,minD0,maxD0,today,leftHTML,mode,hasTr
               if(val>0){
                 const txt=val%1===0?val.toFixed(0):parseFloat(val.toFixed(2)).toString();
                 const totalLoad=(typeof getChargeForResourceDay==='function'&&a.resourceId)?getChargeForResourceDay(a.resourceId,dc2):val;
-                const isEdited=_ganttEdits[ek]!==undefined||_ganttSaved.has(ek);
+                const isEdited=_ganttEdits[ek]!==undefined;
                 const isOver=totalLoad>1;
                 const cls=isEdited?(isOver?'c-edited c-over':'c-edited'):(isOver?'c-over':'');
                 const inPer=tDeb&&tFin&&dc2>=tDeb&&dc2<=tFin;
@@ -931,24 +929,40 @@ function saveGanttEdits(){
       asgn.fin=new Date(Math.max(...dates));
     }
 
-    /* Mise à jour des données GHO en mémoire */
-    if(typeof resources!=='undefined'&&row.externalTaskId){
+    /* Mise à jour des données GHO en mémoire
+       Fonctionne pour toutes les tâches : avec ou sans externalTaskId.
+       Cherche la tâche dans GHO par : 1) externalTaskId, 2) nom de tâche.
+       Crée un projet/tâche GHO si inexistant (tâches créées manuellement). */
+    if(typeof resources!=='undefined'){
       const res=resources.find(r=>r.id===rsid);
-      if(res?.ghoData?.projects){
-        for(const proj of res.ghoData.projects){
-          for(const t of(proj.tasks||[])){
-            if(typeof _matchTaskId==='function'&&_matchTaskId(row.externalTaskId,t.taskId)){
-              if(!t.daily)t.daily={};
-              if(charge>0)t.daily[dk]=charge; else delete t.daily[dk];
+      if(res){
+        if(!res.ghoData)res.ghoData={};
+        if(!res.ghoData.projects)res.ghoData.projects=[];
+        /* Trouver ou créer le projet GHO */
+        let ghoProj=res.ghoData.projects.find(p=>p.name===row.projet);
+        if(!ghoProj){ghoProj={name:row.projet,tasks:[]};res.ghoData.projects.push(ghoProj);}
+        if(!ghoProj.tasks)ghoProj.tasks=[];
+        /* Trouver la tâche GHO : d'abord par externalTaskId, ensuite par nom */
+        let ghoTask=null;
+        if(row.externalTaskId&&typeof _matchTaskId==='function'){
+          ghoTask=ghoProj.tasks.find(t=>_matchTaskId(row.externalTaskId,t.taskId));
+          if(!ghoTask){
+            for(const p of res.ghoData.projects){
+              const found=(p.tasks||[]).find(t=>_matchTaskId(row.externalTaskId,t.taskId));
+              if(found){ghoTask=found;break;}
             }
           }
         }
+        if(!ghoTask) ghoTask=ghoProj.tasks.find(t=>(t.taskName||'')===(row.tache||''));
+        /* Créer l'entrée si non trouvée */
+        if(!ghoTask){
+          ghoTask={taskId:row.externalTaskId||(row.tache||'tache'),taskName:row.tache||'',daily:{}};
+          ghoProj.tasks.push(ghoTask);
+        }
+        if(!ghoTask.daily)ghoTask.daily={};
+        if(charge>0)ghoTask.daily[dk]=charge; else delete ghoTask.daily[dk];
       }
     }
-
-    /* Marquer comme sauvegardé pour fond bleu persistant */
-    _ganttSaved.add(ek);
-    _ganttSavedByRes[`${rsid}::${dk}`]=true;
   });
 
   _ganttEdits={};

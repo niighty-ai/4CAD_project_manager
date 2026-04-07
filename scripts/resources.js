@@ -327,9 +327,7 @@ function _buildRows(days) {
   const mkDay = (vals, meta, asJ = false, fmt = _fmtJ, resId = '') => {
     const raw = vals[meta.key] || 0;
     const jours = asJ ? raw : raw / 480;
-    /* Fond bleu si cellule éditée manuellement depuis le Gantt et sauvegardée */
-    const isSaved = resId && typeof _ganttSavedByRes !== 'undefined' && _ganttSavedByRes[`${resId}::${meta.key}`];
-    return `<td class="gho-td-day${meta.dc}${isSaved?' gho-td-edited':''}">${jours > 0 ? fmt(jours) : ''}</td>`;
+    return `<td class="gho-td-day${meta.dc}">${jours > 0 ? fmt(jours) : ''}</td>`;
   };
 
   return fr.map(r => {
