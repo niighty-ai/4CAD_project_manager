@@ -259,8 +259,10 @@ function handleXMLImport(file) {
       }
 
       if (proj) {
-        proj.rows   = [...(proj.rows   || []).filter(r => r._type !== 'jalon'), ...parsedRows];
-        proj.jalons = [...(proj.jalons || []), ...parsedJalons];
+        /* REPLACE all project data from the XML import */
+        proj.rows   = [...parsedRows];
+        proj.jalons = [...parsedJalons];
+        proj.assignments = {};
 
         rows = [
           ...proj.rows.map(r => ({...r})),
@@ -272,6 +274,7 @@ function handleXMLImport(file) {
         savePortfolio();
         renderNavList();
         renderAll();
+        syncGanttFromResources(true);
       } else {
         createNewProject(projectName, parsedRows, {}, '');
         const newProj = portfolio.find(p => p.id === activeProjectId);
@@ -283,6 +286,7 @@ function handleXMLImport(file) {
           newProj.jalons = rows.filter(r => r._type === 'jalon').map(r => ({...r}));
           savePortfolio();
           renderAll();
+          syncGanttFromResources(true);
         }
       }
 

@@ -324,11 +324,11 @@ function _buildRows(days) {
 
   /* asJ=true : valeur déjà en jours (nouveau format projects)
      asJ=false : valeur en minutes → /480 (ancien format activities) */
-  const mkDay = (vals, meta, asJ = false, fmt = _fmtJ) => {
+  const mkDay = (vals, meta, asJ = false, fmt = _fmtJ, resId = '') => {
     const raw = vals[meta.key] || 0;
     const jours = asJ ? raw : raw / 480;
     /* Fond bleu si cellule éditée manuellement depuis le Gantt et sauvegardée */
-    const isSaved = typeof _ganttSavedByRes !== 'undefined' && _ganttSavedByRes[`${r.id}::${meta.key}`];
+    const isSaved = resId && typeof _ganttSavedByRes !== 'undefined' && _ganttSavedByRes[`${resId}::${meta.key}`];
     return `<td class="gho-td-day${meta.dc}${isSaved?' gho-td-edited':''}">${jours > 0 ? fmt(jours) : ''}</td>`;
   };
 
@@ -415,7 +415,7 @@ function _buildRows(days) {
                   <span class="gho-task-name" title="${escH(label)}">${escH(label)}</span>
                 </div>
               </td>
-              ${dayMeta.map(m => mkDay(t.daily, m, true)).join('')}
+              ${dayMeta.map(m => mkDay(t.daily, m, true, _fmtJ, r.id)).join('')}
             </tr>`;
           });
         });
@@ -934,6 +934,7 @@ function parseGHOExcel(buffer) {
 
     saveResources(); // métadonnées → gantt_resources
     saveGhoData();   // charges/projets/tâches → gantt_gho
+    _setSyncBtnState('stale');
     _refreshResView();
 
     if (missing.length > 0) {
@@ -1182,16 +1183,25 @@ function _isTaskSyncedWithGho(externalTaskId) {
   return false;
 }
 
+/* État visuel du bouton Sync charges : 'stale' = rouge (données GHO plus récentes), 'fresh' = vert (synchro OK) */
+function _setSyncBtnState(state) {
+  const btn = document.getElementById('btnSyncCharges');
+  if (!btn) return;
+  btn.classList.remove('btn-sync-stale', 'btn-sync-fresh');
+  if (state === 'stale') btn.classList.add('btn-sync-stale');
+  else if (state === 'fresh') btn.classList.add('btn-sync-fresh');
+}
+
 /* Bouton ⟳ Sync charges : rapproche toutes les tâches Gantt avec les données GHO */
-function syncGanttFromResources() {
+function syncGanttFromResources(silent = false) {
   if (!resources.length) {
-    alert('Aucune ressource chargée.\nImportez d\'abord les données via l\'onglet Ressources.');
+    if (!silent) alert('Aucune ressource chargée.\nImportez d\'abord les données via l\'onglet Ressources.');
     return;
   }
 
   const taskRows = rows.filter(r => r._type === 'tache' && r.externalTaskId);
   if (!taskRows.length) {
-    alert('Aucune tâche avec un Task ID dans ce Gantt.\nImportez un fichier XML MS Project pour associer les IDs.');
+    if (!silent) alert('Aucune tâche avec un Task ID dans ce Gantt.\nImportez un fichier XML MS Project pour associer les IDs.');
     return;
   }
 
@@ -1249,7 +1259,7 @@ function syncGanttFromResources() {
   });
 
   if (matchCount === 0) {
-    alert('Aucune correspondance trouvée entre les Task IDs du Gantt et les données ressources.\nVérifiez que les IDs correspondent (champ ExtendedAttribute du XML).');
+    if (!silent) alert('Aucune correspondance trouvée entre les Task IDs du Gantt et les données ressources.\nVérifiez que les IDs correspondent (champ ExtendedAttribute du XML).');
     return;
   }
 
@@ -1264,7 +1274,9 @@ function syncGanttFromResources() {
     badge.style.display = synced ? 'inline-flex' : 'none';
   }
 
-  alert(`Synchronisation réussie :\n${syncCount} affectation(s) mise(s) à jour sur ${matchCount} correspondance(s) trouvée(s).`);
+  _setSyncBtnState('fresh');
+
+  if (!silent) alert(`Synchronisation réussie :\n${syncCount} affectation(s) mise(s) à jour sur ${matchCount} correspondance(s) trouvée(s).`);
 }
 
 /* Legacy aliases used elsewhere */
