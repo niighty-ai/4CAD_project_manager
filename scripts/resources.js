@@ -256,8 +256,8 @@ function _buildResViewHTML() {
         <button class="gho-btn-year" onclick="_resYear++;_refreshResView()">${_resYear+1} ›</button>
         ${_lastImport ? `<span class="gho-last-import">↑ GHO : ${_lastImport}</span>` : ''}
         <button class="gho-btn-unit${_resUnitH?' active':''}" id="btnResUnit" onclick="_toggleResUnit()">${_resUnitH?'Jours':'Heures'}</button>
-        <button class="gho-btn-import-list" onclick="triggerListImport()">↑ Import Liste</button>
-        <button class="gho-btn-import" onclick="triggerGHOImport()">↑ Import GHO</button>
+        <button class="gho-btn-import-list" onclick="triggerListImport()">↑ Import Ressource</button>
+        <button class="gho-btn-import" onclick="triggerGHOImport()">↑ Import Charge</button>
       </div>
     </div>
     <div class="gho-scroll-wrap" id="ghoScrollWrap">
