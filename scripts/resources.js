@@ -1240,10 +1240,19 @@ function syncGanttFromResources(silent = false) {
     return;
   }
 
-  /* ── Étape 1 : vider TOUTES les affectations sur TOUTES les tâches ──
-     Le Sync Charge est un reset complet : les charges saisies manuellement
-     sont effacées, seules les données GHO feront foi après la sync.        */
-  rows.filter(r => r._type === 'tache').forEach(r => { r.assignments = []; });
+  /* ── Étape 1 : vider uniquement les charges journalières (daily) ──
+     Les affectations (personnes assignées aux tâches) sont gérées par
+     l'import XML et doivent être conservées même sans charge GHO.
+     On efface seulement le daily + charge calculée, pas la liste des
+     personnes affectées.                                               */
+  rows.filter(r => r._type === 'tache').forEach(r => {
+    (r.assignments || []).forEach(a => {
+      a.daily = {};
+      a.charge = 0;
+      delete a.debut;
+      delete a.fin;
+    });
+  });
 
   /* Vider aussi les éditions en attente (non encore sauvegardées) */
   if (typeof _ganttEdits !== 'undefined') {
