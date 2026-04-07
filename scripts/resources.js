@@ -288,10 +288,10 @@ function _buildRows(days) {
 
   /* asJ=true : valeur déjà en jours (nouveau format projects)
      asJ=false : valeur en minutes → /480 (ancien format activities) */
-  const mkDay = (vals, meta, asJ = false) => {
+  const mkDay = (vals, meta, asJ = false, fmt = _fmtJ) => {
     const raw = vals[meta.key] || 0;
     const jours = asJ ? raw : raw / 480;
-    return `<td class="gho-td-day${meta.dc}">${jours > 0 ? _fmtJ(jours) : ''}</td>`;
+    return `<td class="gho-td-day${meta.dc}">${jours > 0 ? fmt(jours) : ''}</td>`;
   };
 
   return fr.map(r => {
@@ -336,7 +336,7 @@ function _buildRows(days) {
       </td>
       <td class="gho-td-task gho-sticky-task gho-td-empty"></td>
       ${r.ghoData?.projects
-          ? dayMeta.map(m => mkDay(dayTotals, m, true)).join('')
+          ? dayMeta.map(m => mkDay(dayTotals, m, true, _fmtJRes)).join('')
           : dayMeta.map(m => mkDay(dayTotals, m)).join('')}
     </tr>`;
 
@@ -426,6 +426,14 @@ function _fmtJ(jours) {
   if (jours >= 1) cls += ' c-over';
   else if (jours >= 0.5) cls += ' c-high';
   else cls += ' c-low';
+  return `<span class="${cls}">${txt}</span>`;
+}
+
+function _fmtJRes(jours) {
+  /* Format charge for resource total row: white if <= 1, red if > 1 */
+  const v = Math.round(jours * 100) / 100;
+  const txt = v % 1 === 0 ? v.toFixed(0) : v.toFixed(2).replace(/\.?0+$/,'');
+  const cls = jours > 1 ? 'gho-cell c-over' : 'gho-cell c-ok';
   return `<span class="${cls}">${txt}</span>`;
 }
 
