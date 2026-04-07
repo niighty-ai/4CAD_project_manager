@@ -93,7 +93,10 @@ window._fbOnValueResources = (cb)   => onValue(_fbResRef, snap => cb(snap.val())
     </div>
     <div class="ep-group" id="epExternalIdGroup" style="display:none">
       <label class="ep-label">Task ID</label>
-      <input class="ep-input ep-input-id" id="epExternalId" type="text" readonly tabindex="-1">
+      <div class="ep-id-row">
+        <input class="ep-input ep-input-id" id="epExternalId" type="text" readonly tabindex="-1">
+        <span class="sync-badge" id="epSyncBadge" style="display:none" title="Synchronisé avec les données ressources">✓ sync</span>
+      </div>
     </div>
   </div>
   <div class="edit-panel-footer">
@@ -170,6 +173,7 @@ window._fbOnValueResources = (cb)   => onValue(_fbResRef, snap => cb(snap.val())
           <button class="btn-ghost" id="btnMois" onclick="setView('mois')">Mois</button>
           <div class="sep"></div>
           <button class="btn-ghost" id="btnResources" onclick="toggleResources()" title="Afficher ressources">👥 Ressources</button>
+          <button class="btn-ghost" id="btnSyncCharges" onclick="syncGanttFromResources()" title="Synchroniser les charges depuis l'onglet Ressources">⟳ Sync charges</button>
           <div class="sep"></div>
           <div class="zoom-bar">
             <button onclick="changeZoom(-1)">−</button>

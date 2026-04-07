@@ -81,7 +81,9 @@ function toggleResources(){
   showResources=!showResources;
   const btn=document.getElementById('btnResources');
   if(btn){btn.classList.toggle('active',showResources);btn.title=showResources?'Masquer ressources':'Afficher ressources';}
-  renderGantt();
+  /* Auto-switch en vue journalière pour afficher les charges jour par jour */
+  if(showResources && view!=='jour') setView('jour');
+  else renderGantt();
 }
 function initDrag(el){
   let down=false,startX,sl;
@@ -525,9 +527,26 @@ function renderChart(layout,legend,visible,minD0,maxD0,today,leftHTML,mode,hasTr
       const c2=getColor(r.projet);
       for(let ri=0;ri<nResRows;ri++){
         const a=(r.assignments||[])[ri];
-        let miniBar='';
-        if(a){
-          const _mkMidnight = d => { const x = d instanceof Date ? new Date(d) : new Date(d); x.setHours(0,0,0,0); return x; };
+        let rowContent='';
+        if(mode==='jour' && a && a.daily && Object.keys(a.daily).length>0){
+          /* ── Vue journalière : cellules charge par jour (comme l'onglet ressource) ── */
+          let dayCells='';
+          let dc2=new Date(minD);
+          while(dc2<=maxD){
+            const k=`${String(dc2.getDate()).padStart(2,'0')}/${String(dc2.getMonth()+1).padStart(2,'0')}/${dc2.getFullYear()}`;
+            const val=a.daily[k]||0;
+            const cx=xOf(dc2);
+            if(val>0){
+              const txt=val%1===0?val.toFixed(0):parseFloat(val.toFixed(2)).toString();
+              const cls=val>=1?'c-over':val>=0.5?'c-high':'c-low';
+              dayCells+=`<div class="gantt-daily-cell ${cls}" style="left:${cx}px;width:${dayWidth}px">${txt}</div>`;
+            }
+            dc2.setDate(dc2.getDate()+1);
+          }
+          rowContent=dayCells;
+        } else if(a){
+          /* ── Vue semaine/mois : mini-barre de durée ── */
+          const _mkMidnight = d => { const x2=d instanceof Date?new Date(d):new Date(d); x2.setHours(0,0,0,0); return x2; };
           const aDebut = _mkMidnight(a.debut || r.debut);
           const aFin   = _mkMidnight(a.fin   || r.fin);
           let aLeft, aWidth;
@@ -539,9 +558,9 @@ function renderChart(layout,legend,visible,minD0,maxD0,today,leftHTML,mode,hasTr
             aLeft  = xOf(aDebut);
             aWidth = Math.max(dayWidth, diff(aDebut,aFin)*dayWidth+dayWidth);
           }
-          miniBar=`<div class="gantt-bar-res" style="left:${aLeft}px;width:${aWidth}px;background:${c2}33;border:1px solid ${c2}88"></div>`;
+          rowContent=`<div class="gantt-bar-res" style="left:${aLeft}px;width:${aWidth}px;background:${c2}33;border:1px solid ${c2}88"></div>`;
         }
-        rightRows+=`<div class="gantt-row is-res-row" style="width:${totalW}px">${colsBase}${miniBar}</div>`;
+        rightRows+=`<div class="gantt-row is-res-row${mode==='jour'?' is-res-daily':''}" style="width:${totalW}px">${colsBase}${rowContent}</div>`;
       }
     }
     return rightRows;

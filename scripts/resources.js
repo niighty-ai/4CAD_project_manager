@@ -1086,6 +1086,118 @@ function initResources() {
   _initFirebaseGho();
 }
 
+/* ══════════════════════════════════════════════════════════════
+   SYNCHRONISATION GANTT ↔ RESSOURCES
+   Rapprochement par externalTaskId ↔ taskId (ignore 3 derniers chars)
+   ══════════════════════════════════════════════════════════════ */
+
+/* Compare deux Task IDs en ignorant les 3 derniers caractères si nécessaire */
+function _matchTaskId(a, b) {
+  if (!a || !b) return false;
+  if (a === b) return true;
+  if (a.length > 3 && b.length > 3 && a.slice(0, -3) === b.slice(0, -3)) return true;
+  return false;
+}
+
+/* Vérifie si un externalTaskId est référencé dans les données GHO */
+function _isTaskSyncedWithGho(externalTaskId) {
+  if (!externalTaskId) return false;
+  for (const res of resources) {
+    if (!res.ghoData?.projects) continue;
+    for (const proj of res.ghoData.projects) {
+      for (const t of (proj.tasks || [])) {
+        if (_matchTaskId(externalTaskId, t.taskId)) return true;
+      }
+    }
+  }
+  return false;
+}
+
+/* Bouton ⟳ Sync charges : rapproche toutes les tâches Gantt avec les données GHO */
+function syncGanttFromResources() {
+  if (!resources.length) {
+    alert('Aucune ressource chargée.\nImportez d\'abord les données via l\'onglet Ressources.');
+    return;
+  }
+
+  const taskRows = rows.filter(r => r._type === 'tache' && r.externalTaskId);
+  if (!taskRows.length) {
+    alert('Aucune tâche avec un Task ID dans ce Gantt.\nImportez un fichier XML MS Project pour associer les IDs.');
+    return;
+  }
+
+  let syncCount = 0;
+  let matchCount = 0;
+
+  resources.forEach(res => {
+    if (!res.ghoData?.projects) return;
+
+    res.ghoData.projects.forEach(proj => {
+      (proj.tasks || []).forEach(t => {
+        if (!t.taskId) return;
+
+        /* Trouver la tâche Gantt correspondante */
+        const matchedRow = taskRows.find(r => _matchTaskId(r.externalTaskId, t.taskId));
+        if (!matchedRow) return;
+        matchCount++;
+
+        const daily = t.daily || {};
+
+        /* Calculer la charge totale et la plage de dates depuis le daily */
+        let totalCharge = 0;
+        let minDate = null;
+        let maxDate = null;
+
+        Object.entries(daily).forEach(([k, v]) => {
+          if (v <= 0) return;
+          totalCharge += v;
+          const parts = k.split('/');
+          if (parts.length === 3) {
+            const d = new Date(parseInt(parts[2]), parseInt(parts[1]) - 1, parseInt(parts[0]));
+            if (!minDate || d < minDate) minDate = new Date(d);
+            if (!maxDate || d > maxDate) maxDate = new Date(d);
+          }
+        });
+
+        if (totalCharge <= 0) return;
+
+        /* Trouver ou créer l'affectation pour cette ressource sur cette tâche */
+        if (!matchedRow.assignments) matchedRow.assignments = [];
+        let asgn = matchedRow.assignments.find(a => a.resourceId === res.id);
+        if (!asgn) {
+          asgn = { resourceId: res.id, resourceNom: res.fullName || res.id };
+          matchedRow.assignments.push(asgn);
+        }
+
+        asgn.charge     = Math.round(totalCharge * 100) / 100;
+        asgn.daily      = { ...daily };
+        if (minDate) asgn.debut = minDate;
+        if (maxDate) asgn.fin   = maxDate;
+
+        syncCount++;
+      });
+    });
+  });
+
+  if (matchCount === 0) {
+    alert('Aucune correspondance trouvée entre les Task IDs du Gantt et les données ressources.\nVérifiez que les IDs correspondent (champ ExtendedAttribute du XML).');
+    return;
+  }
+
+  saveCurrentProject();
+  renderAll();
+
+  /* Mettre à jour le badge de synchro si le panneau d'édition est ouvert */
+  const badge = document.getElementById('epSyncBadge');
+  const extInput = document.getElementById('epExternalId');
+  if (badge && extInput && extInput.value) {
+    const synced = _isTaskSyncedWithGho(extInput.value);
+    badge.style.display = synced ? 'inline-flex' : 'none';
+  }
+
+  alert(`Synchronisation réussie :\n${syncCount} affectation(s) mise(s) à jour sur ${matchCount} correspondance(s) trouvée(s).`);
+}
+
 /* Legacy aliases used elsewhere */
 function renderResourceCalendarView() { _refreshResView(); }
 function getChargeForResourceDay(resourceId, date) {
