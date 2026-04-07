@@ -72,14 +72,18 @@ function _buildGhoPayload(forFirebase = false) {
 }
 
 /* Applique une payload GHO { [resourceId]: ghoData } aux ressources en mémoire,
-   en décodant DD-MM-YYYY → DD/MM/YYYY */
+   en décodant DD-MM-YYYY → DD/MM/YYYY.
+   Fusionne avec les données existantes pour préserver les entrées manuelles
+   (charges saisies depuis le Gantt sur des tâches sans externalTaskId). */
 function _mergeGhoData(payload) {
   if (!payload || typeof payload !== 'object') return;
   resources.forEach(r => {
     if (!payload[r.id]) return;
-    const gho = payload[r.id];
-    if (gho.projects) {
-      gho.projects = gho.projects.map(p => ({
+    const incoming = payload[r.id];
+
+    /* Décodage DD-MM-YYYY → DD/MM/YYYY dans le daily de chaque tâche */
+    if (incoming.projects) {
+      incoming.projects = incoming.projects.map(p => ({
         ...p,
         tasks: (p.tasks || []).map(t => ({
           ...t,
@@ -89,7 +93,46 @@ function _mergeGhoData(payload) {
         }))
       }));
     }
-    r.ghoData = gho;
+
+    /* ── Fusion avec les données GHO existantes ─────────────────────────────
+       Objectif : les projets/tâches ajoutés manuellement depuis le Gantt
+       (absents de l'import) doivent être conservés après chaque import GHO.
+       Stratégie :
+         1. Pour les projets présents dans l'import : fusionner les tâches
+            → les tâches importées prennent la priorité (ID ou nom)
+            → les tâches manuelles absentes de l'import sont préservées
+         2. Les projets existants absents de l'import sont conservés intacts
+    ─────────────────────────────────────────────────────────────────────── */
+    if (r.ghoData?.projects && incoming.projects) {
+      const incomingProjNames = new Set(incoming.projects.map(p => p.name));
+
+      /* 1. Fusionner les tâches manuelles dans les projets communs */
+      incoming.projects.forEach(incomingProj => {
+        const existingProj = r.ghoData.projects.find(p => p.name === incomingProj.name);
+        if (!existingProj?.tasks?.length) return;
+        const incomingTaskIds   = new Set((incomingProj.tasks || []).map(t => t.taskId));
+        const incomingTaskNames = new Set((incomingProj.tasks || []).map(t => (t.taskName || '').toLowerCase()));
+        /* Garder seulement les tâches existantes non couvertes par l'import */
+        const manualTasks = existingProj.tasks.filter(t =>
+          !incomingTaskIds.has(t.taskId) &&
+          !incomingTaskNames.has((t.taskName || '').toLowerCase())
+        );
+        if (manualTasks.length) {
+          incomingProj.tasks = [...(incomingProj.tasks || []), ...manualTasks];
+        }
+      });
+
+      /* 2. Conserver les projets existants absents de l'import */
+      const extraProjects = r.ghoData.projects.filter(p => !incomingProjNames.has(p.name));
+      if (extraProjects.length) {
+        incoming.projects = [...incoming.projects, ...extraProjects];
+      }
+    } else if (r.ghoData?.projects && !incoming.projects) {
+      /* L'import n'a pas de projets (ancien format activities) : conserver les projets existants */
+      incoming.projects = r.ghoData.projects;
+    }
+
+    r.ghoData = incoming;
   });
 }
 
