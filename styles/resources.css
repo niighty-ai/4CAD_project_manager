@@ -208,13 +208,6 @@
   border-top: 3px solid var(--accent);
   background: var(--surface);
 }
-.gho-row-res:hover .gho-td-res,
-.gho-row-res:hover .gho-td-act {
-  background: var(--surface2);
-}
-.gho-row-res:hover .gho-td-day {
-  background: var(--surface);
-}
 
 .gho-td-res {
   padding: 0;
