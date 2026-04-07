@@ -1088,13 +1088,22 @@ function initResources() {
 
 /* ══════════════════════════════════════════════════════════════
    SYNCHRONISATION GANTT ↔ RESSOURCES
-   Rapprochement par externalTaskId ↔ taskId (ignore 3 derniers chars)
+   Rapprochement par externalTaskId ↔ taskId (préfixe ou slice -3)
    ══════════════════════════════════════════════════════════════ */
 
-/* Compare deux Task IDs en ignorant les 3 derniers caractères si nécessaire */
+/* Compare deux Task IDs :
+   - Correspondance exacte
+   - Ou l'un est un préfixe de l'autre (le taskId ressource est souvent la version
+     tronquée du externalTaskId XML, ex: "aAHW50000000t6A" ↔ "aAHW50000000t6AOAQ")
+   - Fallback : ignorer les 3 derniers chars des deux */
 function _matchTaskId(a, b) {
   if (!a || !b) return false;
   if (a === b) return true;
+  /* Préfixe : le plus court doit être au début du plus long */
+  const shorter = a.length <= b.length ? a : b;
+  const longer  = a.length <= b.length ? b : a;
+  if (longer.startsWith(shorter)) return true;
+  /* Fallback : slice(0,-3) sur les deux */
   if (a.length > 3 && b.length > 3 && a.slice(0, -3) === b.slice(0, -3)) return true;
   return false;
 }
