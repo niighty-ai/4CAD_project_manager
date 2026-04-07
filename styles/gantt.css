@@ -1177,6 +1177,7 @@
 
 /* ── Bouton Sauvegarder actif ── */
 .btn-save-edits:not(:disabled) { color: #2563eb; border-color: #2563eb; font-weight: 700; }
+.btn-cancel-edits:not(:disabled) { color: #c0392b; border-color: #c0392b; font-weight: 700; }
 
 /* ── Popup charge ressource (survol cellule journalière) ── */
 .res-charge-pop {

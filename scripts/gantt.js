@@ -63,6 +63,35 @@ let _ganttSaved   = new Set();   // sauvegardés (fond bleu persistant)
 let _ganttSavedByRes = {};       // { "rsid::dk": true } pour l'onglet ressource
 let _gcpCtx       = null;        // contexte de l'éditeur popup
 let _ganttChartMinD = null;      // date de début du chart (pour calcul survol)
+let _ganttDragging  = false;     // true pendant le drag du calendrier
+
+function initDrag(el){
+  let down=false,startX,sl;
+  const onMove=e=>{
+    if(!down)return;
+    e.preventDefault();
+    _ganttDragging=true;
+    el.scrollLeft=sl-(e.pageX-el.offsetLeft-startX);
+  };
+  const onUp=()=>{
+    if(!down)return;
+    down=false;
+    el.style.cursor='grab';
+    /* Léger délai pour que le mouseenter suivant ne rouvre pas la popup immédiatement */
+    setTimeout(()=>{_ganttDragging=false;},80);
+  };
+  el.addEventListener('mousedown',e=>{
+    if(e.target.closest('.gantt-bar,.toggle-btn,.gcp-step,.gcp-apply,.gcp-cancel'))return;
+    down=true;
+    startX=e.pageX-el.offsetLeft;
+    sl=el.scrollLeft;
+    el.style.cursor='grabbing';
+    e.preventDefault();
+  });
+  /* mousemove et mouseup sur document → drag continue hors de la fenêtre */
+  document.addEventListener('mousemove',onMove);
+  document.addEventListener('mouseup',onUp);
+}
 
 function setView(v){
   view=v;
@@ -90,13 +119,6 @@ function toggleResources(){
   /* Auto-switch en vue journalière pour afficher les charges jour par jour */
   if(showResources && view!=='jour') setView('jour');
   else renderGantt();
-}
-function initDrag(el){
-  let down=false,startX,sl;
-  el.addEventListener('mousedown',e=>{if(e.target.closest('.gantt-bar,.toggle-btn'))return;down=true;startX=e.pageX-el.offsetLeft;sl=el.scrollLeft;el.style.cursor='grabbing';});
-  el.addEventListener('mouseleave',()=>{down=false;el.style.cursor='grab';});
-  el.addEventListener('mouseup',()=>{down=false;el.style.cursor='grab';});
-  el.addEventListener('mousemove',e=>{if(!down)return;e.preventDefault();el.scrollLeft=sl-(e.pageX-el.offsetLeft-startX);});
 }
 function renderGantt(){
   const layout=document.getElementById('ganttLayout');
@@ -652,6 +674,7 @@ function _ensureResChargePop(){
   return pop;
 }
 function showResChargeTip(e,resourceId,dateKey,resourceNom){
+  if(_ganttDragging){hideResChargeTip();return;}
   clearTimeout(_rcpHideTimer);
   const pop=_ensureResChargePop();
   const data=(typeof getTasksForResourceDay==='function')
@@ -699,6 +722,7 @@ function _hideResChargeTipDelay(){_rcpHideTimer=setTimeout(hideResChargeTip,160)
 
 /* Calcule le jour survolé depuis la position souris et affiche la popup */
 function ganttRowHoverMove(e,el){
+  if(_ganttDragging){hideResChargeTip();return;}
   const gr=document.getElementById('ganttRight');
   if(!gr||!_ganttChartMinD) return;
   const grRect=gr.getBoundingClientRect();
@@ -821,6 +845,22 @@ function gcpStep(dir){
   _gcpHint();
 }
 
+/* Relance le rendu en préservant la position de scroll (horizontal + vertical) */
+function _renderGanttKeepScroll(){
+  const gr=document.getElementById('ganttRight');
+  const lp=document.getElementById('ganttLeftPanel');
+  const sl=gr?gr.scrollLeft:0;
+  const st=gr?gr.scrollTop:0;
+  renderGantt();
+  /* Délai >50 ms pour passer après l'auto-scroll vers aujourd'hui */
+  setTimeout(()=>{
+    const gr2=document.getElementById('ganttRight');
+    const lp2=document.getElementById('ganttLeftPanel');
+    if(gr2){gr2.scrollLeft=sl;gr2.scrollTop=st;}
+    if(lp2)lp2.scrollTop=st;
+  },60);
+}
+
 function gcpApply(){
   const inp=document.getElementById('gcpInput');
   const errEl=document.getElementById('gcpErr');
@@ -834,7 +874,7 @@ function gcpApply(){
   _ganttEdits[ek]=val;
   _updateSaveBtn();
   gcpClose();
-  renderGantt();
+  _renderGanttKeepScroll();
 }
 
 function gcpClose(){
@@ -843,12 +883,25 @@ function gcpClose(){
 }
 
 function _updateSaveBtn(){
-  const btn=document.getElementById('btnSaveEdits');
-  if(!btn)return;
   const has=Object.keys(_ganttEdits).length>0;
-  btn.disabled=!has;
-  btn.title=has?'Sauvegarder les modifications':'Aucune modification à sauvegarder';
-  btn.classList.toggle('has-edits',has);
+  const btnSave=document.getElementById('btnSaveEdits');
+  if(btnSave){
+    btnSave.disabled=!has;
+    btnSave.title=has?'Sauvegarder les modifications':'Aucune modification à sauvegarder';
+    btnSave.classList.toggle('has-edits',has);
+  }
+  const btnCancel=document.getElementById('btnCancelEdits');
+  if(btnCancel){
+    btnCancel.disabled=!has;
+    btnCancel.title=has?'Annuler les modifications en cours':'Aucune modification à annuler';
+  }
+}
+
+function cancelGanttEdits(){
+  if(!Object.keys(_ganttEdits).length)return;
+  _ganttEdits={};
+  _updateSaveBtn();
+  _renderGanttKeepScroll();
 }
 
 function saveGanttEdits(){
@@ -902,7 +955,7 @@ function saveGanttEdits(){
   _updateSaveBtn();
   saveCurrentProject();
   if(typeof saveGhoData==='function')saveGhoData();
-  renderGantt();
+  _renderGanttKeepScroll();
   if(typeof _refreshTbody==='function')_refreshTbody();
 }
 
