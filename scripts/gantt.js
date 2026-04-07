@@ -635,14 +635,18 @@ function showResChargeTip(e,resourceId,dateKey,resourceNom){
       <thead><tr><th>Projet</th><th>Tâche</th><th>Charge</th></tr></thead>
       <tbody>${rows}</tbody>
     </table></div>`:'<div class="rcp-empty">Aucune tâche</div>'}`;
-  const pw=280,ph=220,vw=window.innerWidth,vh=window.innerHeight;
+  /* Affichage hors-écran pour mesurer la taille réelle */
+  pop.style.visibility='hidden';
+  pop.style.display='block';
+  const pw=pop.offsetWidth,ph=pop.offsetHeight,vw=window.innerWidth,vh=window.innerHeight;
   let left=e.clientX+14,top=e.clientY-24;
   if(left+pw>vw-8)left=e.clientX-pw-8;
   if(top+ph>vh-8)top=vh-ph-8;
   if(top<8)top=8;
+  if(left<8)left=8;
   pop.style.left=left+'px';
   pop.style.top=top+'px';
-  pop.style.display='block';
+  pop.style.visibility='';
 }
 function hideResChargeTip(){
   clearTimeout(_rcpHideTimer);
