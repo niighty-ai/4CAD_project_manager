@@ -62,6 +62,7 @@ let _ganttEdits   = {};          // non sauvegardés  { "ri::rsid::dk": charge }
 let _ganttSaved   = new Set();   // sauvegardés (fond bleu persistant)
 let _ganttSavedByRes = {};       // { "rsid::dk": true } pour l'onglet ressource
 let _gcpCtx       = null;        // contexte de l'éditeur popup
+let _ganttChartMinD = null;      // date de début du chart (pour calcul survol)
 
 function setView(v){
   view=v;
@@ -338,6 +339,7 @@ function renderChart(layout,legend,visible,minD0,maxD0,today,leftHTML,mode,hasTr
     const dow=minD.getDay();minD.setDate(minD.getDate()-(dow===0?6:dow-1));
     const dow2=maxD.getDay();maxD.setDate(maxD.getDate()+(dow2===0?0:7-dow2));
   }
+  _ganttChartMinD=new Date(minD);
   const months=[];
   let mc=new Date(minD.getFullYear(),minD.getMonth(),1);
   while(mc<=maxD){
@@ -540,10 +542,15 @@ function renderChart(layout,legend,visible,minD0,maxD0,today,leftHTML,mode,hasTr
           const tDeb=r.debut?_mkMid(r.debut):null;
           const tFin=r.fin?_mkMid(r.fin):null;
 
-          /* Overlay transparent couvrant la période de la tâche (clics sur cellules vides) */
+          /* Zone de survol pleine largeur (popup sur toutes les cellules, même hors période) */
+          if(a.resourceId){
+            dayCells+=`<div class="gantt-row-hover-zone" style="left:0;width:${totalW}px" data-rsid="${escH(a.resourceId)}" data-rsnm="${escH(a.resourceNom||a.resourceId||'')}" onmousemove="ganttRowHoverMove(event,this)" onmouseleave="_hideResChargeTipDelay()"></div>`;
+          }
+
+          /* Overlay couvrant la période de la tâche (clics + popup sur cellules vides) */
           if(a.resourceId&&tDeb&&tFin){
             const ovL=xOf(tDeb),ovR=xOf(tFin)+dayWidth;
-            if(ovR>ovL)dayCells+=`<div class="gantt-edit-overlay" style="left:${ovL}px;width:${ovR-ovL}px" data-ri="${realIdx}" data-rsid="${escH(a.resourceId)}" data-rsnm="${escH(a.resourceNom||a.resourceId||'')}" data-tnm="${escH(r.tache||'')}" data-tdb="${tDeb.getTime()}" data-tfn="${tFin.getTime()}" onclick="ganttOverlayClick(event,this)"></div>`;
+            if(ovR>ovL)dayCells+=`<div class="gantt-edit-overlay" style="left:${ovL}px;width:${ovR-ovL}px" data-ri="${realIdx}" data-rsid="${escH(a.resourceId)}" data-rsnm="${escH(a.resourceNom||a.resourceId||'')}" data-tnm="${escH(r.tache||'')}" data-tdb="${tDeb.getTime()}" data-tfn="${tFin.getTime()}" onclick="ganttOverlayClick(event,this)" onmousemove="ganttRowHoverMove(event,this)" onmouseleave="_hideResChargeTipDelay()"></div>`;
           }
 
           /* Cellules avec valeur (GHO ou édition locale) */
@@ -602,6 +609,15 @@ function renderChart(layout,legend,visible,minD0,maxD0,today,leftHTML,mode,hasTr
       <div class="gantt-click-zone" style="width:${totalW}px" onclick="openEditPanel(null)" title="Cliquer pour ajouter une tâche"></div>
     </div></div>`;
   initDrag(document.getElementById('ganttRight'));
+  /* Synchronisation scroll vertical gauche ↔ droite */
+  (function syncScroll(){
+    const lp=document.getElementById('ganttLeftPanel');
+    const rp=document.getElementById('ganttRight');
+    if(!lp||!rp) return;
+    let _syncing=false;
+    lp.addEventListener('scroll',()=>{if(_syncing)return;_syncing=true;rp.scrollTop=lp.scrollTop;_syncing=false;});
+    rp.addEventListener('scroll',()=>{if(_syncing)return;_syncing=true;lp.scrollTop=rp.scrollTop;_syncing=false;});
+  })();
   if(mode==='jour'){
     setTimeout(()=>{const gr=document.getElementById('ganttRight');if(gr&&todayOk)gr.scrollLeft=Math.max(0,todayX-gr.clientWidth/2);},50);
   }
@@ -680,6 +696,20 @@ function hideResChargeTip(){
   if(pop)pop.style.display='none';
 }
 function _hideResChargeTipDelay(){_rcpHideTimer=setTimeout(hideResChargeTip,160);}
+
+/* Calcule le jour survolé depuis la position souris et affiche la popup */
+function ganttRowHoverMove(e,el){
+  const gr=document.getElementById('ganttRight');
+  if(!gr||!_ganttChartMinD) return;
+  const grRect=gr.getBoundingClientRect();
+  const xInChart=e.clientX-grRect.left+gr.scrollLeft;
+  const dayIdx=Math.floor(xInChart/dayWidth);
+  if(dayIdx<0) return;
+  const d=new Date(_ganttChartMinD);
+  d.setDate(d.getDate()+dayIdx);
+  const dk=String(d.getDate()).padStart(2,'0')+'/'+String(d.getMonth()+1).padStart(2,'0')+'/'+d.getFullYear();
+  showResChargeTip(e,el.dataset.rsid,dk,el.dataset.rsnm);
+}
 
 /* ═══════════════════════════════════════════════════
    ÉDITION DES CHARGES JOURNALIÈRES (GANTT)

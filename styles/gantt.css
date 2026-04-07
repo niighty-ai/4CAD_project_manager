@@ -5,7 +5,10 @@
   border:1px solid var(--border);
   border-radius:6px;
   overflow:hidden;
-  box-shadow:0 1px 4px var(--shadow)
+  box-shadow:0 1px 4px var(--shadow);
+  display:flex;
+  flex-direction:column;
+  height:calc(100vh - var(--header-h) - 82px)
 }
 
 
@@ -34,7 +37,9 @@
 
 .gantt-layout {
   display:flex;
-  overflow:hidden
+  overflow:hidden;
+  flex:1;
+  min-height:0
 }
 
 .gantt-left {
@@ -86,7 +91,10 @@
   font-weight:700;
   letter-spacing:1.5px;
   text-transform:uppercase;
-  color:#fff
+  color:#fff;
+  position:sticky;
+  top:0;
+  z-index:11
 }
 
 [data-theme="dark"] .gantt-left-header {
@@ -268,7 +276,7 @@
 .gantt-right {
   flex:1;
   overflow-x:auto;
-  overflow-y:hidden;
+  overflow-y:auto;
   cursor:grab;
   user-select:none
 }
@@ -285,7 +293,10 @@
   background:var(--navy);
   border-bottom:2px solid var(--accent);
   display:flex;
-  flex-direction:column
+  flex-direction:column;
+  position:sticky;
+  top:0;
+  z-index:10
 }
 
 [data-theme="dark"] .gantt-header-row {
@@ -884,10 +895,14 @@
 .gantt-left.has-tracking {
   --gl-tpl: 1fr var(--gl-slot) var(--gl-prev) 50px 50px var(--gl-dates);
 }
-/* Scroll horizontal si le panneau est trop étroit */
+/* Scroll horizontal si le panneau est trop étroit, vertical synchronisé avec gantt-right */
 .gantt-left {
   overflow-x: auto;
-  overflow-y: hidden;
+  overflow-y: auto;
+  scrollbar-width: none; /* Firefox — masque la scrollbar verticale du panneau gauche */
+}
+.gantt-left::-webkit-scrollbar:vertical {
+  display: none;
 }
 /* Largeur minimale des lignes = slot + charges + dates */
 /* Application à TOUTES les lignes : CSS Grid avec colonnes fixes ── */
@@ -1113,6 +1128,23 @@
   height: 100%;
   z-index: 0;
   cursor: cell;
+  background: rgba(59,130,246,.07);
+  border-left: 1px solid rgba(59,130,246,.22);
+  border-right: 1px solid rgba(59,130,246,.22);
+  box-sizing: border-box;
+}
+[data-theme="dark"] .gantt-edit-overlay {
+  background: rgba(59,130,246,.11);
+  border-color: rgba(59,130,246,.28);
+}
+
+/* ── Zone de survol invisible sur toute la largeur de la ligne ressource ── */
+.gantt-row-hover-zone {
+  position: absolute;
+  top: 0;
+  height: 100%;
+  z-index: 0;
+  pointer-events: auto;
 }
 
 /* ── Popup éditeur de charge journalière ── */
