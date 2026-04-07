@@ -593,8 +593,32 @@ function renderChart(layout,legend,visible,minD0,maxD0,today,leftHTML,mode,hasTr
             if(ovR>ovL)dayCells+=`<div class="gantt-edit-overlay" style="left:${ovL}px;width:${ovR-ovL}px" data-ri="${realIdx}" data-rsid="${escH(a.resourceId)}" data-rsnm="${escH(a.resourceNom||a.resourceId||'')}" data-tnm="${escH(r.tache||'')}" data-tdb="${tDeb.getTime()}" data-tfn="${tFin.getTime()}" onclick="ganttOverlayClick(event,this)" onmousemove="ganttRowHoverMove(event,this)" onmouseleave="_hideResChargeTipDelay()"></div>`;
           }
 
-          /* Cellules avec valeur (GHO ou édition locale) */
-          if(a.daily||Object.values(_ganttEdits).length){
+          /* Cellules journalières : fond coloré sur toute la période + valeur si saisie */
+          if(a.resourceId&&tDeb&&tFin){
+            let dc2=new Date(minD);
+            while(dc2<=maxD){
+              const k=`${String(dc2.getDate()).padStart(2,'0')}/${String(dc2.getMonth()+1).padStart(2,'0')}/${dc2.getFullYear()}`;
+              const ek=`${realIdx}::${a.resourceId}::${k}`;
+              const rawVal=(a.daily&&a.daily[k])||0;
+              const val=_ganttEdits[ek]!==undefined?_ganttEdits[ek]:rawVal;
+              const cx=xOf(dc2);
+              const inPer=dc2>=tDeb&&dc2<=tFin;
+              if(val>0||inPer){
+                const isEdited=_ganttEdits[ek]!==undefined;
+                const totalLoad=_pendingTotalForResourceDay(a.resourceId,k);
+                const loadCls=totalLoad>=1?'c-load-red':totalLoad>0.75?'c-load-orange':'c-load-green';
+                const editedCls=isEdited?'c-edited':'';
+                const selectCls=inPer?'c-selectable':'';
+                const cls=[loadCls,editedCls,selectCls].filter(Boolean).join(' ');
+                const noEd=inPer?'':'pointer-events:none;';
+                const edAttr=inPer?`onclick="ganttCellClick(event,this)" data-ri="${realIdx}" data-rsid="${escH(a.resourceId)}" data-rsnm="${escH(a.resourceNom||a.resourceId||'')}" data-tnm="${escH(r.tache||'')}" data-dk="${k}" data-val="${val}"`:'';
+                const txt=val>0?(val%1===0?val.toFixed(0):parseFloat(val.toFixed(2)).toString()):'';
+                dayCells+=`<div class="gantt-daily-cell ${cls}" style="left:${cx}px;width:${dayWidth}px;${noEd}" ${edAttr} onmouseenter="showResChargeTip(event,${escH(JSON.stringify(a.resourceId))},${escH(JSON.stringify(k))},${escH(JSON.stringify(a.resourceNom||a.resourceId||''))})" onmouseleave="_hideResChargeTipDelay()">${txt}</div>`;
+              }
+              dc2.setDate(dc2.getDate()+1);
+            }
+          } else if(a.daily||Object.values(_ganttEdits).length){
+            /* Pas de période définie : afficher uniquement les cellules avec valeur */
             let dc2=new Date(minD);
             while(dc2<=maxD){
               const k=`${String(dc2.getDate()).padStart(2,'0')}/${String(dc2.getMonth()+1).padStart(2,'0')}/${dc2.getFullYear()}`;
@@ -605,14 +629,10 @@ function renderChart(layout,legend,visible,minD0,maxD0,today,leftHTML,mode,hasTr
               if(val>0){
                 const txt=val%1===0?val.toFixed(0):parseFloat(val.toFixed(2)).toString();
                 const isEdited=_ganttEdits[ek]!==undefined;
-                const totalLoad=isEdited?_pendingTotalForResourceDay(a.resourceId,k)
-                  :(typeof getChargeForResourceDay==='function'&&a.resourceId)?getChargeForResourceDay(a.resourceId,dc2):val;
-                const isOver=totalLoad>1;
-                const cls=isEdited?(isOver?'c-edited c-over':'c-edited'):(isOver?'c-over':'');
-                const inPer=tDeb&&tFin&&dc2>=tDeb&&dc2<=tFin;
-                const noEd=inPer&&a.resourceId?'':'pointer-events:none;';
-                const edAttr=inPer&&a.resourceId?`onclick="ganttCellClick(event,this)" data-ri="${realIdx}" data-rsid="${escH(a.resourceId)}" data-rsnm="${escH(a.resourceNom||a.resourceId||'')}" data-tnm="${escH(r.tache||'')}" data-dk="${k}" data-val="${val}"`:'';
-                dayCells+=`<div class="gantt-daily-cell ${cls}" style="left:${cx}px;width:${dayWidth}px;${noEd}" ${edAttr} onmouseenter="showResChargeTip(event,${escH(JSON.stringify(a.resourceId))},${escH(JSON.stringify(k))},${escH(JSON.stringify(a.resourceNom||a.resourceId||''))})" onmouseleave="_hideResChargeTipDelay()">${txt}</div>`;
+                const totalLoad=_pendingTotalForResourceDay(a.resourceId,k);
+                const loadCls=totalLoad>=1?'c-load-red':totalLoad>0.75?'c-load-orange':'c-load-green';
+                const cls=isEdited?`${loadCls} c-edited`:loadCls;
+                dayCells+=`<div class="gantt-daily-cell ${cls}" style="left:${cx}px;width:${dayWidth}px;pointer-events:none" onmouseenter="showResChargeTip(event,${escH(JSON.stringify(a.resourceId))},${escH(JSON.stringify(k))},${escH(JSON.stringify(a.resourceNom||a.resourceId||''))})" onmouseleave="_hideResChargeTipDelay()">${txt}</div>`;
               }
               dc2.setDate(dc2.getDate()+1);
             }

@@ -1113,13 +1113,22 @@
   box-sizing: border-box;
   pointer-events: auto;
 }
-.gantt-daily-cell                    { color: var(--text-muted, #666); }
-.gantt-daily-cell.c-over             { background: rgba(220,53,69,.18); color: #c0392b; }
-.gantt-daily-cell.c-edited           { background: rgba(59,130,246,.18); color: #1d4ed8; }
-.gantt-daily-cell.c-edited.c-over    { background: rgba(59,130,246,.18); color: #1d4ed8; outline: 2px solid rgba(220,53,69,.6); outline-offset: -2px; }
-[data-theme="dark"] .gantt-daily-cell.c-over          { background: rgba(220,53,69,.25); color: #e74c3c; }
-[data-theme="dark"] .gantt-daily-cell.c-edited         { background: rgba(59,130,246,.25); color: #93c5fd; }
-[data-theme="dark"] .gantt-daily-cell.c-edited.c-over  { background: rgba(59,130,246,.25); color: #93c5fd; outline-color: rgba(220,53,69,.7); }
+.gantt-daily-cell                         { color: var(--text-muted, #666); }
+/* Fond selon charge totale de la ressource sur le jour */
+.gantt-daily-cell.c-load-green            { background: rgba(46,125,50,.15); }
+.gantt-daily-cell.c-load-orange           { background: rgba(230,126,34,.20); color: #b45309; }
+.gantt-daily-cell.c-load-red              { background: rgba(220,53,69,.18); color: #c0392b; }
+/* Édition en cours : surcharge le fond avec bleu + contour rouge si dépassement */
+.gantt-daily-cell.c-edited                { background: rgba(59,130,246,.22) !important; color: #1d4ed8; }
+.gantt-daily-cell.c-edited.c-load-red     { background: rgba(59,130,246,.22) !important; color: #1d4ed8; outline: 2px solid rgba(220,53,69,.6); outline-offset: -2px; }
+/* Surbrillance au survol des cellules sélectionnables */
+.gantt-daily-cell.c-selectable            { cursor: pointer; }
+.gantt-daily-cell.c-selectable:hover      { filter: brightness(1.4) saturate(1.3); outline: 2px solid rgba(59,130,246,.55); outline-offset: -2px; }
+/* Dark mode */
+[data-theme="dark"] .gantt-daily-cell.c-load-green   { background: rgba(46,125,50,.25); }
+[data-theme="dark"] .gantt-daily-cell.c-load-orange  { background: rgba(230,126,34,.28); color: #fbbf24; }
+[data-theme="dark"] .gantt-daily-cell.c-load-red     { background: rgba(220,53,69,.28); color: #e74c3c; }
+[data-theme="dark"] .gantt-daily-cell.c-edited       { background: rgba(59,130,246,.30) !important; color: #93c5fd; }
 
 /* ── Overlay clic sur zone vide dans la période de la tâche ── */
 .gantt-edit-overlay {
