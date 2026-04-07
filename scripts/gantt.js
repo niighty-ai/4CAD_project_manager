@@ -64,7 +64,7 @@ function setView(v){
   if(v==='mois'){dayWidth=Math.max(dayWidth,40);document.getElementById('zoomUnit').textContent='px/mois';}
   else document.getElementById('zoomUnit').textContent='px/j';
   if(v==='semaine'&&dayWidth>30)dayWidth=6;
-  if(v==='jour'&&dayWidth<14)dayWidth=20;
+  if(v==='jour'&&dayWidth<20)dayWidth=32;
   document.getElementById('zoomLevel').textContent=dayWidth;
   renderGantt();
 }
@@ -541,7 +541,7 @@ function renderChart(layout,legend,visible,minD0,maxD0,today,leftHTML,mode,hasTr
               const totalLoad = (typeof getChargeForResourceDay==='function' && a.resourceId)
                 ? getChargeForResourceDay(a.resourceId, dc2) : val;
               const cls=totalLoad>1?'c-over':'';
-              dayCells+=`<div class="gantt-daily-cell ${cls}" style="left:${cx}px;width:${dayWidth}px">${txt}</div>`;
+              dayCells+=`<div class="gantt-daily-cell ${cls}" style="left:${cx}px;width:${dayWidth}px" onmouseenter="showResChargeTip(event,${JSON.stringify(a.resourceId)},${JSON.stringify(k)})" onmouseleave="_hideResChargeTipDelay()">${txt}</div>`;
             }
             dc2.setDate(dc2.getDate()+1);
           }
@@ -595,6 +595,61 @@ function showTip(e,projet,groupe,tache,debut,fin,charge){
 }
 function moveTip(e){tip.style.left=(e.clientX+12)+'px';tip.style.top=(e.clientY-9)+'px';}
 function hideTip(){tip.style.display='none';}
+
+/* ── Popup charge ressource sur cellule journalière ── */
+let _rcpHideTimer=null;
+function _ensureResChargePop(){
+  let pop=document.getElementById('resChargePop');
+  if(!pop){
+    pop=document.createElement('div');
+    pop.id='resChargePop';
+    pop.className='res-charge-pop';
+    pop.style.display='none';
+    pop.addEventListener('mouseenter',()=>clearTimeout(_rcpHideTimer));
+    pop.addEventListener('mouseleave',hideResChargeTip);
+    document.body.appendChild(pop);
+  }
+  return pop;
+}
+function showResChargeTip(e,resourceId,dateKey){
+  clearTimeout(_rcpHideTimer);
+  const pop=_ensureResChargePop();
+  const data=(typeof getTasksForResourceDay==='function')
+    ?getTasksForResourceDay(resourceId,dateKey):{total:0,tasks:[]};
+  const fv=v=>{const r=Math.round(v*100)/100;return r%1===0?r.toFixed(0):r.toFixed(2).replace(/\.?0+$/,'');};
+  const libre=Math.max(0,Math.round((1-data.total)*100)/100);
+  const [dd,mm,yyyy]=dateKey.split('/');
+  const rows=data.tasks.map(t=>`<tr>
+    <td class="rcp-proj" title="${escH(t.projet)}">${escH(t.projet)}</td>
+    <td class="rcp-task" title="${escH(t.tache)}">${escH(t.tache)}</td>
+    <td class="rcp-charge">${fv(t.charge)}j</td>
+  </tr>`).join('');
+  pop.innerHTML=`
+    <div class="rcp-date">${dd}/${mm}/${yyyy}</div>
+    <div class="rcp-summary${data.total>1?' rcp-over':''}">
+      <span>Total&nbsp;<strong>${fv(data.total)}j</strong></span>
+      <span class="rcp-libre">Libre&nbsp;<strong>${fv(libre)}j</strong></span>
+    </div>
+    ${data.tasks.length?`<div class="rcp-scroll"><table class="rcp-table">
+      <thead><tr><th>Projet</th><th>Tâche</th><th>Charge</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table></div>`:'<div class="rcp-empty">Aucune tâche</div>'}`;
+  const pw=280,ph=220,vw=window.innerWidth,vh=window.innerHeight;
+  let left=e.clientX+14,top=e.clientY-24;
+  if(left+pw>vw-8)left=e.clientX-pw-8;
+  if(top+ph>vh-8)top=vh-ph-8;
+  if(top<8)top=8;
+  pop.style.left=left+'px';
+  pop.style.top=top+'px';
+  pop.style.display='block';
+}
+function hideResChargeTip(){
+  clearTimeout(_rcpHideTimer);
+  const pop=document.getElementById('resChargePop');
+  if(pop)pop.style.display='none';
+}
+function _hideResChargeTipDelay(){_rcpHideTimer=setTimeout(hideResChargeTip,160);}
+
 function showTipJalon(e,nom,date){
   const tip=document.getElementById('tooltip');
   tip.innerHTML=`<strong>◆ ${escH(nom)}</strong><br>${date}`;

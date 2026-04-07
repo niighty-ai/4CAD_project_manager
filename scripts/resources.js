@@ -1226,3 +1226,25 @@ function getChargeForResourceDay(resourceId, date) {
   /* Ancien format : Activités */
   return (r.ghoData.activities || []).reduce((s, a) => s + (a.daily[key] || 0), 0);
 }
+
+function getTasksForResourceDay(resourceId, dateKey) {
+  /* Retourne { total, tasks:[{projet,tache,charge}] } pour une ressource à une date (clé DD/MM/YYYY) */
+  const r = resources.find(x => x.id === resourceId);
+  if (!r || !r.ghoData) return { total: 0, tasks: [] };
+  const items = [];
+  if (r.ghoData.projects) {
+    r.ghoData.projects.forEach(p => {
+      (p.tasks || []).forEach(t => {
+        const c = t.daily[dateKey] || 0;
+        if (c > 0) items.push({ projet: p.name || '—', tache: t.taskName || t.taskId || '—', charge: c });
+      });
+    });
+  } else if (r.ghoData.activities) {
+    r.ghoData.activities.forEach(a => {
+      const c = a.daily[dateKey] || 0;
+      if (c > 0) items.push({ projet: '—', tache: a.name || '—', charge: c });
+    });
+  }
+  const total = Math.round(items.reduce((s, x) => s + x.charge, 0) * 1000) / 1000;
+  return { total, tasks: items };
+}
