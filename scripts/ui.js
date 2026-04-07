@@ -606,6 +606,25 @@ function openEditPanel(rowIdx){
     document.getElementById('epDeleteBtn').style.display='none';
     _epSetTacheRequired(true);
   }
+  /* ── Task ID externe + badge de synchronisation ── */
+  const _extIdGrp   = document.getElementById('epExternalIdGroup');
+  const _extIdInput = document.getElementById('epExternalId');
+  const _syncBadge  = document.getElementById('epSyncBadge');
+  if (_extIdGrp && _extIdInput) {
+    const extId = (epMode === 'edit') ? (rows[epEditingIdx]?.externalTaskId || null) : null;
+    if (extId) {
+      _extIdInput.value  = extId;
+      _extIdGrp.style.display = '';
+      if (_syncBadge) {
+        const synced = typeof _isTaskSyncedWithGho === 'function' && _isTaskSyncedWithGho(extId);
+        _syncBadge.style.display = synced ? 'inline-flex' : 'none';
+      }
+    } else {
+      _extIdGrp.style.display = 'none';
+      if (_syncBadge) _syncBadge.style.display = 'none';
+    }
+  }
+
   panel.classList.add('open');
   _showBackdrop();
   setTimeout(()=>document.getElementById('epTache').focus(), 230);
@@ -1074,7 +1093,7 @@ function renderAffectList(r) {
 
   const rows_html = asgns.map((a, i) => {
     const resOpts = (typeof resources !== 'undefined' ? resources : []).map(res => {
-      const name = [res.prenom, res.nom].filter(Boolean).join(' ');
+      const name = res.fullName || [res.prenom, res.nom].filter(Boolean).join(' ') || '?';
       const sel  = a.resourceId === res.id ? 'selected' : '';
       return `<option value="${escH(res.id)}" ${sel}>${escH(name)}</option>`;
     }).join('');
@@ -1139,7 +1158,7 @@ function affectChangeRes(idx, resId) {
   if (!r.assignments) r.assignments = [];
   const res = (typeof resources !== 'undefined' ? resources : []).find(x => x.id === resId);
   r.assignments[idx].resourceId  = resId;
-  r.assignments[idx].resourceNom = res ? [res.prenom, res.nom].filter(Boolean).join(' ') : '?';
+  r.assignments[idx].resourceNom = res ? (res.fullName || [res.prenom, res.nom].filter(Boolean).join(' ') || '?') : '?';
   saveAndRefreshAffect(r);
 }
 

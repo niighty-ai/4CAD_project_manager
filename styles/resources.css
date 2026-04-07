@@ -2,12 +2,30 @@
    resources.css — Vue Ressources GHO-style
    ═══════════════════════════════════════════════════════════════ */
 
+/* ── Reset des styles globaux main.css qui saignent dans le tableau GHO ── */
+.gho-table { font-size: 11px; font-family: Arial, sans-serif; }
+.gho-table thead tr { background: var(--surface2); }
+.gho-table th {
+  color: var(--text);
+  font-family: Arial, sans-serif;
+  text-transform: none;
+  letter-spacing: 0;
+  border-bottom: none;
+  font-weight: 600;
+}
+.gho-table td {
+  font-family: Arial, sans-serif;
+  border-bottom: none;
+}
+.gho-table tr:last-child td { border-bottom: none; }
+
 /* ── Wrapper global ── */
 .gho-wrap {
   display: flex;
   flex-direction: column;
   height: 100%;
-  overflow: hidden;
+  /* PAS d'overflow:hidden ici : ça créerait un scroll container fantôme
+     qui empêcherait position:sticky de fonctionner sur les td */
   background: var(--bg);
 }
 
@@ -56,6 +74,33 @@
   text-align: center;
 }
 
+.gho-btn-unit {
+  padding: 4px 10px;
+  border-radius: 4px;
+  border: 1px solid rgba(180,130,255,.5);
+  background: rgba(180,130,255,.1);
+  color: var(--text);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all .12s;
+}
+.gho-btn-unit:hover  { background: rgba(180,130,255,.25); }
+.gho-btn-unit.active { background: rgba(180,130,255,.3); border-color: rgba(180,130,255,.8); }
+
+.gho-btn-import-list {
+  padding: 4px 10px;
+  border-radius: 4px;
+  border: 1px solid rgba(114,182,236,.5);
+  background: rgba(114,182,236,.12);
+  color: var(--text);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all .12s;
+}
+.gho-btn-import-list:hover { background: rgba(114,182,236,.28); }
+
 .gho-btn-import {
   padding: 4px 10px;
   border-radius: 4px;
@@ -69,18 +114,6 @@
 }
 .gho-btn-import:hover { background: rgba(80,200,120,.3); }
 
-.gho-btn-add {
-  padding: 4px 10px;
-  border-radius: 4px;
-  border: 1px solid var(--accent);
-  background: var(--accent);
-  color: #fff;
-  font-size: 11px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all .12s;
-}
-.gho-btn-add:hover { opacity: .85; }
 
 /* ── Table wrapper ── */
 /* ── Single scroll wrapper (scrolls both X and Y) ── */
@@ -109,38 +142,81 @@
   z-index: 4;
   background: var(--surface2);
 }
+
+/* Hauteur fixe de la ligne mois = 26px pour que la ligne jours soit exactement à top:26px */
+.gho-thead-months th { height: 26px; }
 .gho-thead-days th { top: 26px; }
+
+/* Padding des cellules header */
+.gho-th-res  { padding: 4px 8px; }
+.gho-th-act  { padding: 4px 8px; }
+.gho-th-month {
+  padding: 0 4px;
+  text-align: center;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--muted);
+  border-right: 1px solid var(--border);
+}
+.gho-th-day {
+  padding: 2px 1px;
+  text-align: center;
+  font-size: 9px;
+  font-weight: 600;
+  color: var(--text);
+  border-right: 1px solid var(--border);
+}
 
 /* ── Sticky left columns ── */
 .gho-sticky-res {
   position: sticky;
   left: 0;
-  z-index: 3;
-  background: var(--bg);
+  z-index: 5;
+  background-color: var(--bg);
 }
 .gho-sticky-act {
   position: sticky;
   left: 200px;
-  z-index: 3;
-  background: var(--bg);
+  z-index: 5;
+  background-color: var(--bg);
+}
+.gho-sticky-task {
+  position: sticky;
+  left: 400px; /* RES_W(200) + ACT_W(200) */
+  z-index: 5;
+  background-color: var(--bg);
   border-right: 2px solid var(--border) !important;
   box-shadow: 3px 0 6px rgba(0,0,0,.1);
 }
 /* Corner cells: sticky both top and left — highest z-index */
 .gho-table thead th.gho-sticky-res,
-.gho-table thead th.gho-sticky-act {
-  z-index: 7;
-  background: var(--surface2);
+.gho-table thead th.gho-sticky-act,
+.gho-table thead th.gho-sticky-task {
+  z-index: 9;
+  background-color: var(--surface2);
 }
-/* Row hover: keep sticky bg */
+/* Chaque type de ligne force une couleur de fond solide sur ses sticky cells
+   pour masquer opaquement le contenu qui défile derrière */
+.gho-row-res .gho-sticky-res,
+.gho-row-res .gho-sticky-act,
+.gho-row-res .gho-sticky-task      { background-color: var(--surface) !important; }
 .gho-row-res:hover .gho-sticky-res,
-.gho-row-res:hover .gho-sticky-act { background: var(--surface2); }
+.gho-row-res:hover .gho-sticky-act,
+.gho-row-res:hover .gho-sticky-task { background-color: var(--surface2) !important; }
 .gho-row-act .gho-sticky-res,
-.gho-row-act .gho-sticky-act       { background: var(--bg); }
+.gho-row-act .gho-sticky-act,
+.gho-row-act .gho-sticky-task       { background-color: var(--bg) !important; }
+.gho-row-proj .gho-sticky-res,
+.gho-row-proj .gho-sticky-act,
+.gho-row-proj .gho-sticky-task      { background-color: var(--bg) !important; }
+.gho-row-task .gho-sticky-res,
+.gho-row-task .gho-sticky-act,
+.gho-row-task .gho-sticky-task      { background-color: var(--bg) !important; }
 
 /* ── Column widths ── */
-.gho-th-res, .gho-td-res { width: 200px; min-width: 200px; }
-.gho-th-act, .gho-td-act { width: 240px; min-width: 240px; }
+.gho-th-res, .gho-td-res   { width: 200px; min-width: 200px; }
+.gho-th-act, .gho-td-act   { width: 200px; min-width: 200px; }
+.gho-th-task, .gho-td-task { width: 240px; min-width: 240px; }
 
 /* Rows aligned by single table — no JS sync needed */
 .gho-table tr { vertical-align: middle; }
@@ -150,26 +226,20 @@
   border-top: 3px solid var(--accent);
   background: var(--surface);
 }
-.gho-row-res:hover .gho-td-res,
-.gho-row-res:hover .gho-td-act {
-  background: var(--surface2);
-}
-.gho-row-res:hover .gho-td-day {
-  background: var(--surface);
-}
 
 .gho-td-res {
-  padding: 4px 8px;
+  padding: 0;
   border-right: 1px solid var(--border);
   vertical-align: middle;
   overflow: hidden;
 }
-/* Resource td: flex layout directly on td */
-.gho-row-res .gho-td-res,
-.gho-row-act .gho-td-res {
+/* Wrapper interne : flex sur un div, pas sur le td (préserve position:sticky) */
+.gho-td-res-inner {
   display: flex;
   align-items: center;
   gap: 5px;
+  padding: 4px 8px;
+  height: 100%;
 }
 
 .gho-toggle {
@@ -203,70 +273,55 @@
   font-size: 11px;
 }
 
-.gho-res-actions {
-  display: none;
-  gap: 3px;
-  flex-shrink: 0;
-}
-.gho-row-res:hover .gho-res-actions { display: flex; }
-
-.gho-btn-edit, .gho-btn-del {
-  width: 20px;
-  height: 20px;
-  border-radius: 3px;
-  border: 1px solid var(--border);
-  background: var(--surface);
-  color: var(--muted);
-  font-size: 11px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all .1s;
-}
-.gho-btn-edit:hover { background: var(--accent); color: #fff; border-color: var(--accent); }
-.gho-btn-del:hover  { background: #e53935; color: #fff; border-color: #e53935; }
+/* Curseur pointer sur la cellule ressource (cliquable pour voir les infos) */
+.gho-td-res { cursor: pointer; }
 
 /* ── Activity summary cell ── */
 .gho-td-act {
-  padding: 4px 8px;
+  padding: 0;
   border-right: 2px solid var(--border);
   font-size: 10px;
   color: var(--muted);
   vertical-align: middle;
   overflow: hidden;
-  text-overflow: ellipsis;
+}
+/* Wrapper interne flex — td reste display:table-cell pour que sticky marche */
+.gho-td-act-inner {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  height: 100%;
   cursor: pointer;
 }
 .gho-td-act-name {
   cursor: default;
   font-size: 10px;
   color: var(--text);
-  padding-left: 20px !important;
-}
-.gho-td-act-total {
-  display: flex;
-  align-items: center;
-  gap: 6px;
+  padding: 4px 8px 4px 20px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .gho-import-date {
   font-size: 9px;
   color: rgba(80,200,120,.8);
   white-space: nowrap;
 }
+/* Nombre de projets : affiché à droite dans la colonne Activité/Projet */
 .gho-act-count {
+  margin-left: auto;
   font-size: 10px;
-  font-weight: 600;
+  font-weight: 700;
   color: var(--accent);
 }
 .gho-no-data { color: var(--muted); opacity: .5; font-style: italic; }
 
-/* ── Activity detail rows ── */
+/* ── Activity detail rows (ancien format) ── */
 .gho-row-act {
-  border-top: 1px solid rgba(var(--accent-rgb, 74,144,226), 0.15);
+  border-top: 1px solid rgba(0,0,0,.06);
   background: var(--bg);
 }
-/* First activity row: stronger border below the total row */
 .gho-row-res + .gho-row-act {
   border-top: 2px solid var(--border);
 }
@@ -279,6 +334,105 @@
   border-right: 1px solid var(--border);
 }
 
+/* ── Projet rows (nouveau format) ── */
+.gho-row-proj {
+  border-top: 2px solid var(--border);
+  background: var(--bg);
+}
+.gho-row-proj:hover .gho-sticky-res,
+.gho-row-proj:hover .gho-sticky-act { background: rgba(var(--accent-rgb, 236,114,6),.06); }
+.gho-td-proj-inner {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px 4px 16px;
+  cursor: pointer;
+  user-select: none;
+}
+.gho-td-proj-inner:hover { background: rgba(var(--accent-rgb, 236,114,6),.08); }
+.gho-proj-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text);
+}
+.gho-task-count {
+  font-size: 9px;
+  color: var(--muted);
+  white-space: nowrap;
+  opacity: .8;
+}
+
+/* ── Task rows (nouveau format) ── */
+.gho-row-task {
+  border-top: 1px solid rgba(0,0,0,.04);
+  background: var(--bg);
+}
+/* Cellule vide (placeholder dans les colonnes non utilisées) */
+.gho-td-empty {
+  border-right: 1px solid var(--border);
+}
+.gho-td-task {
+  padding: 0;
+  vertical-align: middle;
+  overflow: hidden;
+}
+.gho-td-task-inner {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 8px;
+}
+.gho-task-id {
+  font-size: 9px;
+  font-family: 'Courier New', monospace;
+  color: var(--muted);
+  background: var(--surface2);
+  border-radius: 3px;
+  padding: 1px 4px;
+  white-space: nowrap;
+  flex-shrink: 0;
+  opacity: 0;
+  transition: opacity .15s;
+}
+.gho-row-task:hover .gho-task-id { opacity: 1; }
+.gho-task-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 10px;
+  color: var(--text);
+}
+
+/* ── Popup ressources manquantes ── */
+.gho-dialog-wide { min-width: 380px; max-width: 520px; }
+.gho-missing-ok   { font-size: 11px; color: #2e7d32; margin: 0 0 6px; }
+.gho-missing-warn { font-size: 11px; color: var(--text); margin: 0 0 6px; }
+.gho-missing-hint { font-size: 10px; color: var(--muted); margin: 8px 0 0; }
+.gho-missing-list {
+  list-style: none;
+  padding: 6px 10px;
+  margin: 0;
+  background: var(--surface2);
+  border-radius: 4px;
+  max-height: 200px;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+}
+.gho-missing-item {
+  font-size: 11px;
+  color: var(--text);
+  padding: 3px 0;
+  border-bottom: 1px solid rgba(0,0,0,.05);
+}
+.gho-missing-item:last-child { border-bottom: none; }
+
 /* ── Day cells ── */
 .gho-td-day {
   text-align: center;
@@ -289,8 +443,12 @@
   width: var(--col-w, 34px);
   font-size: 9px;
 }
+.gho-td-day.we,
 .gho-td-day.weekend { background: rgba(0,0,0,.04); }
-.gho-td-day.today   { background: rgba(var(--accent-rgb, 74,144,226),.08); }
+.gho-td-day.today   { background: rgba(236,114,6,.10); }
+.gho-th-day.weekend,
+.gho-th-day.we      { background: rgba(0,0,0,.05); color: var(--muted); }
+.gho-th-day.today   { background: rgba(236,114,6,.18); color: var(--accent); font-weight: 700; }
 
 /* ── Charge cell content ── */
 .gho-cell {
@@ -301,6 +459,21 @@
   font-weight: 700;
   min-width: 18px;
   text-align: center;
+}
+.gho-cell.c-ok   { background: #fff;                color: #555;    }
+/* Fond bleu : cellule éditée manuellement depuis le Gantt */
+.gho-td-day.gho-td-edited { background: rgba(59,130,246,.14) !important; }
+
+/* Bouton Sync charges : rouge = données GHO plus récentes, vert = synchro OK */
+#btnSyncCharges.btn-sync-stale {
+  color: #dc3545 !important;
+  border-color: rgba(220,53,69,.6) !important;
+  background: rgba(220,53,69,.08) !important;
+}
+#btnSyncCharges.btn-sync-fresh {
+  color: #198754 !important;
+  border-color: rgba(25,135,84,.6) !important;
+  background: rgba(25,135,84,.08) !important;
 }
 .gho-cell.c-low  { background: rgba(76,175,80,.2);  color: #2e7d32; }
 .gho-cell.c-high { background: rgba(255,152,0,.25); color: #e65100; }
@@ -388,20 +561,49 @@
 }
 .gho-dlg-save:hover { opacity: .9; }
 
-/* ── Search bar in Ressource header ── */
+/* ── ID externe (lecture seule) dans le dialog ── */
+.gho-dlg-input-id {
+  font-family: 'Courier New', monospace;
+  font-size: 11px;
+  color: var(--muted);
+  background: var(--surface2);
+  cursor: default;
+  opacity: .85;
+}
+
+/* ── Search bar + type filter dans le header Ressource ── */
+.gho-search-row {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin-top: 4px;
+}
 .gho-search {
   display: block;
   width: 100%;
-  margin-top: 4px;
   padding: 3px 6px;
   border-radius: 4px;
   border: 1px solid var(--border);
   background: var(--bg);
   color: var(--text);
   font-size: 10px;
+  font-family: Arial, sans-serif;
   box-sizing: border-box;
 }
 .gho-search:focus { outline: none; border-color: var(--accent); }
+.gho-type-filter {
+  width: 100%;
+  padding: 2px 4px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+  font-size: 10px;
+  font-family: Arial, sans-serif;
+  box-sizing: border-box;
+  cursor: pointer;
+}
+.gho-type-filter:focus { outline: none; border-color: var(--accent); }
 
 /* ── Last import date in toolbar ── */
 .gho-last-import {
@@ -414,18 +616,6 @@
   background: rgba(80,200,120,.1);
 }
 
-/* ── Toggle in act col ── */
-.gho-td-act-total {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-}
-.gho-td-act-total .gho-act-count {
-  margin-left: auto; /* push count to right */
-  font-size: 10px;
-  font-weight: 700;
-  color: var(--accent);
-}
 
 /* ── Jour férié ── */
 .gho-th-day.ferie  { background: rgba(156,39,176,.12); color: #7b1fa2; }
@@ -435,5 +625,3 @@
 .gho-td-day { cursor: grab; }
 .gho-td-day:active { cursor: grabbing; }
 
-/* Rows aligned by shared scroll container — no JS sync needed */
-.gho-left-table tr, .gho-right-table tr { vertical-align: middle; }

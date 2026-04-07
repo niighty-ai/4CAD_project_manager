@@ -1743,6 +1743,16 @@ function openEditPanel(rowIdx){
       chargeRow.style.display='';
       document.getElementById('epDeleteBtn').style.display='block';
       _epSetTacheRequired(true, isGroupe);
+      /* Task ID externe (importé depuis XML) — lecture seule */
+      const _extIdGrp = document.getElementById('epExternalIdGroup');
+      if (_extIdGrp) {
+        if (r.externalTaskId) {
+          document.getElementById('epExternalId').value = r.externalTaskId;
+          _extIdGrp.style.display = '';
+        } else {
+          _extIdGrp.style.display = 'none';
+        }
+      }
     }
   } else {
     document.getElementById('epProjetSelect').disabled = false;
@@ -1767,6 +1777,8 @@ function openEditPanel(rowIdx){
     document.getElementById('epCharge').value = '';
     document.getElementById('epDeleteBtn').style.display='none';
     _epSetTacheRequired(true);
+    const _extIdGrpNew = document.getElementById('epExternalIdGroup');
+    if (_extIdGrpNew) _extIdGrpNew.style.display = 'none';
   }
   panel.classList.add('open');
   _showBackdrop();

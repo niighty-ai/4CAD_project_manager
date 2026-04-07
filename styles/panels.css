@@ -555,6 +555,46 @@ select.ep-input {
   cursor:pointer
 }
 
+/* Task ID externe — lecture seule */
+.ep-input-id {
+  color:var(--muted);
+  cursor:default;
+  opacity:.85;
+}
+.ep-input-id:focus { border-color:var(--border) }
+
+/* Conteneur Task ID + badge sync */
+.ep-id-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.ep-id-row .ep-input-id {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Badge de synchronisation */
+.sync-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 7px;
+  border-radius: 10px;
+  font-size: 10px;
+  font-weight: 700;
+  white-space: nowrap;
+  flex-shrink: 0;
+  background: rgba(39,174,96,.15);
+  color: #27ae60;
+  border: 1px solid rgba(39,174,96,.3);
+}
+[data-theme="dark"] .sync-badge {
+  background: rgba(39,174,96,.2);
+  color: #2ecc71;
+  border-color: rgba(39,174,96,.4);
+}
+
 .ep-btn-save {
   flex:1;
   background:var(--accent);

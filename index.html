@@ -22,11 +22,14 @@ const firebaseConfig = {
   messagingSenderId: "1005597262191",
   appId: "1:1005597262191:web:86901f88aecbd9ed30689a"
 };
-const _fbApp = initializeApp(firebaseConfig);
-const _fbDb  = getDatabase(_fbApp);
-const _fbRef = ref(_fbDb, 'gantt_portfolio');
-window._fbSet     = (data) => set(_fbRef, data);
-window._fbOnValue = (cb)   => onValue(_fbRef, snap => cb(snap.val()));</script>
+const _fbApp    = initializeApp(firebaseConfig);
+const _fbDb     = getDatabase(_fbApp);
+const _fbRef    = ref(_fbDb, 'gantt_portfolio');
+const _fbResRef = ref(_fbDb, 'gantt_resources');
+window._fbSet              = (data) => set(_fbRef,    data);
+window._fbOnValue          = (cb)   => onValue(_fbRef,    snap => cb(snap.val()));
+window._fbSetResources     = (data) => set(_fbResRef, data);
+window._fbOnValueResources = (cb)   => onValue(_fbResRef, snap => cb(snap.val()));</script>
 </head>
 <body>
 <header>
@@ -87,6 +90,13 @@ window._fbOnValue = (cb)   => onValue(_fbRef, snap => cb(snap.val()));</script>
     <div class="ep-group">
       <label class="ep-label">Charge (jours)</label>
       <input class="ep-input" id="epCharge" type="number" step="0.5" min="0" placeholder="ex: 2.5">
+    </div>
+    <div class="ep-group" id="epExternalIdGroup" style="display:none">
+      <label class="ep-label">Task ID</label>
+      <div class="ep-id-row">
+        <input class="ep-input ep-input-id" id="epExternalId" type="text" readonly tabindex="-1">
+        <span class="sync-badge" id="epSyncBadge" style="display:none" title="Synchronisé avec les données ressources">✓ sync</span>
+      </div>
     </div>
   </div>
   <div class="edit-panel-footer">
@@ -161,8 +171,8 @@ window._fbOnValue = (cb)   => onValue(_fbRef, snap => cb(snap.val()));</script>
           <button class="btn-ghost" id="btnJour" onclick="setView('jour')">Jour</button>
           <button class="btn-ghost active" id="btnSemaine" onclick="setView('semaine')">Semaine</button>
           <button class="btn-ghost" id="btnMois" onclick="setView('mois')">Mois</button>
-          <div class="sep"></div>
           <button class="btn-ghost" id="btnResources" onclick="toggleResources()" title="Afficher ressources">👥 Ressources</button>
+          <button class="btn-ghost" id="btnSyncCharges" onclick="syncGanttFromResources()" title="Synchroniser les charges depuis l'onglet Ressources">⟳ Sync charges</button>
           <div class="sep"></div>
           <div class="zoom-bar">
             <button onclick="changeZoom(-1)">−</button>
@@ -170,10 +180,12 @@ window._fbOnValue = (cb)   => onValue(_fbRef, snap => cb(snap.val()));</script>
             <button onclick="changeZoom(1)">+</button>
           </div>
           <div class="sep"></div>
-          <label for="fileInput" style="cursor:pointer;padding:6px 12px;border:1px solid var(--border);border-radius:4px;font-size:12px;font-weight:600;background:var(--surface2);display:inline-flex;align-items:center;color:var(--text);">📂 Importer</label>
+          <button class="btn-ghost" onclick="exportPPTX()" style="color:var(--accent);border-color:var(--accent);" title="Exporter en PPTX">📌 PPTX</button>
+          <label for="fileInput" style="cursor:pointer;padding:6px 12px;border:1px solid var(--border);border-radius:4px;font-size:12px;font-weight:600;background:var(--surface2);display:inline-flex;align-items:center;color:var(--text);" title="Importer un fichier">📂 Importer</label>
           <input type="file" id="fileInput" accept=".xlsx,.xls,.csv,.xml" style="display:none">
-          <button class="btn-ghost" onclick="downloadModele()" title="Télécharger le modèle Excel d'import">📋 Modèle</button>
-          <button class="btn-ghost" onclick="exportPPTX()" style="color:var(--accent);border-color:var(--accent);">📌 PPTX</button>
+          <div class="sep"></div>
+          <button class="btn-ghost btn-cancel-edits" id="btnCancelEdits" onclick="cancelGanttEdits()" disabled title="Annuler les modifications">✕</button>
+          <button class="btn-ghost btn-save-edits" id="btnSaveEdits" onclick="saveGanttEdits()" disabled title="Sauvegarder les modifications">💾</button>
         </div>
       </div>
       <div class="gantt-card">

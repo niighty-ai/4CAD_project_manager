@@ -5,7 +5,10 @@
   border:1px solid var(--border);
   border-radius:6px;
   overflow:hidden;
-  box-shadow:0 1px 4px var(--shadow)
+  box-shadow:0 1px 4px var(--shadow);
+  display:flex;
+  flex-direction:column;
+  height:calc(100vh - var(--header-h) - 82px)
 }
 
 
@@ -34,7 +37,9 @@
 
 .gantt-layout {
   display:flex;
-  overflow:hidden
+  overflow:hidden;
+  flex:1;
+  min-height:0
 }
 
 .gantt-left {
@@ -86,7 +91,10 @@
   font-weight:700;
   letter-spacing:1.5px;
   text-transform:uppercase;
-  color:#fff
+  color:#fff;
+  position:sticky;
+  top:0;
+  z-index:11
 }
 
 [data-theme="dark"] .gantt-left-header {
@@ -268,7 +276,7 @@
 .gantt-right {
   flex:1;
   overflow-x:auto;
-  overflow-y:hidden;
+  overflow-y:auto;
   cursor:grab;
   user-select:none
 }
@@ -285,7 +293,10 @@
   background:var(--navy);
   border-bottom:2px solid var(--accent);
   display:flex;
-  flex-direction:column
+  flex-direction:column;
+  position:sticky;
+  top:0;
+  z-index:10
 }
 
 [data-theme="dark"] .gantt-header-row {
@@ -884,10 +895,14 @@
 .gantt-left.has-tracking {
   --gl-tpl: 1fr var(--gl-slot) var(--gl-prev) 50px 50px var(--gl-dates);
 }
-/* Scroll horizontal si le panneau est trop étroit */
+/* Scroll horizontal si le panneau est trop étroit, vertical synchronisé avec gantt-right */
 .gantt-left {
   overflow-x: auto;
-  overflow-y: hidden;
+  overflow-y: auto;
+  scrollbar-width: none; /* Firefox — masque la scrollbar verticale du panneau gauche */
+}
+.gantt-left::-webkit-scrollbar:vertical {
+  display: none;
 }
 /* Largeur minimale des lignes = slot + charges + dates */
 /* Application à TOUTES les lignes : CSS Grid avec colonnes fixes ── */
@@ -1082,6 +1097,158 @@
   background: rgba(114,182,236,.02);
   border-bottom: 1px dashed var(--border);
 }
+
+/* ── Vue journalière : cellule charge par jour (calque sur la grille) ── */
+.gantt-daily-cell {
+  position: absolute;
+  top: 0;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 9px;
+  font-weight: 700;
+  font-family: 'DM Mono', monospace;
+  border-right: 1px solid rgba(114,182,236,.15);
+  box-sizing: border-box;
+  pointer-events: auto;
+}
+.gantt-daily-cell                    { color: var(--text-muted, #666); }
+.gantt-daily-cell.c-over             { background: rgba(220,53,69,.18); color: #c0392b; }
+.gantt-daily-cell.c-edited           { background: rgba(59,130,246,.18); color: #1d4ed8; }
+.gantt-daily-cell.c-edited.c-over    { background: rgba(59,130,246,.18); color: #1d4ed8; outline: 2px solid rgba(220,53,69,.6); outline-offset: -2px; }
+[data-theme="dark"] .gantt-daily-cell.c-over          { background: rgba(220,53,69,.25); color: #e74c3c; }
+[data-theme="dark"] .gantt-daily-cell.c-edited         { background: rgba(59,130,246,.25); color: #93c5fd; }
+[data-theme="dark"] .gantt-daily-cell.c-edited.c-over  { background: rgba(59,130,246,.25); color: #93c5fd; outline-color: rgba(220,53,69,.7); }
+
+/* ── Overlay clic sur zone vide dans la période de la tâche ── */
+.gantt-edit-overlay {
+  position: absolute;
+  top: 0;
+  height: 100%;
+  z-index: 0;
+  cursor: cell;
+  background: rgba(59,130,246,.07);
+  border-left: 1px solid rgba(59,130,246,.22);
+  border-right: 1px solid rgba(59,130,246,.22);
+  box-sizing: border-box;
+}
+[data-theme="dark"] .gantt-edit-overlay {
+  background: rgba(59,130,246,.11);
+  border-color: rgba(59,130,246,.28);
+}
+
+/* ── Zone de survol invisible sur toute la largeur de la ligne ressource ── */
+.gantt-row-hover-zone {
+  position: absolute;
+  top: 0;
+  height: 100%;
+  z-index: 0;
+  pointer-events: auto;
+}
+
+/* ── Popup éditeur de charge journalière ── */
+.gantt-cell-pop {
+  position: fixed;
+  z-index: 10000;
+  background: var(--bg, #fff);
+  border: 1px solid var(--border, #ddd);
+  border-radius: 8px;
+  box-shadow: 0 6px 24px rgba(0,0,0,.18);
+  padding: 12px;
+  min-width: 220px;
+  font-size: 12px;
+  font-family: inherit;
+}
+.gcp-res  { font-weight: 700; font-size: 13px; color: var(--text, #222); margin-bottom: 2px; }
+.gcp-date { font-size: 10px; color: var(--muted, #888); font-weight: 600; letter-spacing: .04em; margin-bottom: 2px; }
+.gcp-task { font-size: 11px; color: var(--muted, #666); margin-bottom: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 240px; }
+.gcp-stepper { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
+.gcp-step { width: 28px; height: 28px; border-radius: 4px; border: 1px solid var(--border, #ddd); background: var(--surface2, #f5f5f5); font-size: 16px; font-weight: 700; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.gcp-step:hover { background: var(--surface3, #e8e8e8); }
+.gcp-inp  { flex: 1; border: 1px solid var(--border, #ddd); border-radius: 4px; padding: 4px 6px; font-size: 13px; font-weight: 600; text-align: center; min-width: 0; }
+.gcp-hint { font-size: 11px; color: var(--muted, #888); text-align: center; min-height: 16px; margin-bottom: 4px; }
+.gcp-err  { font-size: 10px; color: #c0392b; min-height: 14px; margin-bottom: 6px; }
+.gcp-actions { display: flex; gap: 8px; }
+.gcp-cancel { flex: 1; padding: 5px; border-radius: 4px; border: 1px solid var(--border, #ddd); background: var(--surface2, #f5f5f5); cursor: pointer; font-size: 11px; }
+.gcp-apply  { flex: 1; padding: 5px; border-radius: 4px; border: none; background: #2563eb; color: #fff; cursor: pointer; font-size: 11px; font-weight: 600; }
+.gcp-apply:hover { background: #1d4ed8; }
+[data-theme="dark"] .gantt-cell-pop { background: #1e1e2e; border-color: #333; }
+
+/* ── Bouton Sauvegarder actif ── */
+.btn-save-edits:not(:disabled) { color: #2563eb; border-color: #2563eb; font-weight: 700; }
+.btn-cancel-edits:not(:disabled) { color: #c0392b; border-color: #c0392b; font-weight: 700; }
+
+/* ── Popup charge ressource (survol cellule journalière) ── */
+.res-charge-pop {
+  position: fixed;
+  z-index: 9999;
+  background: var(--bg, #fff);
+  border: 1px solid var(--border, #e0e0e0);
+  border-radius: 8px;
+  box-shadow: 0 4px 20px rgba(0,0,0,.15);
+  min-width: 260px;
+  max-width: 480px;
+  font-size: 11px;
+  font-family: inherit;
+  overflow: hidden;
+}
+.rcp-header-res {
+  padding: 7px 10px 4px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text, #222);
+  border-bottom: 1px solid var(--border, #eee);
+}
+.rcp-date {
+  padding: 4px 10px 2px;
+  font-size: 10px;
+  color: var(--muted, #888);
+  font-weight: 600;
+  letter-spacing: .04em;
+}
+.rcp-summary {
+  display: flex;
+  justify-content: space-between;
+  padding: 4px 10px 6px;
+  border-bottom: 1px solid var(--border, #eee);
+  font-size: 12px;
+  color: var(--text, #333);
+}
+.rcp-summary.rcp-over strong { color: #c0392b; }
+.rcp-libre { color: var(--muted, #666); }
+.rcp-libre strong { color: #2e7d32; }
+.rcp-scroll {
+  max-height: 200px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.rcp-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.rcp-table thead th {
+  position: sticky;
+  top: 0;
+  background: var(--bg-alt, #f5f5f5);
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  padding: 4px 6px;
+  color: var(--muted, #888);
+  text-align: left;
+  border-bottom: 1px solid var(--border, #eee);
+}
+.rcp-table tbody tr:hover { background: var(--bg-alt, #f9f9f9); }
+.rcp-table td { padding: 3px 6px; border-bottom: 1px solid var(--border, #f0f0f0); vertical-align: middle; }
+.rcp-proj  { max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted, #666); font-size: 10px; }
+.rcp-task  { white-space: normal; word-break: break-word; }
+.rcp-charge { text-align: right; font-weight: 700; white-space: nowrap; }
+.rcp-empty { padding: 8px 10px; color: var(--muted, #aaa); font-style: italic; }
+.rcp-h { color: var(--muted, #999); font-weight: 400; font-size: 10px; }
+[data-theme="dark"] .res-charge-pop { background: #1e1e2e; border-color: #333; }
+[data-theme="dark"] .rcp-table thead th { background: #252535; }
 
 /* ── Barre supérieure du Gantt (titre + toolbar sur la même ligne) ── */
 .gantt-topbar {
