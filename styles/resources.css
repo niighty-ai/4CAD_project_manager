@@ -461,6 +461,8 @@
   text-align: center;
 }
 .gho-cell.c-ok   { background: #fff;                color: #555;    }
+/* Fond bleu : cellule éditée manuellement depuis le Gantt */
+.gho-td-day.gho-td-edited { background: rgba(59,130,246,.14) !important; }
 .gho-cell.c-low  { background: rgba(76,175,80,.2);  color: #2e7d32; }
 .gho-cell.c-high { background: rgba(255,152,0,.25); color: #e65100; }
 .gho-cell.c-over { background: rgba(244,67,54,.25); color: #b71c1c; }

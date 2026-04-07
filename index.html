@@ -183,7 +183,7 @@ window._fbOnValueResources = (cb)   => onValue(_fbResRef, snap => cb(snap.val())
           <div class="sep"></div>
           <label for="fileInput" style="cursor:pointer;padding:6px 12px;border:1px solid var(--border);border-radius:4px;font-size:12px;font-weight:600;background:var(--surface2);display:inline-flex;align-items:center;color:var(--text);">📂 Importer</label>
           <input type="file" id="fileInput" accept=".xlsx,.xls,.csv,.xml" style="display:none">
-          <button class="btn-ghost" onclick="downloadModele()" title="Télécharger le modèle Excel d'import">📋 Modèle</button>
+          <button class="btn-ghost btn-save-edits" id="btnSaveEdits" onclick="saveGanttEdits()" disabled title="Aucune modification à sauvegarder">💾 Sauvegarder</button>
           <button class="btn-ghost" onclick="exportPPTX()" style="color:var(--accent);border-color:var(--accent);">📌 PPTX</button>
         </div>
       </div>

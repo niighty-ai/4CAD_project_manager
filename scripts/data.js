@@ -563,12 +563,15 @@ function setFbStatus(text, color){
 
 function cleanForFirebase(obj){
   if(Array.isArray(obj)) return obj.map(cleanForFirebase);
+  if(obj instanceof Date) return obj.toISOString();
   if(obj !== null && typeof obj === 'object'){
     const out = {};
     for(const [k,v] of Object.entries(obj)){
       if(v === undefined) continue;
-      if(v === null){ out[k] = null; continue; }
-      out[k] = cleanForFirebase(v);
+      /* Encode '/' dans les clés (Firebase interdit ce caractère) */
+      const sk = k.replace(/\//g, '-');
+      if(v === null){ out[sk] = null; continue; }
+      out[sk] = cleanForFirebase(v);
     }
     return out;
   }

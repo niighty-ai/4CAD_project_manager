@@ -44,18 +44,52 @@ function saveResources() {
   scheduleFirebaseSaveResources(); // envoie uniquement les métadonnées (sans ghoData)
 }
 
+/* Encode les clés DD/MM/YYYY → DD-MM-YYYY dans un ghoData pour Firebase */
+function _encodeGhoForFirebase(ghoData) {
+  if (!ghoData || typeof ghoData !== 'object') return ghoData;
+  const out = { ...ghoData };
+  if (out.projects) {
+    out.projects = out.projects.map(p => ({
+      ...p,
+      tasks: (p.tasks || []).map(t => ({
+        ...t,
+        daily: t.daily ? Object.fromEntries(
+          Object.entries(t.daily).map(([k, v]) => [k.replace(/\//g, '-'), v])
+        ) : {}
+      }))
+    }));
+  }
+  return out;
+}
+
 /* Construit la payload GHO : { [resourceId]: ghoData } */
-function _buildGhoPayload() {
+function _buildGhoPayload(forFirebase = false) {
   const payload = {};
-  resources.forEach(r => { if (r.ghoData) payload[r.id] = r.ghoData; });
+  resources.forEach(r => {
+    if (r.ghoData) payload[r.id] = forFirebase ? _encodeGhoForFirebase(r.ghoData) : r.ghoData;
+  });
   return Object.keys(payload).length ? payload : null;
 }
 
-/* Applique une payload GHO { [resourceId]: ghoData } aux ressources en mémoire */
+/* Applique une payload GHO { [resourceId]: ghoData } aux ressources en mémoire,
+   en décodant DD-MM-YYYY → DD/MM/YYYY */
 function _mergeGhoData(payload) {
   if (!payload || typeof payload !== 'object') return;
   resources.forEach(r => {
-    if (payload[r.id]) r.ghoData = payload[r.id];
+    if (!payload[r.id]) return;
+    const gho = payload[r.id];
+    if (gho.projects) {
+      gho.projects = gho.projects.map(p => ({
+        ...p,
+        tasks: (p.tasks || []).map(t => ({
+          ...t,
+          daily: t.daily ? Object.fromEntries(
+            Object.entries(t.daily).map(([k, v]) => [k.includes('/') ? k : k.replace(/-/g, '/'), v])
+          ) : {}
+        }))
+      }));
+    }
+    r.ghoData = gho;
   });
 }
 
@@ -293,7 +327,9 @@ function _buildRows(days) {
   const mkDay = (vals, meta, asJ = false, fmt = _fmtJ) => {
     const raw = vals[meta.key] || 0;
     const jours = asJ ? raw : raw / 480;
-    return `<td class="gho-td-day${meta.dc}">${jours > 0 ? fmt(jours) : ''}</td>`;
+    /* Fond bleu si cellule éditée manuellement depuis le Gantt et sauvegardée */
+    const isSaved = typeof _ganttSavedByRes !== 'undefined' && _ganttSavedByRes[`${r.id}::${meta.key}`];
+    return `<td class="gho-td-day${meta.dc}${isSaved?' gho-td-edited':''}">${jours > 0 ? fmt(jours) : ''}</td>`;
   };
 
   return fr.map(r => {
@@ -980,7 +1016,7 @@ async function _doFirebaseSaveGho() {
   if (typeof setFbStatus === 'function') setFbStatus('⏳ Sync GHO...', '#f7971e');
   try {
     _fbGhoLastSaveTs = Date.now();
-    const payload = _buildGhoPayload();
+    const payload = _buildGhoPayload(true); /* clés encodées pour Firebase */
     await window._fbSetGho(payload);
     const now = new Date();
     const hms = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;

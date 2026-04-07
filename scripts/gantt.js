@@ -58,6 +58,11 @@ function buildGanttLeftWithEdit(visible, showDates, labelW){
     <div class="resize-handle" id="resizeHandle"></div>
   </div>`;
 }
+let _ganttEdits   = {};          // non sauvegardés  { "ri::rsid::dk": charge }
+let _ganttSaved   = new Set();   // sauvegardés (fond bleu persistant)
+let _ganttSavedByRes = {};       // { "rsid::dk": true } pour l'onglet ressource
+let _gcpCtx       = null;        // contexte de l'éditeur popup
+
 function setView(v){
   view=v;
   ['jour','semaine','mois'].forEach(n=>{document.getElementById('btn'+n.charAt(0).toUpperCase()+n.slice(1))?.classList.toggle('active',n===v);});
@@ -528,22 +533,41 @@ function renderChart(layout,legend,visible,minD0,maxD0,today,leftHTML,mode,hasTr
       for(let ri=0;ri<nResRows;ri++){
         const a=(r.assignments||[])[ri];
         let rowContent='';
-        if(mode==='jour' && a && a.daily && Object.keys(a.daily).length>0){
-          /* ── Vue journalière : cellules charge par jour (comme l'onglet ressource) ── */
+        if(mode==='jour' && a){
+          /* ── Vue journalière : cellules charge + overlay période éditable ── */
           let dayCells='';
-          let dc2=new Date(minD);
-          while(dc2<=maxD){
-            const k=`${String(dc2.getDate()).padStart(2,'0')}/${String(dc2.getMonth()+1).padStart(2,'0')}/${dc2.getFullYear()}`;
-            const val=a.daily[k]||0;
-            const cx=xOf(dc2);
-            if(val>0){
-              const txt=val%1===0?val.toFixed(0):parseFloat(val.toFixed(2)).toString();
-              const totalLoad = (typeof getChargeForResourceDay==='function' && a.resourceId)
-                ? getChargeForResourceDay(a.resourceId, dc2) : val;
-              const cls=totalLoad>1?'c-over':'';
-              dayCells+=`<div class="gantt-daily-cell ${cls}" style="left:${cx}px;width:${dayWidth}px" onmouseenter="showResChargeTip(event,${escH(JSON.stringify(a.resourceId))},${escH(JSON.stringify(k))},${escH(JSON.stringify(a.resourceNom||a.resourceId||''))})" onmouseleave="_hideResChargeTipDelay()">${txt}</div>`;
+          const _mkMid=d=>{const x=d instanceof Date?new Date(d):new Date(d);x.setHours(0,0,0,0);return x;};
+          const tDeb=r.debut?_mkMid(r.debut):null;
+          const tFin=r.fin?_mkMid(r.fin):null;
+
+          /* Overlay transparent couvrant la période de la tâche (clics sur cellules vides) */
+          if(a.resourceId&&tDeb&&tFin){
+            const ovL=xOf(tDeb),ovR=xOf(tFin)+dayWidth;
+            if(ovR>ovL)dayCells+=`<div class="gantt-edit-overlay" style="left:${ovL}px;width:${ovR-ovL}px" data-ri="${realIdx}" data-rsid="${escH(a.resourceId)}" data-rsnm="${escH(a.resourceNom||a.resourceId||'')}" data-tnm="${escH(r.tache||'')}" data-tdb="${tDeb.getTime()}" data-tfn="${tFin.getTime()}" onclick="ganttOverlayClick(event,this)"></div>`;
+          }
+
+          /* Cellules avec valeur (GHO ou édition locale) */
+          if(a.daily||Object.values(_ganttEdits).length){
+            let dc2=new Date(minD);
+            while(dc2<=maxD){
+              const k=`${String(dc2.getDate()).padStart(2,'0')}/${String(dc2.getMonth()+1).padStart(2,'0')}/${dc2.getFullYear()}`;
+              const ek=`${realIdx}::${a.resourceId}::${k}`;
+              const rawVal=(a.daily&&a.daily[k])||0;
+              const val=_ganttEdits[ek]!==undefined?_ganttEdits[ek]:rawVal;
+              const cx=xOf(dc2);
+              if(val>0){
+                const txt=val%1===0?val.toFixed(0):parseFloat(val.toFixed(2)).toString();
+                const totalLoad=(typeof getChargeForResourceDay==='function'&&a.resourceId)?getChargeForResourceDay(a.resourceId,dc2):val;
+                const isEdited=_ganttEdits[ek]!==undefined||_ganttSaved.has(ek);
+                const isOver=totalLoad>1;
+                const cls=isEdited?(isOver?'c-edited c-over':'c-edited'):(isOver?'c-over':'');
+                const inPer=tDeb&&tFin&&dc2>=tDeb&&dc2<=tFin;
+                const noEd=inPer&&a.resourceId?'':'pointer-events:none;';
+                const edAttr=inPer&&a.resourceId?`onclick="ganttCellClick(event,this)" data-ri="${realIdx}" data-rsid="${escH(a.resourceId)}" data-rsnm="${escH(a.resourceNom||a.resourceId||'')}" data-tnm="${escH(r.tache||'')}" data-dk="${k}" data-val="${val}"`:'';
+                dayCells+=`<div class="gantt-daily-cell ${cls}" style="left:${cx}px;width:${dayWidth}px;${noEd}" ${edAttr} onmouseenter="showResChargeTip(event,${escH(JSON.stringify(a.resourceId))},${escH(JSON.stringify(k))},${escH(JSON.stringify(a.resourceNom||a.resourceId||''))})" onmouseleave="_hideResChargeTipDelay()">${txt}</div>`;
+              }
+              dc2.setDate(dc2.getDate()+1);
             }
-            dc2.setDate(dc2.getDate()+1);
           }
           rowContent=dayCells;
         } else if(a){
@@ -656,6 +680,201 @@ function hideResChargeTip(){
   if(pop)pop.style.display='none';
 }
 function _hideResChargeTipDelay(){_rcpHideTimer=setTimeout(hideResChargeTip,160);}
+
+/* ═══════════════════════════════════════════════════
+   ÉDITION DES CHARGES JOURNALIÈRES (GANTT)
+   ═══════════════════════════════════════════════════ */
+
+/* Clic sur une cellule existante */
+function ganttCellClick(e,el){
+  e.stopPropagation();
+  hideResChargeTip();
+  _openGcpAt(e,
+    parseInt(el.dataset.ri), el.dataset.rsid, el.dataset.rsnm,
+    el.dataset.tnm, el.dataset.dk, parseFloat(el.dataset.val)||0);
+}
+
+/* Clic sur l'overlay (zone vide dans la période de la tâche) */
+function ganttOverlayClick(e,el){
+  const tDeb=new Date(parseInt(el.dataset.tdb));
+  const tFin=new Date(parseInt(el.dataset.tfn));
+  const rect=el.getBoundingClientRect();
+  const dayOff=Math.floor(Math.max(0,e.clientX-rect.left)/dayWidth);
+  const clicked=new Date(tDeb);
+  clicked.setDate(clicked.getDate()+dayOff);
+  if(clicked<tDeb||clicked>tFin)return;
+  const k=`${String(clicked.getDate()).padStart(2,'0')}/${String(clicked.getMonth()+1).padStart(2,'0')}/${clicked.getFullYear()}`;
+  const ri=parseInt(el.dataset.ri), rsid=el.dataset.rsid;
+  const ek=`${ri}::${rsid}::${k}`;
+  const row=rows[ri];
+  const asgn=(row?.assignments||[]).find(a=>a.resourceId===rsid);
+  const cur=_ganttEdits[ek]!==undefined?_ganttEdits[ek]:(asgn?.daily?.[k]||0);
+  hideResChargeTip();
+  _openGcpAt(e,ri,rsid,el.dataset.rsnm,el.dataset.tnm,k,cur);
+}
+
+/* Crée (si besoin) le popup éditeur */
+function _ensureGcpPop(){
+  let pop=document.getElementById('ganttCellPop');
+  if(pop)return pop;
+  pop=document.createElement('div');
+  pop.id='ganttCellPop';
+  pop.className='gantt-cell-pop';
+  pop.style.display='none';
+  pop.innerHTML=`
+    <div class="gcp-res"></div>
+    <div class="gcp-date"></div>
+    <div class="gcp-task"></div>
+    <div class="gcp-stepper">
+      <button class="gcp-step" onclick="gcpStep(-1)">−</button>
+      <input id="gcpInput" class="gcp-inp" type="number" min="0" step="0.0625">
+      <button class="gcp-step" onclick="gcpStep(1)">+</button>
+    </div>
+    <div class="gcp-hint" id="gcpHint"></div>
+    <div class="gcp-err"  id="gcpErr"></div>
+    <div class="gcp-actions">
+      <button class="gcp-cancel" onclick="gcpClose()">Annuler</button>
+      <button class="gcp-apply"  onclick="gcpApply()">Appliquer</button>
+    </div>`;
+  pop.addEventListener('keydown',e=>{if(e.key==='Escape')gcpClose();if(e.key==='Enter')gcpApply();});
+  document.addEventListener('mousedown',e=>{
+    const p=document.getElementById('ganttCellPop');
+    if(p&&p.style.display!=='none'&&!p.contains(e.target))gcpClose();
+  },{capture:true});
+  document.getElementById && setTimeout(()=>{
+    const inp=document.getElementById('gcpInput');
+    if(inp)inp.addEventListener('input',_gcpHint);
+  },0);
+  document.body.appendChild(pop);
+  return pop;
+}
+
+function _gcpFmt(v){
+  const r=Math.round(v*10000)/10000;
+  const jt=(r%1===0?r.toFixed(0):r.toFixed(4).replace(/\.?0+$/,''))+'j';
+  const h=Math.round(r*8*100)/100;
+  const ht=(h%1===0?h.toFixed(0):h.toFixed(2).replace(/\.?0+$/,''))+'h';
+  return`${jt} (${ht})`;
+}
+function _gcpHint(){
+  const v=parseFloat(document.getElementById('gcpInput')?.value);
+  const el=document.getElementById('gcpHint');
+  if(el)el.textContent=isNaN(v)||v<0?'':_gcpFmt(v);
+}
+
+function _openGcpAt(e,ri,rsid,rsnm,tnm,dk,cur){
+  const pop=_ensureGcpPop();
+  pop.querySelector('.gcp-res').textContent=rsnm||rsid;
+  pop.querySelector('.gcp-date').textContent=dk;
+  pop.querySelector('.gcp-task').textContent=tnm||'';
+  const inp=document.getElementById('gcpInput');
+  inp.value=cur;
+  document.getElementById('gcpErr').textContent='';
+  _gcpCtx={ri,rsid,dk};
+  setTimeout(_gcpHint,0);
+  /* Mesure hors-écran */
+  pop.style.visibility='hidden';pop.style.display='block';
+  const pw=pop.offsetWidth,ph=pop.offsetHeight,vw=window.innerWidth,vh=window.innerHeight;
+  let lx=e.clientX+10,ty=e.clientY+10;
+  if(lx+pw>vw-8)lx=e.clientX-pw-8;
+  if(ty+ph>vh-8)ty=e.clientY-ph-8;
+  pop.style.left=Math.max(8,lx)+'px';pop.style.top=Math.max(8,ty)+'px';
+  pop.style.visibility='';
+  inp.focus();inp.select();
+}
+
+function gcpStep(dir){
+  const inp=document.getElementById('gcpInput');
+  const v=Math.round((parseFloat(inp.value)||0)*10000)/10000;
+  inp.value=Math.max(0,Math.round((v+dir*0.0625)*10000)/10000);
+  document.getElementById('gcpErr').textContent='';
+  _gcpHint();
+}
+
+function gcpApply(){
+  const inp=document.getElementById('gcpInput');
+  const errEl=document.getElementById('gcpErr');
+  const val=parseFloat(inp.value);
+  if(isNaN(val)||val<0){errEl.textContent='Valeur invalide.';return;}
+  if(val>0&&Math.abs(Math.round(val/0.0625)*0.0625-val)>1e-9){
+    errEl.textContent='Doit être un multiple de 0,0625j (= 30 min).';return;
+  }
+  const{ri,rsid,dk}=_gcpCtx;
+  const ek=`${ri}::${rsid}::${dk}`;
+  _ganttEdits[ek]=val;
+  _updateSaveBtn();
+  gcpClose();
+  renderGantt();
+}
+
+function gcpClose(){
+  const pop=document.getElementById('ganttCellPop');
+  if(pop)pop.style.display='none';
+}
+
+function _updateSaveBtn(){
+  const btn=document.getElementById('btnSaveEdits');
+  if(!btn)return;
+  const has=Object.keys(_ganttEdits).length>0;
+  btn.disabled=!has;
+  btn.title=has?'Sauvegarder les modifications':'Aucune modification à sauvegarder';
+  btn.classList.toggle('has-edits',has);
+}
+
+function saveGanttEdits(){
+  if(!Object.keys(_ganttEdits).length)return;
+  Object.entries(_ganttEdits).forEach(([ek,charge])=>{
+    /* Décompose la clé : premier :: = séparateur ri, dernier :: = séparateur dk */
+    const f=ek.indexOf('::'), l=ek.lastIndexOf('::');
+    const ri=parseInt(ek.slice(0,f));
+    const rsid=ek.slice(f+2,l);
+    const dk=ek.slice(l+2);
+    const row=rows[ri];
+    if(!row)return;
+
+    /* Mise à jour du daily dans l'assignment */
+    if(!row.assignments)row.assignments=[];
+    let asgn=row.assignments.find(a=>a.resourceId===rsid);
+    if(!asgn){asgn={resourceId:rsid,resourceNom:'',daily:{}};row.assignments.push(asgn);}
+    if(!asgn.daily)asgn.daily={};
+    if(charge>0)asgn.daily[dk]=charge; else delete asgn.daily[dk];
+
+    /* Recalcul charge totale et plage debut/fin */
+    const entries=Object.entries(asgn.daily).filter(([,v])=>v>0);
+    asgn.charge=Math.round(entries.reduce((s,[,v])=>s+v,0)*100)/100;
+    if(entries.length){
+      const dates=entries.map(([k])=>{const[dd,mm,yy]=k.split('/');return new Date(+yy,+mm-1,+dd);});
+      asgn.debut=new Date(Math.min(...dates));
+      asgn.fin=new Date(Math.max(...dates));
+    }
+
+    /* Mise à jour des données GHO en mémoire */
+    if(typeof resources!=='undefined'&&row.externalTaskId){
+      const res=resources.find(r=>r.id===rsid);
+      if(res?.ghoData?.projects){
+        for(const proj of res.ghoData.projects){
+          for(const t of(proj.tasks||[])){
+            if(typeof _matchTaskId==='function'&&_matchTaskId(row.externalTaskId,t.taskId)){
+              if(!t.daily)t.daily={};
+              if(charge>0)t.daily[dk]=charge; else delete t.daily[dk];
+            }
+          }
+        }
+      }
+    }
+
+    /* Marquer comme sauvegardé pour fond bleu persistant */
+    _ganttSaved.add(ek);
+    _ganttSavedByRes[`${rsid}::${dk}`]=true;
+  });
+
+  _ganttEdits={};
+  _updateSaveBtn();
+  saveCurrentProject();
+  if(typeof saveGhoData==='function')saveGhoData();
+  renderGantt();
+  if(typeof _refreshTbody==='function')_refreshTbody();
+}
 
 function showTipJalon(e,nom,date){
   const tip=document.getElementById('tooltip');

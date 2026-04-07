@@ -1098,9 +1098,53 @@
   box-sizing: border-box;
   pointer-events: auto;
 }
-.gantt-daily-cell          { color: var(--text-muted, #666); }
-.gantt-daily-cell.c-over  { background: rgba(220, 53, 69, .18); color: #c0392b; }
-[data-theme="dark"] .gantt-daily-cell.c-over { background: rgba(220,53,69,.25); color: #e74c3c; }
+.gantt-daily-cell                    { color: var(--text-muted, #666); }
+.gantt-daily-cell.c-over             { background: rgba(220,53,69,.18); color: #c0392b; }
+.gantt-daily-cell.c-edited           { background: rgba(59,130,246,.18); color: #1d4ed8; }
+.gantt-daily-cell.c-edited.c-over    { background: rgba(59,130,246,.18); color: #1d4ed8; outline: 2px solid rgba(220,53,69,.6); outline-offset: -2px; }
+[data-theme="dark"] .gantt-daily-cell.c-over          { background: rgba(220,53,69,.25); color: #e74c3c; }
+[data-theme="dark"] .gantt-daily-cell.c-edited         { background: rgba(59,130,246,.25); color: #93c5fd; }
+[data-theme="dark"] .gantt-daily-cell.c-edited.c-over  { background: rgba(59,130,246,.25); color: #93c5fd; outline-color: rgba(220,53,69,.7); }
+
+/* ── Overlay clic sur zone vide dans la période de la tâche ── */
+.gantt-edit-overlay {
+  position: absolute;
+  top: 0;
+  height: 100%;
+  z-index: 0;
+  cursor: cell;
+}
+
+/* ── Popup éditeur de charge journalière ── */
+.gantt-cell-pop {
+  position: fixed;
+  z-index: 10000;
+  background: var(--bg, #fff);
+  border: 1px solid var(--border, #ddd);
+  border-radius: 8px;
+  box-shadow: 0 6px 24px rgba(0,0,0,.18);
+  padding: 12px;
+  min-width: 220px;
+  font-size: 12px;
+  font-family: inherit;
+}
+.gcp-res  { font-weight: 700; font-size: 13px; color: var(--text, #222); margin-bottom: 2px; }
+.gcp-date { font-size: 10px; color: var(--muted, #888); font-weight: 600; letter-spacing: .04em; margin-bottom: 2px; }
+.gcp-task { font-size: 11px; color: var(--muted, #666); margin-bottom: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 240px; }
+.gcp-stepper { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
+.gcp-step { width: 28px; height: 28px; border-radius: 4px; border: 1px solid var(--border, #ddd); background: var(--surface2, #f5f5f5); font-size: 16px; font-weight: 700; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.gcp-step:hover { background: var(--surface3, #e8e8e8); }
+.gcp-inp  { flex: 1; border: 1px solid var(--border, #ddd); border-radius: 4px; padding: 4px 6px; font-size: 13px; font-weight: 600; text-align: center; min-width: 0; }
+.gcp-hint { font-size: 11px; color: var(--muted, #888); text-align: center; min-height: 16px; margin-bottom: 4px; }
+.gcp-err  { font-size: 10px; color: #c0392b; min-height: 14px; margin-bottom: 6px; }
+.gcp-actions { display: flex; gap: 8px; }
+.gcp-cancel { flex: 1; padding: 5px; border-radius: 4px; border: 1px solid var(--border, #ddd); background: var(--surface2, #f5f5f5); cursor: pointer; font-size: 11px; }
+.gcp-apply  { flex: 1; padding: 5px; border-radius: 4px; border: none; background: #2563eb; color: #fff; cursor: pointer; font-size: 11px; font-weight: 600; }
+.gcp-apply:hover { background: #1d4ed8; }
+[data-theme="dark"] .gantt-cell-pop { background: #1e1e2e; border-color: #333; }
+
+/* ── Bouton Sauvegarder actif ── */
+.btn-save-edits:not(:disabled) { color: #2563eb; border-color: #2563eb; font-weight: 700; }
 
 /* ── Popup charge ressource (survol cellule journalière) ── */
 .res-charge-pop {
