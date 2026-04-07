@@ -157,20 +157,20 @@
 .gho-sticky-res {
   position: sticky;
   left: 0;
-  z-index: 3;
-  background: var(--bg);
+  z-index: 5;
+  background-color: var(--bg);
 }
 .gho-sticky-act {
   position: sticky;
   left: 200px;
-  z-index: 3;
-  background: var(--bg);
+  z-index: 5;
+  background-color: var(--bg);
 }
 .gho-sticky-task {
   position: sticky;
   left: 400px; /* RES_W(200) + ACT_W(200) */
-  z-index: 3;
-  background: var(--bg);
+  z-index: 5;
+  background-color: var(--bg);
   border-right: 2px solid var(--border) !important;
   box-shadow: 3px 0 6px rgba(0,0,0,.1);
 }
@@ -178,22 +178,26 @@
 .gho-table thead th.gho-sticky-res,
 .gho-table thead th.gho-sticky-act,
 .gho-table thead th.gho-sticky-task {
-  z-index: 7;
-  background: var(--surface2);
+  z-index: 9;
+  background-color: var(--surface2);
 }
-/* Row hover: keep sticky bg */
+/* Chaque type de ligne force une couleur de fond solide sur ses sticky cells
+   pour masquer opaquement le contenu qui défile derrière */
+.gho-row-res .gho-sticky-res,
+.gho-row-res .gho-sticky-act,
+.gho-row-res .gho-sticky-task      { background-color: var(--surface) !important; }
 .gho-row-res:hover .gho-sticky-res,
 .gho-row-res:hover .gho-sticky-act,
-.gho-row-res:hover .gho-sticky-task { background: var(--surface2); }
+.gho-row-res:hover .gho-sticky-task { background-color: var(--surface2) !important; }
 .gho-row-act .gho-sticky-res,
 .gho-row-act .gho-sticky-act,
-.gho-row-act .gho-sticky-task       { background: var(--bg); }
+.gho-row-act .gho-sticky-task       { background-color: var(--bg) !important; }
 .gho-row-proj .gho-sticky-res,
 .gho-row-proj .gho-sticky-act,
-.gho-row-proj .gho-sticky-task      { background: var(--bg); }
+.gho-row-proj .gho-sticky-task      { background-color: var(--bg) !important; }
 .gho-row-task .gho-sticky-res,
 .gho-row-task .gho-sticky-act,
-.gho-row-task .gho-sticky-task      { background: var(--bg); }
+.gho-row-task .gho-sticky-task      { background-color: var(--bg) !important; }
 
 /* ── Column widths ── */
 .gho-th-res, .gho-td-res   { width: 200px; min-width: 200px; }
