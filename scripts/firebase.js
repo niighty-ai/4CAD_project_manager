@@ -13,8 +13,11 @@ const _fbApp    = initializeApp(firebaseConfig);
 const _fbDb     = getDatabase(_fbApp);
 const _fbRef    = ref(_fbDb, 'gantt_portfolio');
 const _fbResRef = ref(_fbDb, 'gantt_resources');
+const _fbGhoRef = ref(_fbDb, 'gantt_gho');
 
 window._fbSet             = (data) => set(_fbRef,    data);
 window._fbOnValue         = (cb)   => onValue(_fbRef,    snap => cb(snap.val()));
 window._fbSetResources    = (data) => set(_fbResRef, data);
 window._fbOnValueResources= (cb)   => onValue(_fbResRef, snap => cb(snap.val()));
+window._fbSetGho          = (data) => set(_fbGhoRef, data);
+window._fbOnValueGho      = (cb)   => onValue(_fbGhoRef, snap => cb(snap.val()));

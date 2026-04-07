@@ -5,13 +5,21 @@
 
 /* ── État global ressources ── */
 const RESOURCES_KEY = 'gantt4cad_resources';
+const GHO_KEY       = 'gantt4cad_gho';
 let resources = [];
 
-/* ── Firebase ressources ── */
+/* ── Firebase ressources (métadonnées) ── */
 let _fbResSaveTimer   = null;
 let _fbResSaving      = false;
 let _fbResInitLoaded  = false;
 let _fbResLastSaveTs  = 0;
+
+/* ── Firebase GHO (charges / projets / tâches) ── */
+let _fbGhoSaveTimer   = null;
+let _fbGhoSaving      = false;
+let _fbGhoInitLoaded  = false;
+let _fbGhoLastSaveTs  = 0;
+let _fbGhoCache       = null; // cache en mémoire pour résoudre les races conditions
 
 /* ── Collapse state : set of resource IDs that are expanded ── */
 const _resExpanded = new Set();
@@ -32,7 +40,30 @@ const _ferieCache = {}; // year → Set<timestamp>
    ══════════════════════════════════ */
 function saveResources() {
   try { localStorage.setItem(RESOURCES_KEY, JSON.stringify(resources)); } catch(e) {}
-  if (typeof scheduleFirebaseSaveResources === 'function') scheduleFirebaseSaveResources();
+  scheduleFirebaseSaveResources(); // envoie uniquement les métadonnées (sans ghoData)
+}
+
+/* Construit la payload GHO : { [resourceId]: ghoData } */
+function _buildGhoPayload() {
+  const payload = {};
+  resources.forEach(r => { if (r.ghoData) payload[r.id] = r.ghoData; });
+  return Object.keys(payload).length ? payload : null;
+}
+
+/* Applique une payload GHO { [resourceId]: ghoData } aux ressources en mémoire */
+function _mergeGhoData(payload) {
+  if (!payload || typeof payload !== 'object') return;
+  resources.forEach(r => {
+    if (payload[r.id]) r.ghoData = payload[r.id];
+  });
+}
+
+/* Sauvegarde la data GHO (localStorage + Firebase gantt_gho) */
+function saveGhoData() {
+  const payload = _buildGhoPayload();
+  try { localStorage.setItem(GHO_KEY, JSON.stringify(payload)); } catch(e) {}
+  _fbGhoCache = payload;
+  scheduleFirebaseSaveGho();
 }
 
 function loadResources() {
@@ -841,7 +872,8 @@ function parseGHOExcel(buffer) {
       }
     });
 
-    saveResources();
+    saveResources(); // métadonnées → gantt_resources
+    saveGhoData();   // charges/projets/tâches → gantt_gho
     _refreshResView();
 
     if (missing.length > 0) {
@@ -886,7 +918,10 @@ async function _doFirebaseSaveResources() {
   if (typeof setFbStatus === 'function') setFbStatus('⏳ Sync ressources...', '#f7971e');
   try {
     _fbResLastSaveTs = Date.now();
-    await window._fbSetResources(resources);
+    /* Envoyer uniquement les métadonnées — ghoData est dans gantt_gho (nœud séparé) */
+    // eslint-disable-next-line no-unused-vars
+    const metadata = resources.map(({ ghoData, ...rest }) => rest);
+    await window._fbSetResources(metadata);
     const now = new Date();
     const hms = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
     if (typeof setFbStatus === 'function') setFbStatus('☁ ' + hms, '#2e7d32');
@@ -899,12 +934,102 @@ async function _doFirebaseSaveResources() {
 }
 
 /* ══════════════════════════════════
+   FIREBASE GHO — save / load
+   ══════════════════════════════════ */
+function scheduleFirebaseSaveGho() {
+  clearTimeout(_fbGhoSaveTimer);
+  _fbGhoSaveTimer = setTimeout(_doFirebaseSaveGho, 1500);
+}
+
+async function _doFirebaseSaveGho() {
+  if (_fbGhoSaving) return;
+  let waited = 0;
+  while (typeof window._fbSetGho !== 'function' && waited < 15000) {
+    await new Promise(r => setTimeout(r, 300));
+    waited += 300;
+  }
+  if (typeof window._fbSetGho !== 'function') {
+    console.warn('[GHO] Firebase indisponible après 15 s — sauvegarde annulée');
+    return;
+  }
+  _fbGhoSaving = true;
+  if (typeof setFbStatus === 'function') setFbStatus('⏳ Sync GHO...', '#f7971e');
+  try {
+    _fbGhoLastSaveTs = Date.now();
+    const payload = _buildGhoPayload();
+    await window._fbSetGho(payload);
+    const now = new Date();
+    const hms = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+    if (typeof setFbStatus === 'function') setFbStatus('☁ ' + hms, '#2e7d32');
+  } catch(e) {
+    console.error('Firebase GHO save error:', e);
+    if (typeof setFbStatus === 'function') setFbStatus('⚠ Erreur Firebase GHO', '#e17055');
+  } finally {
+    _fbGhoSaving = false;
+  }
+}
+
+function _initFirebaseGho() {
+  let _attempts = 0;
+  const _iv = setInterval(() => {
+    _attempts++;
+    if (typeof window._fbOnValueGho === 'function') {
+      clearInterval(_iv);
+      window._fbOnValueGho(val => {
+        /* Ignorer les mises à jour juste après notre propre sauvegarde */
+        if (_fbGhoInitLoaded && (Date.now() - _fbGhoLastSaveTs) < 4000) return;
+
+        if (!_fbGhoInitLoaded) {
+          _fbGhoInitLoaded = true;
+          if (val) {
+            /* Firebase a des données GHO → autoritaire */
+            _fbGhoCache = val;
+            _mergeGhoData(val);
+            try { localStorage.setItem(GHO_KEY, JSON.stringify(val)); } catch(e) {}
+          } else {
+            /* Firebase vide → pousser les données locales si on en a */
+            const local = _buildGhoPayload();
+            if (local) scheduleFirebaseSaveGho();
+          }
+          if (document.getElementById('viewRessources')?.style.display !== 'none') {
+            _refreshResView();
+          }
+          return;
+        }
+
+        /* Mise à jour temps réel depuis un autre client */
+        if (val) {
+          _fbGhoCache = val;
+          _mergeGhoData(val);
+          try { localStorage.setItem(GHO_KEY, JSON.stringify(val)); } catch(e) {}
+          if (document.getElementById('viewRessources')?.style.display !== 'none') {
+            _refreshResView();
+          }
+        }
+      });
+    } else if (_attempts > 60) {
+      clearInterval(_iv);
+    }
+  }, 100);
+}
+
+/* ══════════════════════════════════
    INIT
    ══════════════════════════════════ */
 function initResources() {
   loadResources(); // localStorage en premier (immédiat)
 
-  /* Attendre que le SDK Firebase soit prêt puis synchroniser */
+  /* Charger la data GHO depuis localStorage (disponible hors-ligne) */
+  try {
+    const rawGho = localStorage.getItem(GHO_KEY);
+    if (rawGho) {
+      const gho = JSON.parse(rawGho);
+      _fbGhoCache = gho;
+      _mergeGhoData(gho);
+    }
+  } catch(e) {}
+
+  /* Attendre que le SDK Firebase soit prêt puis synchroniser les ressources */
   let _attempts = 0;
   const _iv = setInterval(() => {
     _attempts++;
@@ -928,12 +1053,14 @@ function initResources() {
           if (fbResources.length > 0 && fbResources.length >= resources.length) {
             /* Firebase a autant ou plus de données → utiliser Firebase */
             resources = fbResources;
+            /* Ré-appliquer le cache GHO : les métadonnées Firebase n'ont pas ghoData */
+            if (_fbGhoCache) _mergeGhoData(_fbGhoCache);
             try { localStorage.setItem(RESOURCES_KEY, JSON.stringify(resources)); } catch(e) {}
             if (document.getElementById('viewRessources')?.style.display !== 'none') {
               _refreshResView();
             }
           } else if (resources.length > 0) {
-            /* localStorage a plus de données (import récent non encore sauvegardé) → pousser vers Firebase */
+            /* localStorage a plus de données → pousser vers Firebase */
             console.log(`[Resources] localStorage (${resources.length}) > Firebase (${fbResources.length}) — push vers Firebase`);
             scheduleFirebaseSaveResources();
           }
@@ -943,6 +1070,7 @@ function initResources() {
         /* Mises à jour temps réel d'un autre client */
         if (fbResources.length) {
           resources = fbResources;
+          if (_fbGhoCache) _mergeGhoData(_fbGhoCache);
           try { localStorage.setItem(RESOURCES_KEY, JSON.stringify(resources)); } catch(e) {}
           if (document.getElementById('viewRessources')?.style.display !== 'none') {
             _refreshResView();
@@ -953,6 +1081,9 @@ function initResources() {
       clearInterval(_iv); // Firebase indisponible, localStorage suffit
     }
   }, 100);
+
+  /* Synchroniser la data GHO depuis Firebase (nœud séparé) */
+  _initFirebaseGho();
 }
 
 /* Legacy aliases used elsewhere */
