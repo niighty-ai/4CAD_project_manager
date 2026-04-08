@@ -1008,7 +1008,7 @@ function saveGanttEdits(){
 
     /* Recalcul charge totale et plage debut/fin */
     const entries=Object.entries(asgn.daily).filter(([,v])=>v>0);
-    asgn.charge=Math.round(entries.reduce((s,[,v])=>s+v,0)*100)/100;
+    asgn.charge=Math.round(entries.reduce((s,[,v])=>s+v,0)*10000)/10000;
     if(entries.length){
       const dates=entries.map(([k])=>{const[dd,mm,yy]=k.split('/');return new Date(+yy,+mm-1,+dd);});
       asgn.debut=new Date(Math.min(...dates));

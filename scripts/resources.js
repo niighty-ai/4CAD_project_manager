@@ -947,7 +947,7 @@ function parseGHOExcel(buffer) {
       if (!parsed[resName][projName][tKey])       parsed[resName][projName][tKey] = { taskId, taskName: taskName || taskId, daily: {} };
 
       const daily = parsed[resName][projName][tKey].daily;
-      daily[dateKey] = Math.round(((daily[dateKey] || 0) + jours) * 1000) / 1000;
+      daily[dateKey] = Math.round(((daily[dateKey] || 0) + jours) * 10000) / 10000;
     }
 
     /* ── Correspondance ressources : jamais de création ── */
@@ -1318,7 +1318,7 @@ function syncGanttFromResources(silent = false) {
           matchedRow.assignments.push(asgn);
         }
 
-        asgn.charge     = Math.round(totalCharge * 100) / 100;
+        asgn.charge     = Math.round(totalCharge * 10000) / 10000;
         asgn.daily      = { ...daily };
         if (minDate) asgn.debut = minDate;
         if (maxDate) asgn.fin   = maxDate;
