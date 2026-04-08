@@ -784,15 +784,20 @@ function showResChargeTip(e,resourceId,dateKey,resourceNom){
       <thead><tr><th>Projet</th><th>Tâche</th><th>Charge</th></tr></thead>
       <tbody>${rowsHtml}</tbody>
     </table></div>`:'<div class="rcp-empty">Aucune tâche</div>'}`;
-  /* Affichage hors-écran pour mesurer la taille réelle */
+  /* Positionnement : au-dessus ou en dessous de la ligne de la cellule
+     (jamais au niveau du curseur pour ne pas gêner le glissement horizontal) */
   pop.style.visibility='hidden';
   pop.style.display='block';
   const pw=pop.offsetWidth,ph=pop.offsetHeight,vw=window.innerWidth,vh=window.innerHeight;
-  let left=e.clientX+14,top=e.clientY-24;
-  if(left+pw>vw-8)left=e.clientX-pw-8;
-  if(top+ph>vh-8)top=vh-ph-8;
-  if(top<8)top=8;
-  if(left<8)left=8;
+  const cellRect=(e.currentTarget||e.target).getBoundingClientRect();
+  /* Préférence : au-dessus de la ligne */
+  let top=cellRect.top-ph-6;
+  if(top<8) top=cellRect.bottom+6;          // pas assez de place en haut → en dessous
+  if(top+ph>vh-8) top=Math.max(8,vh-ph-8); // déborde en bas → recaler
+  /* Centré horizontalement sur le curseur, contraint à l'écran */
+  let left=e.clientX-pw/2;
+  if(left+pw>vw-8) left=vw-pw-8;
+  if(left<8) left=8;
   pop.style.left=left+'px';
   pop.style.top=top+'px';
   pop.style.visibility='';
