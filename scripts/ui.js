@@ -828,16 +828,22 @@ function saveEditPanel(){
     const _existingRow = (epMode==='edit' && epEditingIdx!==null) ? rows[epEditingIdx] : null;
     const _newCharge = c!==''?roundCharge(parseFloat(c.replace(',','.'))):null;
     const _assignments = _existingRow?.assignments || [];
-    /* Si des assignments existent, la charge = leur somme sauf si saisie manuelle */
+    /* Si des assignments existent, la charge = leur somme (toujours) */
     const _chargeFromAssign = _assignments.length > 0
       ? Math.round(_assignments.reduce((s,a)=>s+(a.charge||0),0)*10000)/10000 || null
       : null;
+    const _charge = _chargeFromAssign !== null ? _chargeFromAssign : _newCharge;
+    const _chargePassee = _existingRow?.chargePassee ?? null;
+    /* Restante = prévu - passé */
+    const _chargeRestante = (_charge != null && _chargePassee != null)
+      ? Math.round((_charge - _chargePassee) * 10000) / 10000
+      : _charge;
     newRow={
       _type:'tache', projet:p, niveaux, tache:t||null,
       debut:parseDate(d), fin:parseDate(f),
-      charge: _chargeFromAssign !== null ? _chargeFromAssign : _newCharge,
-      chargePassee:   _existingRow?.chargePassee   ?? null,
-      chargeRestante: _existingRow?.chargeRestante ?? null,
+      charge:         _charge,
+      chargePassee:   _chargePassee,
+      chargeRestante: _chargeRestante,
       assignments:    _assignments,
       _srcPid: activeProjectId
     };
@@ -1167,9 +1173,19 @@ function affectChangeCharge(idx, field, val) {
   if (!r || !r.assignments) return;
   const v = parseFloat(val);
   r.assignments[idx][field] = isNaN(v) ? null : Math.round(v * 10000) / 10000;
-  // Recalcule charge totale tâche = somme des charges assignments
+  // Recalcule restante = prévu - passé pour l'assignment modifié
+  const a = r.assignments[idx];
+  a.chargeRestante = (a.charge != null && a.chargePassee != null)
+    ? Math.round((a.charge - a.chargePassee) * 10000) / 10000
+    : a.charge;
+  // Recalcule charge totale tâche = cumul des ressources
   const totalCharge = r.assignments.reduce((s, a) => s + (a.charge || 0), 0);
+  const totalPassee = r.assignments.reduce((s, a) => s + (a.chargePassee || 0), 0);
   r.charge = Math.round(totalCharge * 10000) / 10000 || null;
+  r.chargePassee = Math.round(totalPassee * 10000) / 10000 || null;
+  r.chargeRestante = (r.charge != null && r.chargePassee != null)
+    ? Math.round((r.charge - r.chargePassee) * 10000) / 10000
+    : r.charge;
   saveAndRefreshAffect(r);
 }
 
@@ -1199,10 +1215,15 @@ function affectDelRow(idx) {
   const r = rows[affectRowIdx];
   if (!r || !r.assignments) return;
   r.assignments.splice(idx, 1);
-  // Recalcule charge totale
+  // Recalcule charge totale = cumul des ressources
   if (r.assignments.length > 0) {
-    const total = r.assignments.reduce((s, a) => s + (a.charge || 0), 0);
-    r.charge = Math.round(total * 10000) / 10000 || null;
+    const totalCharge = r.assignments.reduce((s, a) => s + (a.charge || 0), 0);
+    const totalPassee = r.assignments.reduce((s, a) => s + (a.chargePassee || 0), 0);
+    r.charge = Math.round(totalCharge * 10000) / 10000 || null;
+    r.chargePassee = Math.round(totalPassee * 10000) / 10000 || null;
+    r.chargeRestante = (r.charge != null && r.chargePassee != null)
+      ? Math.round((r.charge - r.chargePassee) * 10000) / 10000
+      : r.charge;
   }
   saveAndRefreshAffect(r);
 }
@@ -1227,7 +1248,8 @@ function updateAffectTotals(r) {
   const asgns = r.assignments || [];
   const totalPrev = asgns.reduce((s, a) => s + (a.charge || 0), 0);
   const totalPass = asgns.reduce((s, a) => s + (a.chargePassee || 0), 0);
-  const totalRest = asgns.reduce((s, a) => s + (a.chargeRestante || 0), 0);
+  // Restante = prévu - passé
+  const totalRest = totalPrev - totalPass;
 
   const el = document.getElementById('affectTotals');
   if (!el) return;

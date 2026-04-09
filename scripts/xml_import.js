@@ -139,13 +139,15 @@ function parseMSProjectXML(xmlText, projectName) {
     const asgns = taskAssignments[uid];
     if (asgns && asgns.length) {
       // Somme toutes les ressources pour les totaux de la tâche
-      charge         = asgns.reduce((s, a) => s + (a.work          || 0), 0);
-      chargePassee   = asgns.reduce((s, a) => s + (a.actualWork    || 0), 0);
-      chargeRestante = asgns.reduce((s, a) => s + (a.remainingWork || 0), 0);
+      charge       = asgns.reduce((s, a) => s + (a.work       || 0), 0);
+      chargePassee = asgns.reduce((s, a) => s + (a.actualWork || 0), 0);
 
-      charge         = Math.round(charge         * 10000) / 10000 || null;
-      chargePassee   = Math.round(chargePassee   * 10000) / 10000 || null;
-      chargeRestante = Math.round(chargeRestante * 10000) / 10000 || null;
+      charge       = Math.round(charge       * 10000) / 10000 || null;
+      chargePassee = Math.round(chargePassee * 10000) / 10000 || null;
+      // Restante = prévu - passé
+      chargeRestante = (charge != null && chargePassee != null)
+        ? Math.round((charge - chargePassee) * 10000) / 10000
+        : charge;
 
       // Détail par ressource
       assignments = asgns.map(a => {
@@ -154,15 +156,21 @@ function parseMSProjectXML(xmlText, projectName) {
           ? resources.find(r => r.id === appId)
           : null;
         const resourceNom = res?.fullName || '?';
+        const aCharge  = a.work       != null ? Math.round(a.work       * 10000) / 10000 : null;
+        const aPassee  = a.actualWork != null ? Math.round(a.actualWork * 10000) / 10000 : null;
+        // Restante = prévu - passé
+        const aRestante = (aCharge != null && aPassee != null)
+          ? Math.round((aCharge - aPassee) * 10000) / 10000
+          : aCharge;
         return {
-          xmlUid:         a.xmlUid || null,
-          resourceId:     appId,
+          xmlUid:          a.xmlUid || null,
+          resourceId:      appId,
           resourceNom,
-          charge:         a.work          != null ? Math.round(a.work          * 10000) / 10000 : null,
-          chargePassee:   a.actualWork    != null ? Math.round(a.actualWork    * 10000) / 10000 : null,
-          chargeRestante: a.remainingWork != null ? Math.round(a.remainingWork * 10000) / 10000 : null,
-          debut:          a.debut  || null,
-          fin:            a.fin    || null,
+          charge:          aCharge,
+          chargePassee:    aPassee,
+          chargeRestante:  aRestante,
+          debut:           a.debut  || null,
+          fin:             a.fin    || null,
           percentComplete: a.percentComplete || 0,
         };
       });

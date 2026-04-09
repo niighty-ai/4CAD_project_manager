@@ -190,25 +190,56 @@ function renderGantt(){
     return `<span class="ch-col ${cls}${empty}">${v}</span>`;
   }
 
+  /* ── Charge effective d'une tâche : cumul des ressources si affectées, sinon r.charge ── */
+  function _effCharge(r) {
+    const asgns = r.assignments;
+    if (asgns && asgns.length > 0) {
+      const s = asgns.reduce((acc, a) => acc + (a.charge || 0), 0);
+      return Math.round(s * 10000) / 10000 || null;
+    }
+    return r.charge;
+  }
+
+  /* ── Charge passée effective d'une tâche ── */
+  function _effPassee(r) {
+    const asgns = r.assignments;
+    if (asgns && asgns.length > 0) {
+      const s = asgns.reduce((acc, a) => acc + (a.chargePassee || 0), 0);
+      return Math.round(s * 10000) / 10000 || null;
+    }
+    return r.chargePassee;
+  }
+
+  /* ── Charge restante = prévu - passé ── */
+  function _effRestante(charge, passee) {
+    if (charge != null && passee != null) return Math.round((charge - passee) * 10000) / 10000;
+    if (charge != null) return charge;
+    return null;
+  }
+
   /* ── Colonnes charge sur une ligne (tâche, groupe, projet) ── */
   function chargeCols(r) {
+    const charge  = _effCharge(r);
+    const passee  = _effPassee(r);
+    const restante = _effRestante(charge, passee);
     if (!hasTracking) {
-      return r.charge != null ? `<span class="ch-col ch-prev">${fmtCharge(r.charge)}j</span>` : `<span class="ch-col ch-prev ch-empty">—</span>`;
+      return charge != null ? `<span class="ch-col ch-prev">${fmtCharge(charge)}j</span>` : `<span class="ch-col ch-prev ch-empty">—</span>`;
     }
-    return chCell(r.charge, 'ch-prev') +
-           chCell(r.chargePassee, 'ch-pass') +
-           chCell(r.chargeRestante, 'ch-rest');
+    return chCell(charge, 'ch-prev') +
+           chCell(passee, 'ch-pass') +
+           chCell(restante, 'ch-rest');
   }
 
   /* ── Colonnes charge sur une ligne ressource ── */
   function chargeColsRes(a) {
+    const restante = _effRestante(a.charge, a.chargePassee);
     if (!hasTracking) {
       return chCell(a.charge, 'ch-prev') +
              '<span class="ch-col ch-dates ch-dates-empty"></span>';
     }
     return chCell(a.charge, 'ch-prev') +
            chCell(a.chargePassee, 'ch-pass') +
-           chCell(a.chargeRestante, 'ch-rest') +
+           chCell(restante, 'ch-rest') +
            '<span class="ch-col ch-dates ch-dates-empty"></span>';
   }
 
@@ -225,6 +256,7 @@ function renderGantt(){
       const datesTxt = (dRes && fRes)
         ? `<span class="ch-col ch-dates" style="font-size:9px">${fmtShort(dRes)}<span class="d-sep">→</span>${fmtShort(fRes)}</span>`
         : `<span class="ch-col ch-dates ch-dates-empty"></span>`;
+      const aRestante = _effRestante(a.charge, a.chargePassee);
       return `<div class="gantt-left-row is-res-detail" onclick="event.stopPropagation();openAffectPanel(${realIdx})" style="cursor:pointer" title="Cliquer pour gérer les affectations">
         <span class="row-label-cell" style="padding-left:${indent+20}px">
           <span class="rd-icon">👤</span>
@@ -233,7 +265,7 @@ function renderGantt(){
         <span class="ch-col ch-slot"></span>
         ${!hasTracking
           ? chCell(a.charge,'ch-prev') + datesTxt
-          : chCell(a.charge,'ch-prev') + chCell(a.chargePassee,'ch-pass') + chCell(a.chargeRestante,'ch-rest') + datesTxt
+          : chCell(a.charge,'ch-prev') + chCell(a.chargePassee,'ch-pass') + chCell(aRestante,'ch-rest') + datesTxt
         }
       </div>`;
     }).join('');
