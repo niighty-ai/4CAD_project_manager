@@ -152,53 +152,79 @@ function _calPopulateResources() {
    Format attendu : initiale_prénom + nom_complet @4cad.fr
    Exemple : ghomere@4cad.fr  →  initial=g, nom=homere  →  Gaël HOMERE        */
 /* ── Déduction de la ressource à partir de l'email connecté ─────────────────
-   Format : initiales_prénom (1–4 chars) + nom_complet @4cad.fr
-   Exemples :
-     ghomere@4cad.fr   → g   + homere   → Gaël HOMERE
-     jpdupont@4cad.fr  → jp  + dupont   → Jean-Pierre DUPONT
-     mfmartin@4cad.fr  → mf  + martin   → Marie-France MARTIN
-   Algorithme : on teste tous les découpages possibles (1 à 4 initiales),
-   on cherche d'abord une correspondance exacte des initiales, puis en
-   repli une correspondance partielle (les initiales de l'email sont un
-   préfixe des initiales réelles — cas de saisie tronquée).              */
+   Format : initiales_prénom (1–4 chars) + nom_complet (potentiellement partiel)
+   Gère :
+     prénoms composés    jpdupont   → Jean-Pierre DUPONT
+     noms avec particule jdebois    → Jean DE BOIS   (ou jbois)
+     noms composés       jmartin    → Jean MARTIN-DUPONT (si pas de Jean MARTIN)
+     noms multimots      pvanderberg / pberg → Pierre VAN DER BERG
+
+   Algorithme :
+     Pour chaque découpage possible du nom de ressource (N mots → N-1 splits),
+     on génère les initiales du prénom et plusieurs variantes du nom de famille
+     (version plate, suffixes, version sans particules, tokens significatifs).
+     On essaie d'abord les correspondances exactes, puis partielles.          */
 function _calGuessResourceFromEmail(names) {
-  const email = (document.getElementById('connectedUser')?.textContent || '').trim().toLowerCase();
+  const email = (document.getElementById('connectedUser')?.textContent || '').trim();
   if (!email.includes('@')) return '';
   const local = _calNorm(email.split('@')[0]);
   if (local.length < 2) return '';
 
-  /* Calcule les initiales d'un prénom (gère les prénoms composés avec - ou espace) */
-  function getInitials(firstNameStr) {
-    return firstNameStr.split(/[\s\-]+/).filter(Boolean).map(p => _calNorm(p)[0] || '').join('');
+  /* Initiales d'une chaîne prénom (tirets et espaces) */
+  const getInit = s =>
+    s.split(/[\s\-]+/).filter(Boolean).map(p => _calNorm(p)[0] || '').join('');
+
+  /* Particules courantes à ignorer pour la variante "sans particule" */
+  const PARTICLES = new Set(['de','du','des','le','la','les','d','van','von','der',
+                              'del','di','da','au','aux','l','el']);
+
+  /* Variantes d'un nom de famille : flat, suffixes, tokens significatifs, sans particules */
+  function lastVariants(lastStr) {
+    const tokens = _calNorm(lastStr).split(/[\s\-]+/).filter(Boolean);
+    const v = new Set();
+    v.add(tokens.join(''));                          // ex: delatour, martindupont
+    for (let i = 1; i < tokens.length; i++)
+      v.add(tokens.slice(i).join(''));               // ex: latour, tour, dupont
+    tokens.forEach(t => { if (t.length > 2 && !PARTICLES.has(t)) v.add(t); }); // ex: tour, martin
+    const sig = tokens.filter(t => !PARTICLES.has(t));
+    if (sig.length && sig.length < tokens.length)
+      v.add(sig.join(''));                           // ex: latour (sans "de")
+    return v;
   }
 
-  /* Passe 1 : correspondance exacte des initiales */
-  for (let i = 1; i <= Math.min(4, local.length - 1); i++) {
-    const initials = local.slice(0, i);
-    const lastname = local.slice(i);
-    for (const name of names) {
-      const parts = name.trim().split(/\s+/);
-      if (parts.length < 2) continue;
-      if (_calNorm(parts[parts.length - 1]) !== lastname) continue;
-      const resInitials = getInitials(parts.slice(0, -1).join(' '));
-      if (resInitials === initials) return name;
+  /* Pour un nom complet, générer tous les couples (initiales_prénom, variantes_nom)
+     en testant chaque point de découpage prénom | nom de famille               */
+  function candidates(fullName) {
+    const tokens = fullName.trim().split(/\s+/).filter(Boolean);
+    const out = [];
+    for (let s = 1; s < tokens.length; s++) {
+      out.push({
+        init: getInit(tokens.slice(0, s).join(' ')),
+        vars: lastVariants(tokens.slice(s).join(' '))
+      });
     }
+    return out;
   }
 
-  /* Passe 2 : correspondance partielle (email = préfixe des initiales réelles) */
-  for (let i = 1; i <= Math.min(4, local.length - 1); i++) {
-    const initials = local.slice(0, i);
-    const lastname = local.slice(i);
-    for (const name of names) {
-      const parts = name.trim().split(/\s+/);
-      if (parts.length < 2) continue;
-      if (_calNorm(parts[parts.length - 1]) !== lastname) continue;
-      const resInitials = getInitials(parts.slice(0, -1).join(' '));
-      if (resInitials.startsWith(initials)) return name;
+  /* Tentative de correspondance : exactInitials=true pour la passe 1 */
+  function tryMatch(exactInitials) {
+    for (let i = 1; i <= Math.min(4, local.length - 1); i++) {
+      const ei = local.slice(0, i);   // initiales email
+      const el = local.slice(i);      // nom email
+      for (const name of names) {
+        for (const { init, vars } of candidates(name)) {
+          const initOk = exactInitials ? init === ei : init.startsWith(ei);
+          if (!initOk) continue;
+          if (vars.has(el)) return name;                          // exact
+          if (el.length >= 3) for (const v of vars)
+            if (v.startsWith(el)) return name;                   // email tronqué
+        }
+      }
     }
+    return '';
   }
 
-  return '';
+  return tryMatch(true) || tryMatch(false);
 }
 
 /* Normalisation : minuscules + suppression des accents */
