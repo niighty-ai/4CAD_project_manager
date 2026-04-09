@@ -28,6 +28,7 @@
           /* Non connecté → réinitialise l'état utilisateur */
           currentUserId = null;
           userWalletClients = new Set();
+          _walletLoaded = false;
           if (loginScreen) loginScreen.style.display = 'flex';
           if (appHeader)   appHeader.style.display   = 'none';
           const btn = document.getElementById('loginBtn');
@@ -79,12 +80,9 @@ function _startFirebaseLoad() {
       window._fbOnValue(function(val) {
         if (_fbInitLoaded && (Date.now() - _lastSaveTs) < 4000) return;
         if (val && Array.isArray(val) && val.length) {
-          const activeId = activeProjectId;
           portfolio = migrateFirebaseData(val);
           renderNavList();
-          const target = activeId && portfolio.find(p => p.id === activeId)
-            ? activeId : portfolio[0]?.id;
-          if (target) switchToProject(target);
+          _tryAutoSelectProject();
           setFbStatus('☁ Connecté', '#2e7d32');
         } else if (!_fbInitLoaded) {
           setFbStatus('☁ Vide', '#f7971e');
@@ -98,6 +96,31 @@ function _startFirebaseLoad() {
   }, 100);
 }
 
+/* ── Sélection automatique du projet au démarrage ──────────────────────────
+   Respecte l'ordre de priorité :
+   1. Dernier projet actif sauvegardé (localStorage) s'il est dans le wallet
+   2. Premier projet du wallet
+   3. Rien → écran vide si le wallet est vide
+   ── Appelée dès que portfolio ET wallet sont tous les deux chargés ── */
+function _tryAutoSelectProject() {
+  if (activeProjectId) return;      /* déjà sélectionné */
+  if (!_walletLoaded) return;       /* wallet pas encore chargé */
+  if (portfolio.length === 0) return; /* portfolio pas encore chargé */
+
+  const savedId = localStorage.getItem('gantt4cad_active');
+  if (savedId) {
+    const savedProj = portfolio.find(p => p.id === savedId);
+    if (savedProj && savedProj.client && userWalletClients.has(savedProj.client)) {
+      switchToProject(savedId);
+      return;
+    }
+  }
+  /* Fallback : premier projet d'un client du wallet */
+  const first = portfolio.find(p => p.client && userWalletClients.has(p.client));
+  if (first) switchToProject(first.id);
+  /* Wallet vide → rien sélectionné, écran vide ✓ */
+}
+
 /* ── Chargement du portefeuille utilisateur (appelé après auth) ── */
 function _startWalletLoad(userId) {
   let attempts = 0;
@@ -107,12 +130,9 @@ function _startWalletLoad(userId) {
       clearInterval(iv);
       window._fbOnUserWallet(userId, (val) => {
         userWalletClients = Array.isArray(val) ? new Set(val) : new Set();
+        _walletLoaded = true;
         renderNavList();
-        /* Auto-sélection du premier projet wallet si aucun projet actif */
-        if (!activeProjectId && portfolio.length > 0) {
-          const first = portfolio.find(p => p.client && userWalletClients.has(p.client));
-          if (first) switchToProject(first.id);
-        }
+        _tryAutoSelectProject();
       });
     } else if (attempts > 60) {
       clearInterval(iv);
@@ -220,9 +240,11 @@ document.addEventListener('keydown',e=>{
 }
 )();
 document.addEventListener('keydown',e=>{
-  if(e.key==='Escape')closeEditPanel();
-}
-);
+  if(e.key==='Escape'){
+    closeEditPanel();
+    closeClientModal();
+  }
+});
 document.addEventListener('keydown', e=>{
   if(e.key==='Escape') closeJalonPanel();
 }

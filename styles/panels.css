@@ -910,3 +910,211 @@ select.ep-input {
   background: rgba(192,57,43,.15) !important;
   color: #c0392b !important;
 }
+
+/* ══════════════════════════════════════
+   BARRE DE RECHERCHE — bouton loupe
+   ══════════════════════════════════════ */
+
+.nav-search-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.nav-search-wrapper .nav-search-input {
+  padding-right: 28px;
+}
+
+.nav-search-icon-btn {
+  position: absolute;
+  right: 4px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--muted);
+  padding: 2px 3px;
+  border-radius: 3px;
+  transition: color .12s, background .12s;
+  line-height: 1;
+}
+
+.nav-search-icon-btn:hover {
+  color: var(--accent);
+  background: rgba(236,114,6,.12);
+}
+
+/* ══════════════════════════════════════
+   MODAL — Parcourir tous les clients
+   ══════════════════════════════════════ */
+
+.cb-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,.48);
+  z-index: 500;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.cb-modal {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 8px 32px rgba(0,0,0,.35);
+  width: 420px;
+  max-width: 94vw;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.cb-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px 10px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.cb-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: .3px;
+}
+
+.cb-close {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 14px;
+  color: var(--muted);
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all .12s;
+}
+
+.cb-close:hover {
+  background: rgba(192,57,43,.12);
+  color: #c0392b;
+}
+
+.cb-search-bar {
+  padding: 10px 12px 8px;
+  flex-shrink: 0;
+}
+
+.cb-search-input {
+  width: 100%;
+  box-sizing: border-box;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text);
+  font-family: Arial, sans-serif;
+  font-size: 12px;
+  padding: 6px 10px;
+  outline: none;
+  transition: border-color .15s;
+}
+
+.cb-search-input:focus {
+  border-color: var(--accent);
+}
+
+.cb-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 4px 6px 8px;
+}
+
+.cb-list::-webkit-scrollbar { width: 4px; }
+.cb-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+.cb-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 10px;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: background .12s;
+  margin-bottom: 2px;
+  border: 1px solid transparent;
+}
+
+.cb-item:not(.cb-item-in):hover {
+  background: rgba(236,114,6,.07);
+  border-color: rgba(236,114,6,.18);
+}
+
+.cb-item.cb-item-in {
+  cursor: default;
+  opacity: .65;
+}
+
+.cb-item-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.cb-item-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cb-item-count {
+  font-size: 10px;
+  color: var(--muted);
+  font-family: 'Courier New', monospace;
+}
+
+.cb-item-add {
+  flex-shrink: 0;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  padding: 4px 10px;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background .12s;
+  pointer-events: none; /* clic géré par le parent .cb-item */
+}
+
+.cb-item:not(.cb-item-in):hover .cb-item-add {
+  background: var(--accent-dark, #c85f00);
+}
+
+.cb-item-badge {
+  flex-shrink: 0;
+  font-size: 11px;
+  font-weight: 600;
+  color: #2e7d32;
+  background: rgba(46,125,50,.12);
+  border-radius: 4px;
+  padding: 3px 8px;
+}
+
+.cb-empty {
+  padding: 24px 12px;
+  text-align: center;
+  font-size: 11px;
+  color: var(--muted);
+  font-style: italic;
+}

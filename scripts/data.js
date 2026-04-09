@@ -396,8 +396,9 @@ function switchToProject(id){
     }
   }
 
-  /* 3. Mettre à jour la sélection */
+  /* 3. Mettre à jour la sélection et persister l'ID actif */
   activeProjectId = id;
+  try { localStorage.setItem('gantt4cad_active', id); } catch(e){}
   if(!multiViewMode){
     selectedProjectIds.clear();
     selectedProjectIds.add(id);

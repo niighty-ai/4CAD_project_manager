@@ -245,7 +245,7 @@ function renderNavList(){
   _initNavDrag();
 }
 
-/* ── Recherche de clients dans la base pour les ajouter au portefeuille ── */
+/* ── Recherche rapide (dropdown sous la barre) ── */
 function searchClients(query) {
   const results = document.getElementById('walletSearchResults');
   if (!results) return;
@@ -261,6 +261,61 @@ function searchClients(query) {
     ).join('');
   }
   results.style.display = 'block';
+}
+
+/* ══════════════════════════════════════════════
+   MODAL — Parcourir tous les clients
+   ══════════════════════════════════════════════ */
+
+function openClientModal() {
+  const modal = document.getElementById('clientBrowserModal');
+  if (!modal) return;
+  filterClientModal('');
+  modal.style.display = 'flex';
+  const si = document.getElementById('cbSearch');
+  if (si) { si.value = ''; setTimeout(() => si.focus(), 60); }
+}
+
+function closeClientModal(e) {
+  /* Depuis le backdrop : fermer seulement si clic direct sur le backdrop */
+  if (e && e.target !== e.currentTarget) return;
+  const modal = document.getElementById('clientBrowserModal');
+  if (modal) modal.style.display = 'none';
+}
+
+function filterClientModal(query) {
+  const list = document.getElementById('cbList');
+  if (!list) return;
+  const q = (query || '').trim().toLowerCase();
+  const allClients = [...new Set(portfolio.map(p => p.client||'').filter(Boolean))].sort();
+  const filtered = q ? allClients.filter(c => c.toLowerCase().includes(q)) : allClients;
+
+  if (!filtered.length) {
+    list.innerHTML = '<div class="cb-empty">Aucun client dans la base de données.</div>';
+    return;
+  }
+  list.innerHTML = filtered.map(c => {
+    const inWallet = userWalletClients.has(c);
+    const count = portfolio.filter(p => (p.client||'') === c).length;
+    return `<div class="cb-item${inWallet ? ' cb-item-in' : ''}" ${inWallet ? '' : `onclick="addClientToWalletModal('${escH(c)}')"`}>
+      <div class="cb-item-info">
+        <span class="cb-item-name">${escH(c)}</span>
+        <span class="cb-item-count">${count}&nbsp;projet${count !== 1 ? 's' : ''}</span>
+      </div>
+      ${inWallet
+        ? '<span class="cb-item-badge">&#10003; Chargé</span>'
+        : '<button class="cb-item-add">+ Charger</button>'}
+    </div>`;
+  }).join('');
+}
+
+function addClientToWalletModal(clientName) {
+  if (!clientName || userWalletClients.has(clientName)) return;
+  userWalletClients.add(clientName);
+  saveUserWallet();
+  renderNavList();
+  /* Rafraîchit la liste modale pour afficher "Chargé" */
+  filterClientModal(document.getElementById('cbSearch')?.value || '');
 }
 
 /* ── Rendu d'un item projet dans la nav ── */

@@ -126,6 +126,7 @@ let selectedProjectIds = new Set();  // IDs des projets cochés (affichés dans 
 let multiViewMode = false;           // true quand >1 projet sélectionné
 let userWalletClients = new Set();   // Noms de clients chargés dans le portefeuille de l'utilisateur
 let currentUserId = null;            // UID Firebase de l'utilisateur connecté
+let _walletLoaded = false;           // true une fois le wallet utilisateur chargé depuis Firebase
 
 /* ══════════════════════════════════════════════════════════
    MODÈLE DE DONNÉES — RESSOURCES & AFFECTATIONS

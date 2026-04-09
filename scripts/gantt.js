@@ -1106,10 +1106,20 @@ function renderAll(){renderGantt();}
 function toggleTheme(){
   const html=document.documentElement;
   const isDark=html.getAttribute('data-theme')==='dark';
-  html.setAttribute('data-theme',isDark?'light':'dark');
+  const next=isDark?'light':'dark';
+  html.setAttribute('data-theme',next);
   const btn=document.getElementById('btnTheme');
   if(btn)btn.textContent=isDark?'🌙 Sombre':'☀ Clair';
+  localStorage.setItem('gantt4cad_theme',next);
 }
+/* Restauration du texte du bouton thème au chargement */
+(function(){
+  const saved=localStorage.getItem('gantt4cad_theme');
+  if(saved){
+    const btn=document.getElementById('btnTheme');
+    if(btn)btn.textContent=saved==='dark'?'☀ Clair':'🌙 Sombre';
+  }
+})();
 function exportPPTX(){
   _pptxExportReady = false;
   const tasks=rows.filter(r=>r._type==='tache');
