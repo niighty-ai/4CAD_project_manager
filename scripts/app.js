@@ -41,6 +41,10 @@
     } else if (attempts > 80) {
       clearInterval(iv);
       console.warn('[Auth] Firebase Auth indisponible après 8 s');
+      const authLoading = document.getElementById('authLoading');
+      const loginScreen = document.getElementById('loginScreen');
+      if (authLoading) authLoading.style.display = 'none';
+      if (loginScreen) loginScreen.style.display = 'flex';
     }
   }, 100);
 })();
