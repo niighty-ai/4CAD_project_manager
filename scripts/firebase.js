@@ -32,3 +32,7 @@ window._fbAuth         = _fbAuth;
 window._fbSignIn       = (email, pw) => signInWithEmailAndPassword(_fbAuth, email, pw);
 window._fbSignOut      = () => signOut(_fbAuth);
 window._fbOnAuthChange = (cb) => onAuthStateChanged(_fbAuth, cb);
+
+/* ── Portefeuille utilisateur (par UID) ── */
+window._fbSetUserWallet = (userId, data) => set(ref(_fbDb, 'user_wallets/' + userId), data);
+window._fbOnUserWallet  = (userId, cb)   => onValue(ref(_fbDb, 'user_wallets/' + userId), snap => cb(snap.val()));

@@ -815,3 +815,98 @@ select.ep-input {
 .nav-sidebar.collapsed .nav-folder-children {
   display: none;
 }
+
+/* ══════════════════════════════════════
+   BARRE DE RECHERCHE — Portefeuille
+   ══════════════════════════════════════ */
+
+.nav-search-container {
+  position: relative;
+  margin: 0 8px 6px;
+  flex-shrink: 0;
+}
+
+.nav-sidebar.collapsed .nav-search-container {
+  display: none;
+}
+
+.nav-search-input {
+  width: 100%;
+  box-sizing: border-box;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text);
+  font-family: Arial, sans-serif;
+  font-size: 11px;
+  padding: 5px 8px;
+  outline: none;
+  transition: border-color .15s;
+}
+
+.nav-search-input:focus {
+  border-color: var(--accent);
+  background: var(--bg);
+}
+
+.nav-search-results {
+  position: absolute;
+  top: calc(100% + 2px);
+  left: 0;
+  right: 0;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  box-shadow: 0 4px 14px var(--shadow);
+  z-index: 100;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.nav-search-item {
+  padding: 7px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text);
+  cursor: pointer;
+  transition: background .12s;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.nav-search-item:hover {
+  background: rgba(236,114,6,.1);
+  color: var(--accent);
+}
+
+.nav-search-empty {
+  padding: 8px 10px;
+  font-size: 11px;
+  color: var(--muted);
+  font-style: italic;
+}
+
+/* ══════════════════════════════════════
+   BOUTONS WALLET — Retirer / Supprimer
+   ══════════════════════════════════════ */
+
+.nav-client-action-sep {
+  display: inline-block;
+  width: 1px;
+  height: 12px;
+  background: var(--border);
+  margin: 0 1px;
+  align-self: center;
+  flex-shrink: 0;
+}
+
+.nav-wallet-remove:hover {
+  background: rgba(243,156,18,.15) !important;
+  color: #f39c12 !important;
+}
+
+.nav-wallet-delete:hover {
+  background: rgba(192,57,43,.15) !important;
+  color: #c0392b !important;
+}

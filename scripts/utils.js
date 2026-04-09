@@ -124,6 +124,8 @@ let _lastSaveTs = 0;
 let jpEditingIdx = null;
 let selectedProjectIds = new Set();  // IDs des projets cochés (affichés dans le Gantt)
 let multiViewMode = false;           // true quand >1 projet sélectionné
+let userWalletClients = new Set();   // Noms de clients chargés dans le portefeuille de l'utilisateur
+let currentUserId = null;            // UID Firebase de l'utilisateur connecté
 
 /* ══════════════════════════════════════════════════════════
    MODÈLE DE DONNÉES — RESSOURCES & AFFECTATIONS

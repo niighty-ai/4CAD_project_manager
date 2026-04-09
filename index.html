@@ -217,6 +217,10 @@
     <button class="nav-new-btn" onclick="createNewProjectPrompt()">
       <span>+</span><span class="nav-btn-text">Nouveau client</span>
     </button>
+    <div class="nav-search-container" id="walletSearchContainer">
+      <input type="text" id="walletSearch" class="nav-search-input" placeholder="&#128269; Charger un client..." oninput="searchClients(this.value)" autocomplete="off">
+      <div id="walletSearchResults" class="nav-search-results" style="display:none"></div>
+    </div>
     <div class="nav-list" id="navList"></div>
   </div>
   <div class="app-content">

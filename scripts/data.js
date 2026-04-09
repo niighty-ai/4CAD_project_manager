@@ -229,9 +229,92 @@ function createNewProject(name, initialRows, initialColors, client, folder){
     collapsed: {}
   };
   portfolio.push(proj);
+  /* Ajouter automatiquement le client au portefeuille de l'utilisateur */
+  if (client && !userWalletClients.has(client)) {
+    userWalletClients.add(client);
+    saveUserWallet();
+  }
   savePortfolio();
   renderNavList();
   switchToProject(id);
+}
+
+/* ══════════════════════════════════════════════
+   PORTEFEUILLE UTILISATEUR — persistance Firebase
+   ══════════════════════════════════════════════ */
+
+/* ── Sauvegarde le portefeuille de l'utilisateur courant ── */
+function saveUserWallet() {
+  if (!currentUserId || typeof window._fbSetUserWallet !== 'function') return;
+  window._fbSetUserWallet(currentUserId, [...userWalletClients]).catch(e => {
+    console.error('[Wallet] Erreur sauvegarde:', e);
+  });
+}
+
+/* ── Ajouter un client au portefeuille (depuis la recherche) ── */
+function addClientToWallet(clientName) {
+  if (!clientName || userWalletClients.has(clientName)) return;
+  userWalletClients.add(clientName);
+  saveUserWallet();
+  renderNavList();
+  const si = document.getElementById('walletSearch');
+  const sr = document.getElementById('walletSearchResults');
+  if (si) si.value = '';
+  if (sr) sr.style.display = 'none';
+}
+
+/* ── Retirer un client du portefeuille (sans supprimer les données) ── */
+function removeClientFromWallet(clientName, e) {
+  if (e) e.stopPropagation();
+  if (!confirm(`Retirer "${clientName}" de votre portefeuille ?\n\nLe client et ses projets restent disponibles dans la base de données.`)) return;
+  _saveBackToPortfolio();
+  const clientProjs = portfolio.filter(p => (p.client||'') === clientName);
+  clientProjs.forEach(p => selectedProjectIds.delete(p.id));
+  if (clientProjs.some(p => p.id === activeProjectId)) activeProjectId = null;
+  userWalletClients.delete(clientName);
+  saveUserWallet();
+  if (selectedProjectIds.size > 0) {
+    if (!activeProjectId) activeProjectId = [...selectedProjectIds][0];
+    multiViewMode = selectedProjectIds.size > 1;
+    _loadSelectedProjects();
+  } else {
+    multiViewMode = false;
+    activeProjectId = null;
+    rows = []; projectColors = {}; collapsed = {};
+  }
+  renderNavList();
+  renderAll();
+}
+
+/* ── Supprimer définitivement un client et tous ses projets de la base ── */
+function deleteClientFromDB(clientName, e) {
+  if (e) e.stopPropagation();
+  const count = portfolio.filter(p => (p.client||'') === clientName).length;
+  if (!confirm(`Supprimer définitivement le client "${clientName}" et ses ${count} projet(s) ?\n\nCette action est irréversible pour tous les utilisateurs.`)) return;
+  _saveBackToPortfolio();
+  const clientProjs = portfolio.filter(p => (p.client||'') === clientName);
+  clientProjs.forEach(p => {
+    selectedProjectIds.delete(p.id);
+    if (p.id === activeProjectId) activeProjectId = null;
+  });
+  portfolio = portfolio.filter(p => (p.client||'') !== clientName);
+  delete navFolders[clientName];
+  userWalletClients.delete(clientName);
+  savePortfolio();
+  saveUserWallet();
+  if (selectedProjectIds.size > 0) {
+    if (!activeProjectId) activeProjectId = [...selectedProjectIds][0];
+    multiViewMode = selectedProjectIds.size > 1;
+    _loadSelectedProjects();
+  } else {
+    multiViewMode = false;
+    activeProjectId = null;
+    rows = []; projectColors = {}; collapsed = {};
+    const first = portfolio.find(p => p.client && userWalletClients.has(p.client));
+    if (first) { switchToProject(first.id); return; }
+  }
+  renderNavList();
+  renderAll();
 }
 
 /* ── Créer un nouveau dossier dans un client ── */

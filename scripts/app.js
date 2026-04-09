@@ -16,14 +16,18 @@
         const appHeader   = document.querySelector('header');
         if (user) {
           /* Connecté → affiche l'appli */
+          currentUserId = user.uid;
           if (loginScreen) loginScreen.style.display = 'none';
           if (appHeader)   appHeader.style.display   = '';
           const userInfo = document.getElementById('connectedUser');
           if (userInfo) userInfo.textContent = user.email;
           /* Lance le chargement des données Firebase maintenant qu'on est auth */
           _startFirebaseLoad();
+          _startWalletLoad(user.uid);
         } else {
-          /* Non connecté → affiche le login */
+          /* Non connecté → réinitialise l'état utilisateur */
+          currentUserId = null;
+          userWalletClients = new Set();
           if (loginScreen) loginScreen.style.display = 'flex';
           if (appHeader)   appHeader.style.display   = 'none';
           const btn = document.getElementById('loginBtn');
@@ -94,12 +98,40 @@ function _startFirebaseLoad() {
   }, 100);
 }
 
+/* ── Chargement du portefeuille utilisateur (appelé après auth) ── */
+function _startWalletLoad(userId) {
+  let attempts = 0;
+  const iv = setInterval(() => {
+    attempts++;
+    if (typeof window._fbOnUserWallet === 'function') {
+      clearInterval(iv);
+      window._fbOnUserWallet(userId, (val) => {
+        userWalletClients = Array.isArray(val) ? new Set(val) : new Set();
+        renderNavList();
+        /* Auto-sélection du premier projet wallet si aucun projet actif */
+        if (!activeProjectId && portfolio.length > 0) {
+          const first = portfolio.find(p => p.client && userWalletClients.has(p.client));
+          if (first) switchToProject(first.id);
+        }
+      });
+    } else if (attempts > 60) {
+      clearInterval(iv);
+    }
+  }, 100);
+}
+
 /* ── Reste de l'initialisation ─────────────────────────────────────────── */
 
 document.getElementById('cpCustom').addEventListener('input',e=>{if(!cpTarget)return;projectColors[cpTarget]=e.target.value;document.getElementById('colorGrid').querySelectorAll('.color-opt').forEach(el=>el.classList.remove('selected'));renderAll();}
 );
-document.addEventListener('click',e=>{if(!document.getElementById('colorPopup').contains(e.target))document.getElementById('colorPopup').style.display='none';}
-);
+document.addEventListener('click',e=>{if(!document.getElementById('colorPopup').contains(e.target))document.getElementById('colorPopup').style.display='none';});
+document.addEventListener('click', e => {
+  const container = document.getElementById('walletSearchContainer');
+  if (container && !container.contains(e.target)) {
+    const results = document.getElementById('walletSearchResults');
+    if (results) results.style.display = 'none';
+  }
+});
 document.getElementById('fileInput').addEventListener('change',e=>{
   const file=e.target.files[0];if(!file)return;
   if(file.name.toLowerCase().endsWith('.xml')){

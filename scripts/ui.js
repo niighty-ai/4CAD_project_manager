@@ -167,11 +167,16 @@ function startRename(id, e){
 function renderNavList(){
   const list = document.getElementById('navList');
   if(!list) return;
-  if(portfolio.length===0){
-    list.innerHTML='<div class="nav-empty">Aucun projet.<br>Créez-en un pour commencer.</div>';
+
+  /* ── Filtrer les clients par portefeuille utilisateur ── */
+  const allPortfolioClients = [...new Set(portfolio.map(p=>p.client||'').filter(Boolean))].sort();
+  const clients = allPortfolioClients.filter(c => userWalletClients.has(c));
+
+  if(clients.length === 0){
+    list.innerHTML = '<div class="nav-empty">Portefeuille vide.<br>Recherchez un client ci-dessus.</div>';
     return;
   }
-  const clients = [...new Set(portfolio.map(p=>p.client||''))].sort();
+
   let html = '';
   clients.forEach(clientName=>{
     const clientProjs = portfolio.filter(p=>(p.client||'')===clientName);
@@ -180,31 +185,30 @@ function renderNavList(){
     const allChecked = clientProjs.every(p=>selectedProjectIds.has(p.id));
     const someChecked = clientProjs.some(p=>selectedProjectIds.has(p.id));
 
-    if(clientName){
-      html += `<div class="nav-client" data-client="${escH(clientName)}">
-        <div class="nav-client-header" onclick="toggleNavClient('${escH(clientName)}')">
-          <span class="nav-client-chevron${isOpen?' open':''}">&#9658;</span>
-          <span class="nav-client-name" title="${escH(clientName)}">${escH(clientName)}</span>
-          <div class="nav-client-actions">
-            <button class="nav-action-btn nav-multiview-btn${allChecked?' active':someChecked?' partial':''}" onclick="selectAllClientProjects('${escH(clientName)}',event)" title="${allChecked?'Décocher tous les projets':'Afficher tous les projets'}">
-              ${allChecked?'◉':'◎'}
-            </button>
-            <button class="nav-action-btn" onclick="renameClient('${escH(clientName)}',event)" title="Renommer le client">&#9998;</button>
-            <button class="nav-action-btn" onclick="createFolder('${escH(clientName)}',event)" title="Nouveau dossier">&#128193;</button>
-            <button class="nav-action-btn" onclick="addProjectToClient('${escH(clientName)}',event)" title="Nouveau projet">+</button>
-          </div>
+    html += `<div class="nav-client" data-client="${escH(clientName)}">
+      <div class="nav-client-header" onclick="toggleNavClient('${escH(clientName)}')">
+        <span class="nav-client-chevron${isOpen?' open':''}">&#9658;</span>
+        <span class="nav-client-name" title="${escH(clientName)}">${escH(clientName)}</span>
+        <div class="nav-client-actions">
+          <button class="nav-action-btn nav-multiview-btn${allChecked?' active':someChecked?' partial':''}" onclick="selectAllClientProjects('${escH(clientName)}',event)" title="${allChecked?'Décocher tous les projets':'Afficher tous les projets'}">
+            ${allChecked?'◉':'◎'}
+          </button>
+          <button class="nav-action-btn" onclick="renameClient('${escH(clientName)}',event)" title="Renommer le client">&#9998;</button>
+          <button class="nav-action-btn" onclick="createFolder('${escH(clientName)}',event)" title="Nouveau dossier">&#128193;</button>
+          <button class="nav-action-btn" onclick="addProjectToClient('${escH(clientName)}',event)" title="Nouveau projet">+</button>
+          <span class="nav-client-action-sep"></span>
+          <button class="nav-action-btn nav-wallet-remove" onclick="removeClientFromWallet('${escH(clientName)}',event)" title="Retirer du portefeuille">&#8854;</button>
+          <button class="nav-action-btn danger nav-wallet-delete" onclick="deleteClientFromDB('${escH(clientName)}',event)" title="Supprimer définitivement">&#128465;</button>
         </div>
-        <div class="nav-client-children${isOpen?'':' collapsed'}">`;
-    }
+      </div>
+      <div class="nav-client-children${isOpen?'':' collapsed'}">`;
 
     /* ── Récupère tous les dossiers connus pour ce client ── */
     const folderNames = _getClientFolders(clientName);
 
     /* ── Projets sans dossier (à la racine du client) ── */
     const rootProjs = clientProjs.filter(p=>!(p.folder||''));
-    rootProjs.forEach(p=>{
-      html += _renderNavProject(p);
-    });
+    rootProjs.forEach(p=>{ html += _renderNavProject(p); });
 
     /* ── Projets dans des dossiers ── */
     folderNames.forEach(folderName=>{
@@ -226,23 +230,37 @@ function renderNavList(){
           </div>
         </div>
         <div class="nav-folder-children${isFolderOpen?'':' collapsed'}">`;
-      folderProjs.forEach(p=>{
-        html += _renderNavProject(p);
-      });
+      folderProjs.forEach(p=>{ html += _renderNavProject(p); });
       html += `</div></div>`;
     });
 
-    if(clientName){
-      /* Drop zone racine du client */
-      html += `<div class="nav-client-dropzone" data-client="${escH(clientName)}" data-folder=""
-        ondragover="navDragOver(event,'${escH(clientName)}','')"
-        ondragleave="navDragLeave(event)"
-        ondrop="navDrop(event,'${escH(clientName)}','')"></div>`;
-      html += `</div></div>`;
-    }
+    /* Drop zone racine du client */
+    html += `<div class="nav-client-dropzone" data-client="${escH(clientName)}" data-folder=""
+      ondragover="navDragOver(event,'${escH(clientName)}','')"
+      ondragleave="navDragLeave(event)"
+      ondrop="navDrop(event,'${escH(clientName)}','')"></div>`;
+    html += `</div></div>`;
   });
   list.innerHTML = html;
   _initNavDrag();
+}
+
+/* ── Recherche de clients dans la base pour les ajouter au portefeuille ── */
+function searchClients(query) {
+  const results = document.getElementById('walletSearchResults');
+  if (!results) return;
+  const q = (query || '').trim().toLowerCase();
+  if (!q) { results.style.display = 'none'; return; }
+  const allClients = [...new Set(portfolio.map(p => p.client||'').filter(Boolean))].sort();
+  const filtered = allClients.filter(c => c.toLowerCase().includes(q) && !userWalletClients.has(c));
+  if (!filtered.length) {
+    results.innerHTML = '<div class="nav-search-empty">Aucun client trouvé</div>';
+  } else {
+    results.innerHTML = filtered.map(c =>
+      `<div class="nav-search-item" onclick="addClientToWallet('${escH(c)}')">${escH(c)}</div>`
+    ).join('');
+  }
+  results.style.display = 'block';
 }
 
 /* ── Rendu d'un item projet dans la nav ── */
@@ -349,11 +367,18 @@ function renameClient(oldName, e){
   e.stopPropagation();
   const newName = prompt('Renommer le client :', oldName);
   if(!newName || newName.trim()===oldName) return;
-  portfolio.forEach(p=>{ if((p.client||'')===oldName) p.client = newName.trim(); });
+  const trimmed = newName.trim();
+  portfolio.forEach(p=>{ if((p.client||'')===oldName) p.client = trimmed; });
   /* Migrer navFolders */
   if(navFolders[oldName]){
-    navFolders[newName.trim()] = navFolders[oldName];
+    navFolders[trimmed] = navFolders[oldName];
     delete navFolders[oldName];
+  }
+  /* Migrer le portefeuille utilisateur */
+  if(userWalletClients.has(oldName)){
+    userWalletClients.delete(oldName);
+    userWalletClients.add(trimmed);
+    saveUserWallet();
   }
   savePortfolio();
   renderNavList();
