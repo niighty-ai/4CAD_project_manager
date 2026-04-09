@@ -1,5 +1,5 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-import { getDatabase, ref, set, onValue } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+import { getDatabase, ref, set, onValue, get } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
 import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged }
   from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 
@@ -36,3 +36,17 @@ window._fbOnAuthChange = (cb) => onAuthStateChanged(_fbAuth, cb);
 /* ── Portefeuille utilisateur (par UID) ── */
 window._fbSetUserWallet = (userId, data) => set(ref(_fbDb, 'user_wallets/' + userId), data);
 window._fbOnUserWallet  = (userId, cb)   => onValue(ref(_fbDb, 'user_wallets/' + userId), snap => cb(snap.val()));
+
+/* ── Positions du calendrier (par UID) ──
+   Les clés d'événements contiennent des caractères spéciaux (| /) non admis
+   par Firebase RTDB. On sérialise donc l'objet entier en JSON dans un champ "d". */
+window._fbSetCalPositions = (userId, data) =>
+  set(ref(_fbDb, 'calendar_positions/' + userId), { d: JSON.stringify(data) });
+
+window._fbGetCalPositions = (userId, cb) =>
+  get(ref(_fbDb, 'calendar_positions/' + userId))
+    .then(snap => {
+      try { const v = snap.val(); cb(v?.d ? JSON.parse(v.d) : null); }
+      catch(e) { cb(null); }
+    })
+    .catch(() => cb(null));

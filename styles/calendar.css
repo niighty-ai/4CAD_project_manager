@@ -481,3 +481,58 @@
   padding-top: 12px;
   border-top: 1px solid var(--border);
 }
+
+/* ── Bannière d'avertissement synchronisation ────────────────────────────── */
+.cal-sync-warning {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 14px;
+  background: color-mix(in srgb, #f59e0b 12%, var(--surface));
+  border-bottom: 2px solid #f59e0b;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+}
+
+.cal-sync-icon {
+  font-size: 16px;
+  color: #d97706;
+  flex-shrink: 0;
+}
+
+.cal-sync-text {
+  font-size: 12px;
+  color: var(--text);
+  flex: 1;
+  min-width: 200px;
+  line-height: 1.4;
+}
+
+.cal-sync-btn {
+  padding: 4px 11px;
+  border-radius: 5px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background .15s, border-color .15s;
+  flex-shrink: 0;
+}
+
+.cal-sync-resync {
+  border: none;
+  background: #f59e0b;
+  color: #fff;
+}
+
+.cal-sync-resync:hover { background: #d97706; }
+
+.cal-sync-dismiss {
+  border: 1px solid #f59e0b;
+  background: transparent;
+  color: #d97706;
+}
+
+.cal-sync-dismiss:hover {
+  background: color-mix(in srgb, #f59e0b 15%, transparent);
+}

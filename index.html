@@ -312,6 +312,13 @@
       <button class="cal-ical-info-btn" onclick="openIcalInfo()" title="Comment synchroniser avec votre agenda ?">?</button>
     </div>
   </div>
+  <!-- Bannière d'avertissement : charges modifiées depuis la dernière sauvegarde -->
+  <div id="calSyncWarning" class="cal-sync-warning" style="display:none">
+    <span class="cal-sync-icon">&#9888;</span>
+    <span class="cal-sync-text">Des charges ont été modifiées dans la base de données depuis la dernière sauvegarde du calendrier. Certaines positions ne sont plus à jour.</span>
+    <button class="cal-sync-btn cal-sync-resync" onclick="calResync()">&#8635; Resynchroniser</button>
+    <button class="cal-sync-btn cal-sync-dismiss" onclick="calDismissWarning()">Ignorer</button>
+  </div>
   <div id="calWeekGrid" class="cal-week-grid"></div>
 </div>
 
