@@ -2,6 +2,67 @@
    app.js — Initialisation, event listeners
    ═══════════════════════════════════════════ */
 
+/* ── Authentification ─────────────────────────────────────────────────────
+   Attend que le SDK Firebase Auth soit disponible, puis surveille l'état
+   de connexion. Si l'utilisateur n'est pas connecté, affiche l'écran de
+   login et masque l'application. Sinon, lance l'init normale.
+   ──────────────────────────────────────────────────────────────────────── */
+(function waitForAuth() {
+  let attempts = 0;
+  const iv = setInterval(() => {
+    attempts++;
+    if (typeof window._fbOnAuthChange === 'function') {
+      clearInterval(iv);
+      window._fbOnAuthChange(user => {
+        const loginScreen = document.getElementById('loginScreen');
+        const appHeader   = document.querySelector('header');
+        const viewProjets = document.getElementById('viewProjets');
+        if (user) {
+          // Connecté : cache le login, affiche l'appli
+          if (loginScreen) loginScreen.style.display = 'none';
+          if (appHeader)   appHeader.style.display   = '';
+          if (viewProjets) viewProjets.style.display = '';
+        } else {
+          // Non connecté : affiche le login, cache l'appli
+          if (loginScreen) loginScreen.style.display = 'flex';
+          if (appHeader)   appHeader.style.display   = 'none';
+          if (viewProjets) viewProjets.style.display = 'none';
+        }
+      });
+    } else if (attempts > 80) {
+      clearInterval(iv);
+      console.warn('[Auth] Firebase Auth indisponible après 8 s');
+    }
+  }, 100);
+})();
+
+function doLogin() {
+  const email = document.getElementById('loginEmail').value.trim();
+  const pwd   = document.getElementById('loginPwd').value;
+  const err   = document.getElementById('loginError');
+  const btn   = document.getElementById('loginBtn');
+  if (!email || !pwd) { err.textContent = 'Veuillez renseigner l\'email et le mot de passe.'; return; }
+  err.textContent   = '';
+  btn.disabled      = true;
+  btn.textContent   = 'Connexion…';
+  window._fbSignIn(email, pwd)
+    .catch(() => {
+      err.textContent = 'Email ou mot de passe incorrect.';
+      btn.disabled    = false;
+      btn.textContent = 'Se connecter';
+    });
+}
+
+/* Écoute la touche Entrée sur les champs login */
+document.addEventListener('DOMContentLoaded', () => {
+  const pwd = document.getElementById('loginPwd');
+  if (pwd) pwd.addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
+  const em  = document.getElementById('loginEmail');
+  if (em)  em.addEventListener('keydown',  e => { if (e.key === 'Enter') doLogin(); });
+});
+
+/* ── Reste de l'initialisation (inchangé) ─────────────────────────────── */
+
 document.getElementById('cpCustom').addEventListener('input',e=>{if(!cpTarget)return;projectColors[cpTarget]=e.target.value;document.getElementById('colorGrid').querySelectorAll('.color-opt').forEach(el=>el.classList.remove('selected'));renderAll();}
 );
 document.addEventListener('click',e=>{if(!document.getElementById('colorPopup').contains(e.target))document.getElementById('colorPopup').style.display='none';}
@@ -83,7 +144,6 @@ document.addEventListener('keydown',e=>{
       if(proj && (proj.name.startsWith('Nouveau projet'))){
         const name = file.name.replace(/\.[^.]+$/,'').replace(/[_-]/g,' ');
         proj.name = name;
-        // activeProjectName removed from header
         savePortfolio();
         renderNavList();
       }
