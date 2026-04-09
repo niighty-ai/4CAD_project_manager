@@ -482,6 +482,140 @@
   border-top: 1px solid var(--border);
 }
 
+/* ── Modal sélection semaines export ─────────────────────────────────────── */
+.cal-export-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 8100;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0,0,0,.45);
+}
+
+.cal-export-modal-box {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 24px 26px 20px;
+  width: 380px;
+  max-width: 94vw;
+  box-shadow: 0 14px 45px rgba(0,0,0,.28);
+  font-family: Arial, sans-serif;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.cal-export-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.cal-export-modal-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.cal-export-modal-close {
+  background: none;
+  border: none;
+  font-size: 20px;
+  cursor: pointer;
+  color: var(--muted);
+  line-height: 1;
+  padding: 2px 4px;
+  border-radius: 4px;
+  transition: color .15s;
+}
+
+.cal-export-modal-close:hover { color: var(--text); }
+
+.cal-export-modal-hint {
+  margin: 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.cal-export-week-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 280px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.cal-export-week-item {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background .12s;
+  user-select: none;
+}
+
+.cal-export-week-item:hover {
+  background: color-mix(in srgb, var(--accent) 7%, var(--surface));
+  border-color: var(--accent);
+}
+
+.cal-export-week-item.cal-export-week-unplanned {
+  opacity: .55;
+}
+
+.cal-export-cb {
+  width: 15px;
+  height: 15px;
+  accent-color: var(--accent);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.cal-export-week-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  flex: 1;
+}
+
+.cal-export-week-note {
+  font-size: 10px;
+  color: var(--muted);
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  padding: 1px 5px;
+  border-radius: 8px;
+  white-space: nowrap;
+  font-style: italic;
+}
+
+.cal-export-modal-footer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-top: 4px;
+  border-top: 1px solid var(--border);
+}
+
+.cal-export-toggle-all {
+  background: none;
+  border: none;
+  font-size: 11px;
+  color: var(--accent);
+  cursor: pointer;
+  padding: 0;
+  font-weight: 600;
+  transition: opacity .15s;
+}
+
+.cal-export-toggle-all:hover { opacity: .7; }
+
 /* ── Bannière d'avertissement synchronisation ────────────────────────────── */
 .cal-sync-warning {
   display: flex;

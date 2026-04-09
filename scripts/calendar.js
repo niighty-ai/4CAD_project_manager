@@ -443,18 +443,69 @@ function _calGetWorkedWeekMondays() {
   return [...mondayTimes].sort().map(t => new Date(t));
 }
 
-/* ── Export ICS — uniquement les semaines planifiées ───────────────────────── */
+/* ── Modal de sélection des semaines avant export ──────────────────────────── */
 function exportIcal() {
   if (!calSelectedRes) {
     alert("Veuillez sélectionner une ressource avant d'exporter.");
     return;
   }
-  const workedMondays = _calGetWorkedWeekMondays();
-  if (workedMondays.length === 0) {
-    alert(`Aucune semaine planifiée pour "${calSelectedRes}".\nPositionnez d'abord des tâches dans le calendrier, puis sauvegardez.`);
+  const workedMondays  = _calGetWorkedWeekMondays();
+  const workedTimes    = new Set(workedMondays.map(m => m.getTime()));
+  const currentTime    = calWeekStart.getTime();
+
+  /* Construire la liste unifiée : semaines planifiées + semaine courante */
+  const allTimes = new Set([...workedTimes, currentTime]);
+  const allMondays = [...allTimes].sort().map(t => new Date(t));
+
+  const list = document.getElementById('calExportWeekList');
+  if (!list) return;
+
+  list.innerHTML = allMondays.map(monday => {
+    const t        = monday.getTime();
+    const isWorked = workedTimes.has(t);
+    const friday   = _calAddDays(monday, 4);
+    const fmt = d => d.toLocaleDateString('fr-FR', { day:'2-digit', month:'short' });
+    const label    = `${fmt(monday)} – ${fmt(friday)} ${friday.getFullYear()}`;
+    return `
+      <label class="cal-export-week-item${isWorked ? '' : ' cal-export-week-unplanned'}">
+        <input type="checkbox" class="cal-export-cb" value="${t}"${t === currentTime ? ' checked' : ''}>
+        <span class="cal-export-week-label">${label}</span>
+        ${isWorked ? '' : '<span class="cal-export-week-note">non planifiée</span>'}
+      </label>`;
+  }).join('');
+
+  document.getElementById('calExportModal').style.display = 'flex';
+}
+
+function closeIcalExportModal() {
+  const el = document.getElementById('calExportModal');
+  if (el) el.style.display = 'none';
+}
+
+function calExportToggleAll() {
+  const cbs  = document.querySelectorAll('.cal-export-cb');
+  const allChecked = [...cbs].every(cb => cb.checked);
+  cbs.forEach(cb => { cb.checked = !allChecked; });
+  const btn = document.getElementById('calExportToggleAllBtn');
+  if (btn) btn.textContent = allChecked ? 'Tout sélectionner' : 'Tout désélectionner';
+}
+
+function calDoExport() {
+  const workedTimes = new Set(_calGetWorkedWeekMondays().map(m => m.getTime()));
+  const selected    = [...document.querySelectorAll('.cal-export-cb:checked')]
+    .map(cb => parseInt(cb.value))
+    .filter(t => workedTimes.has(t));
+
+  if (selected.length === 0) {
+    alert("Aucune semaine planifiée parmi la sélection.\nPositionnez et sauvegardez des tâches dans ces semaines d'abord.");
     return;
   }
+  closeIcalExportModal();
+  _calBuildAndDownloadIcs(selected.map(t => new Date(t)));
+}
 
+/* ── Génération et téléchargement du fichier ICS ───────────────────────────── */
+function _calBuildAndDownloadIcs(mondays) {
   const lines = [
     'BEGIN:VCALENDAR',
     'VERSION:2.0',
@@ -464,7 +515,7 @@ function exportIcal() {
     `X-WR-CALNAME:${calSelectedRes} \u2014 4CAD`
   ];
 
-  for (const monday of workedMondays) {
+  for (const monday of mondays) {
     [0,1,2,3,4].forEach(offset => {
       const d       = _calAddDays(monday, offset);
       const dateStr = _calDateStr(d);
@@ -477,7 +528,7 @@ function exportIcal() {
         const base    = `${yyyy}${mm}${dd}`;
         const uid     = `${ev.key.replace(/[^a-zA-Z0-9]/g,'x').substring(0,48)}@4cad`;
         const summary = _calIcalEsc(ev.rawLabel);
-        const desc    = _calIcalEsc(`Ressource : ${calSelectedRes}\nCharge : ${_calFmt(ev.charge)} jour(s)\nHoraire : ${_calFmtMin(startMin)} – ${_calFmtMin(endMin)}`);
+        const desc    = _calIcalEsc(`Ressource : ${calSelectedRes}\nCharge : ${_calFmt(ev.charge)} jour(s)\nHoraire : ${_calFmtMin(startMin)} \u2013 ${_calFmtMin(endMin)}`);
         lines.push('BEGIN:VEVENT');
         lines.push(`UID:${uid}`);
         lines.push(`DTSTART:${base}T${_calFmtIso(startMin)}00`);
@@ -490,7 +541,7 @@ function exportIcal() {
   }
   lines.push('END:VCALENDAR');
 
-  const blob = new Blob([lines.join('\r\n')], {type:'text/calendar;charset=utf-8'});
+  const blob = new Blob([lines.join('\r\n')], { type:'text/calendar;charset=utf-8' });
   const a    = Object.assign(document.createElement('a'), {
     href:     URL.createObjectURL(blob),
     download: `calendrier-${calSelectedRes.replace(/\s+/g,'-')}.ics`

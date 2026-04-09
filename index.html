@@ -323,6 +323,26 @@
 </div>
 
 <!-- ══════════════════════════════════════════════
+     MODAL — Sélection des semaines pour l'export ICS
+     ══════════════════════════════════════════════ -->
+<div id="calExportModal" class="cal-export-modal" style="display:none" onclick="if(event.target===this)closeIcalExportModal()">
+  <div class="cal-export-modal-box">
+    <div class="cal-export-modal-header">
+      <span class="cal-export-modal-title">&#128197; Exporter en .ics</span>
+      <button class="cal-export-modal-close" onclick="closeIcalExportModal()">&#215;</button>
+    </div>
+    <p class="cal-export-modal-hint">Sélectionnez les semaines à inclure dans l'export :</p>
+    <div id="calExportWeekList" class="cal-export-week-list"></div>
+    <div class="cal-export-modal-footer">
+      <button id="calExportToggleAllBtn" class="cal-export-toggle-all" onclick="calExportToggleAll()">Tout sélectionner</button>
+      <div style="flex:1"></div>
+      <button class="cal-cancel-btn" onclick="closeIcalExportModal()">Annuler</button>
+      <button class="cal-save-btn" onclick="calDoExport()">&#128197; Exporter</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════
      MODAL — Synchronisation calendrier
      ══════════════════════════════════════════════ -->
 <div id="calIcalInfoModal" class="cal-ical-modal" style="display:none" onclick="if(event.target===this)closeIcalInfo()">
