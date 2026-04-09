@@ -136,9 +136,44 @@ function _calPopulateResources() {
     if (n === prev) o.selected = true;
     sel.appendChild(o);
   });
-  calSelectedRes = names.has(prev) ? prev : sel.value;
+
+  if (names.has(prev)) {
+    /* Conserver la sélection courante */
+    calSelectedRes = prev;
+  } else {
+    /* Première ouverture ou ressource introuvable : déduire depuis l'email connecté */
+    const guessed  = _calGuessResourceFromEmail(names);
+    calSelectedRes = guessed || '';
+  }
   sel.value = calSelectedRes;
 }
+
+/* ── Déduction de la ressource à partir de l'email connecté ─────────────────
+   Format attendu : initiale_prénom + nom_complet @4cad.fr
+   Exemple : ghomere@4cad.fr  →  initial=g, nom=homere  →  Gaël HOMERE        */
+function _calGuessResourceFromEmail(names) {
+  const email = (document.getElementById('connectedUser')?.textContent || '').trim().toLowerCase();
+  if (!email.includes('@')) return '';
+  const local = email.split('@')[0];
+  if (local.length < 2) return '';
+  const initial  = _calNorm(local[0]);
+  const lastname = _calNorm(local.slice(1));
+  for (const name of names) {
+    const parts = name.trim().split(/\s+/);
+    if (parts.length < 2) continue;
+    /* parts[0] = prénom, dernière partie = nom de famille */
+    if (_calNorm(parts[0])[0] === initial && _calNorm(parts[parts.length - 1]) === lastname) {
+      return name;
+    }
+  }
+  return '';
+}
+
+/* Normalisation : minuscules + suppression des accents */
+function _calNorm(s) {
+  return String(s).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+}
+
 
 function onCalResourceChange() {
   calSelectedRes = document.getElementById('calResourceSelect').value;
