@@ -12,8 +12,11 @@
     if (typeof window._fbOnAuthChange === 'function') {
       clearInterval(iv);
       window._fbOnAuthChange(user => {
-        const loginScreen = document.getElementById('loginScreen');
-        const appHeader   = document.querySelector('header');
+        const loginScreen  = document.getElementById('loginScreen');
+        const authLoading  = document.getElementById('authLoading');
+        const appHeader    = document.querySelector('header');
+        /* Masquer le spinner de chargement dès que l'état auth est connu */
+        if (authLoading) authLoading.style.display = 'none';
         if (user) {
           /* Connecté → affiche l'appli */
           currentUserId = user.uid;
