@@ -3,8 +3,7 @@
    ═══════════════════════════════════════════ */
 
 /* ── Authentification Email/Password ─────────────────────────────────────
-   Surveille l'état de connexion Firebase.
-   Non connecté → écran login. Connecté → affiche l'appli.
+   Le chargement Firebase ne se lance qu'après confirmation de la connexion.
    ──────────────────────────────────────────────────────────────────────── */
 (function waitForAuth() {
   let attempts = 0;
@@ -16,11 +15,15 @@
         const loginScreen = document.getElementById('loginScreen');
         const appHeader   = document.querySelector('header');
         if (user) {
+          /* Connecté → affiche l'appli */
           if (loginScreen) loginScreen.style.display = 'none';
           if (appHeader)   appHeader.style.display   = '';
           const userInfo = document.getElementById('connectedUser');
           if (userInfo) userInfo.textContent = user.email;
+          /* Lance le chargement des données Firebase maintenant qu'on est auth */
+          _startFirebaseLoad();
         } else {
+          /* Non connecté → affiche le login */
           if (loginScreen) loginScreen.style.display = 'flex';
           if (appHeader)   appHeader.style.display   = 'none';
           const btn = document.getElementById('loginBtn');
@@ -53,15 +56,45 @@ function doLogin() {
   });
 }
 
-/* Touche Entrée sur les champs login */
-document.addEventListener('DOMContentLoaded', () => {
-  ['loginEmail','loginPwd'].forEach(id => {
-    const el = document.getElementById(id);
-    if (el) el.addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
-  });
-});
+/* ── Chargement Firebase (appelé uniquement après auth confirmée) ── */
+let _fbLoadStarted = false;
+function _startFirebaseLoad() {
+  if (_fbLoadStarted) return; /* Ne lancer qu'une seule fois */
+  _fbLoadStarted = true;
 
-/* ── Reste de l'initialisation (inchangé) ─────────────────────────────── */
+  /* Initialisation des ressources */
+  if (typeof initResources === 'function') initResources();
+
+  /* Chargement du portfolio */
+  let attempts = 0;
+  const iv = setInterval(() => {
+    attempts++;
+    if (typeof window._fbOnValue === 'function') {
+      clearInterval(iv);
+      setFbStatus('⏳ Chargement...', '#f7971e');
+      window._fbOnValue(function(val) {
+        if (_fbInitLoaded && (Date.now() - _lastSaveTs) < 4000) return;
+        if (val && Array.isArray(val) && val.length) {
+          const activeId = activeProjectId;
+          portfolio = migrateFirebaseData(val);
+          renderNavList();
+          const target = activeId && portfolio.find(p => p.id === activeId)
+            ? activeId : portfolio[0]?.id;
+          if (target) switchToProject(target);
+          setFbStatus('☁ Connecté', '#2e7d32');
+        } else if (!_fbInitLoaded) {
+          setFbStatus('☁ Vide', '#f7971e');
+        }
+        _fbInitLoaded = true;
+      });
+    } else if (attempts > 60) {
+      clearInterval(iv);
+      setFbStatus('⚠ Firebase indisponible', '#e17055');
+    }
+  }, 100);
+}
+
+/* ── Reste de l'initialisation ─────────────────────────────────────────── */
 
 document.getElementById('cpCustom').addEventListener('input',e=>{if(!cpTarget)return;projectColors[cpTarget]=e.target.value;document.getElementById('colorGrid').querySelectorAll('.color-opt').forEach(el=>el.classList.remove('selected'));renderAll();}
 );
@@ -158,38 +191,6 @@ document.addEventListener('keydown',e=>{
   if(e.key==='Escape')closeEditPanel();
 }
 );
-if (typeof initResources === 'function') initResources();
-(function waitForFbAndLoad(){
-  let attempts = 0;
-  const iv = setInterval(()=>{
-    attempts++;
-    if(typeof window._fbOnValue === 'function'){
-      clearInterval(iv);
-      setFbStatus('⏳ Chargement...', '#f7971e');
-      window._fbOnValue(function(val){
-        if(_fbInitLoaded && (Date.now() - _lastSaveTs) < 4000){
-          return;
-        }
-        if(val && Array.isArray(val) && val.length){
-          const activeId = activeProjectId;
-          portfolio = migrateFirebaseData(val);
-          renderNavList();
-          const target = activeId && portfolio.find(p=>p.id===activeId)
-            ? activeId : portfolio[0]?.id;
-          if(target) switchToProject(target);
-          setFbStatus('☁ Connecté', '#2e7d32');
-        } else if(!_fbInitLoaded){
-          setFbStatus('☁ Vide', '#f7971e');
-        }
-        _fbInitLoaded = true;
-      });
-    } else if(attempts > 60){
-      clearInterval(iv);
-      setFbStatus('⚠ Firebase indisponible', '#e17055');
-    }
-  }, 100);
-}
-)();
 document.addEventListener('keydown', e=>{
   if(e.key==='Escape') closeJalonPanel();
 }
