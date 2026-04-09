@@ -151,21 +151,53 @@ function _calPopulateResources() {
 /* ── Déduction de la ressource à partir de l'email connecté ─────────────────
    Format attendu : initiale_prénom + nom_complet @4cad.fr
    Exemple : ghomere@4cad.fr  →  initial=g, nom=homere  →  Gaël HOMERE        */
+/* ── Déduction de la ressource à partir de l'email connecté ─────────────────
+   Format : initiales_prénom (1–4 chars) + nom_complet @4cad.fr
+   Exemples :
+     ghomere@4cad.fr   → g   + homere   → Gaël HOMERE
+     jpdupont@4cad.fr  → jp  + dupont   → Jean-Pierre DUPONT
+     mfmartin@4cad.fr  → mf  + martin   → Marie-France MARTIN
+   Algorithme : on teste tous les découpages possibles (1 à 4 initiales),
+   on cherche d'abord une correspondance exacte des initiales, puis en
+   repli une correspondance partielle (les initiales de l'email sont un
+   préfixe des initiales réelles — cas de saisie tronquée).              */
 function _calGuessResourceFromEmail(names) {
   const email = (document.getElementById('connectedUser')?.textContent || '').trim().toLowerCase();
   if (!email.includes('@')) return '';
-  const local = email.split('@')[0];
+  const local = _calNorm(email.split('@')[0]);
   if (local.length < 2) return '';
-  const initial  = _calNorm(local[0]);
-  const lastname = _calNorm(local.slice(1));
-  for (const name of names) {
-    const parts = name.trim().split(/\s+/);
-    if (parts.length < 2) continue;
-    /* parts[0] = prénom, dernière partie = nom de famille */
-    if (_calNorm(parts[0])[0] === initial && _calNorm(parts[parts.length - 1]) === lastname) {
-      return name;
+
+  /* Calcule les initiales d'un prénom (gère les prénoms composés avec - ou espace) */
+  function getInitials(firstNameStr) {
+    return firstNameStr.split(/[\s\-]+/).filter(Boolean).map(p => _calNorm(p)[0] || '').join('');
+  }
+
+  /* Passe 1 : correspondance exacte des initiales */
+  for (let i = 1; i <= Math.min(4, local.length - 1); i++) {
+    const initials = local.slice(0, i);
+    const lastname = local.slice(i);
+    for (const name of names) {
+      const parts = name.trim().split(/\s+/);
+      if (parts.length < 2) continue;
+      if (_calNorm(parts[parts.length - 1]) !== lastname) continue;
+      const resInitials = getInitials(parts.slice(0, -1).join(' '));
+      if (resInitials === initials) return name;
     }
   }
+
+  /* Passe 2 : correspondance partielle (email = préfixe des initiales réelles) */
+  for (let i = 1; i <= Math.min(4, local.length - 1); i++) {
+    const initials = local.slice(0, i);
+    const lastname = local.slice(i);
+    for (const name of names) {
+      const parts = name.trim().split(/\s+/);
+      if (parts.length < 2) continue;
+      if (_calNorm(parts[parts.length - 1]) !== lastname) continue;
+      const resInitials = getInitials(parts.slice(0, -1).join(' '));
+      if (resInitials.startsWith(initials)) return name;
+    }
+  }
+
   return '';
 }
 
