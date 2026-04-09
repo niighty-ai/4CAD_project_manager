@@ -2,10 +2,9 @@
    app.js — Initialisation, event listeners
    ═══════════════════════════════════════════ */
 
-/* ── Authentification ─────────────────────────────────────────────────────
-   Attend que le SDK Firebase Auth soit disponible, puis surveille l'état
-   de connexion. Si l'utilisateur n'est pas connecté, affiche l'écran de
-   login et masque l'application. Sinon, lance l'init normale.
+/* ── Authentification Email/Password ─────────────────────────────────────
+   Surveille l'état de connexion Firebase.
+   Non connecté → écran login. Connecté → affiche l'appli.
    ──────────────────────────────────────────────────────────────────────── */
 (function waitForAuth() {
   let attempts = 0;
@@ -16,17 +15,16 @@
       window._fbOnAuthChange(user => {
         const loginScreen = document.getElementById('loginScreen');
         const appHeader   = document.querySelector('header');
-        const viewProjets = document.getElementById('viewProjets');
         if (user) {
-          // Connecté : cache le login, affiche l'appli
           if (loginScreen) loginScreen.style.display = 'none';
           if (appHeader)   appHeader.style.display   = '';
-          if (viewProjets) viewProjets.style.display = '';
+          const userInfo = document.getElementById('connectedUser');
+          if (userInfo) userInfo.textContent = user.email;
         } else {
-          // Non connecté : affiche le login, cache l'appli
           if (loginScreen) loginScreen.style.display = 'flex';
           if (appHeader)   appHeader.style.display   = 'none';
-          if (viewProjets) viewProjets.style.display = 'none';
+          const btn = document.getElementById('loginBtn');
+          if (btn) { btn.disabled = false; btn.textContent = 'Se connecter'; }
         }
       });
     } else if (attempts > 80) {
@@ -41,24 +39,26 @@ function doLogin() {
   const pwd   = document.getElementById('loginPwd').value;
   const err   = document.getElementById('loginError');
   const btn   = document.getElementById('loginBtn');
-  if (!email || !pwd) { err.textContent = 'Veuillez renseigner l\'email et le mot de passe.'; return; }
-  err.textContent   = '';
-  btn.disabled      = true;
-  btn.textContent   = 'Connexion…';
-  window._fbSignIn(email, pwd)
-    .catch(() => {
-      err.textContent = 'Email ou mot de passe incorrect.';
-      btn.disabled    = false;
-      btn.textContent = 'Se connecter';
-    });
+  if (!email || !pwd) {
+    err.textContent = 'Veuillez renseigner l\'email et le mot de passe.';
+    return;
+  }
+  err.textContent  = '';
+  btn.disabled     = true;
+  btn.textContent  = 'Connexion…';
+  window._fbSignIn(email, pwd).catch(() => {
+    err.textContent = 'Email ou mot de passe incorrect.';
+    btn.disabled    = false;
+    btn.textContent = 'Se connecter';
+  });
 }
 
-/* Écoute la touche Entrée sur les champs login */
+/* Touche Entrée sur les champs login */
 document.addEventListener('DOMContentLoaded', () => {
-  const pwd = document.getElementById('loginPwd');
-  if (pwd) pwd.addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
-  const em  = document.getElementById('loginEmail');
-  if (em)  em.addEventListener('keydown',  e => { if (e.key === 'Enter') doLogin(); });
+  ['loginEmail','loginPwd'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
+  });
 });
 
 /* ── Reste de l'initialisation (inchangé) ─────────────────────────────── */
@@ -69,7 +69,6 @@ document.addEventListener('click',e=>{if(!document.getElementById('colorPopup').
 );
 document.getElementById('fileInput').addEventListener('change',e=>{
   const file=e.target.files[0];if(!file)return;
-  // Routing : XML MS Project ou Excel/CSV
   if(file.name.toLowerCase().endsWith('.xml')){
     handleXMLImport(file);
     e.target.value='';
@@ -136,7 +135,6 @@ document.addEventListener('keydown',e=>{
 }
 );
 (function(){
-  const origHandler = document.getElementById('fileInput').onchange;
   document.getElementById('fileInput').addEventListener('change', function(e){
     const file = e.target.files[0];
     if(file && activeProjectId){
@@ -160,7 +158,6 @@ document.addEventListener('keydown',e=>{
   if(e.key==='Escape')closeEditPanel();
 }
 );
-/* Initialisation des ressources (localStorage + Firebase sync) */
 if (typeof initResources === 'function') initResources();
 (function waitForFbAndLoad(){
   let attempts = 0;
