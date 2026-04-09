@@ -14,6 +14,7 @@
 <link rel="stylesheet" href="styles/gantt.css">
 <link rel="stylesheet" href="styles/panels.css">
 <link rel="stylesheet" href="styles/resources.css">
+<link rel="stylesheet" href="styles/calendar.css">
 <script type="module" src="scripts/firebase.js"></script>
 </head>
 <body>
@@ -120,6 +121,9 @@
     </button>
     <button class="nav-tab" data-view="ressources" onclick="switchView('ressources')">
       <span class="nav-tab-icon">👤</span> Ressources
+    </button>
+    <button class="nav-tab" data-view="calendrier" onclick="switchView('calendrier')">
+      <span class="nav-tab-icon">📅</span> Calendrier
     </button>
   </nav>
   <div class="toolbar">
@@ -282,6 +286,66 @@
 
 <div id="viewRessources" style="display:none; height:calc(100vh - var(--header-h)); overflow:hidden;"></div>
 
+<!-- ══════════════════════════════════════════════
+     VUE CALENDRIER
+     ══════════════════════════════════════════════ -->
+<div id="viewCalendar" style="display:none;">
+  <div class="cal-toolbar">
+    <div class="cal-resource-wrap">
+      <span class="cal-resource-label">Ressource</span>
+      <select id="calResourceSelect" class="cal-resource-select" onchange="onCalResourceChange()">
+        <option value="">— Sélectionner une ressource —</option>
+      </select>
+    </div>
+    <div class="cal-nav">
+      <button class="cal-nav-btn" onclick="calPrevWeek()" title="Semaine précédente">&#8249;</button>
+      <button class="cal-today-btn" id="calTodayBtn" onclick="calGoToday()">Aujourd'hui</button>
+      <button class="cal-nav-btn" onclick="calNextWeek()" title="Semaine suivante">&#8250;</button>
+    </div>
+    <span class="cal-week-label" id="calWeekLabel"></span>
+    <div class="cal-toolbar-right">
+      <div class="cal-dirty-actions" id="calDirtyActions" style="display:none">
+        <button class="cal-save-btn" onclick="saveCalendar()">&#10003; Sauvegarder</button>
+        <button class="cal-cancel-btn" onclick="cancelCalendar()">&#10005; Annuler</button>
+      </div>
+      <button class="cal-ical-btn" onclick="exportIcal()">&#128197; Exporter .ics</button>
+      <button class="cal-ical-info-btn" onclick="openIcalInfo()" title="Comment synchroniser avec votre agenda ?">?</button>
+    </div>
+  </div>
+  <div id="calWeekGrid" class="cal-week-grid"></div>
+</div>
+
+<!-- ══════════════════════════════════════════════
+     MODAL — Synchronisation calendrier
+     ══════════════════════════════════════════════ -->
+<div id="calIcalInfoModal" class="cal-ical-modal" style="display:none" onclick="if(event.target===this)closeIcalInfo()">
+  <div class="cal-ical-modal-box">
+    <button class="cal-ical-modal-close" onclick="closeIcalInfo()">&#215;</button>
+    <div class="cal-ical-modal-title">&#128197; Synchroniser votre calendrier</div>
+    <div class="cal-ical-modal-body">
+      <p>Cliquez sur <strong>Exporter .ics</strong> pour télécharger votre planning, puis importez-le dans votre application de calendrier :</p>
+      <div class="cal-ical-modal-section">
+        <div class="cal-ical-modal-app">Google Agenda</div>
+        <ol>
+          <li>Téléchargez le fichier <strong>.ics</strong></li>
+          <li>Ouvrez <em>calendar.google.com</em></li>
+          <li>Cliquez sur <strong>+</strong> à côté de « Autres agendas »</li>
+          <li>Choisissez <strong>Importer</strong> et sélectionnez le fichier</li>
+        </ol>
+      </div>
+      <div class="cal-ical-modal-section">
+        <div class="cal-ical-modal-app">Microsoft Outlook</div>
+        <ol>
+          <li>Téléchargez le fichier <strong>.ics</strong></li>
+          <li>Double-cliquez sur le fichier pour l'ouvrir dans Outlook</li>
+          <li>Cliquez sur <strong>Importer</strong></li>
+        </ol>
+      </div>
+      <p class="cal-ical-modal-note">Pour une synchronisation automatique en temps réel (abonnement webcal), un hébergement de fichier ICS côté serveur est requis.</p>
+    </div>
+  </div>
+</div>
+
 <div class="edit-panel" id="affectPanel">
   <div class="edit-panel-header">
     <span class="edit-panel-title" id="affectPanelTitle">👥 Affectations</span>
@@ -319,6 +383,7 @@
 <script src="scripts/gantt.js"></script>
 <script src="scripts/ui.js"></script>
 <script src="scripts/resources.js"></script>
+<script src="scripts/calendar.js"></script>
 <script src="scripts/router.js"></script>
 <script src="scripts/app.js"></script>
 </body></html>
