@@ -130,31 +130,17 @@ function parseMSProjectXML(xmlText, projectName) {
     const start  = mkDate(startStr);
     const finish = mkDate(finishStr);
 
-    // Charge : on préfère les assignments s'ils existent, sinon Duration/Work de la tâche
-    let charge = null;
-    let chargePassee = null;
+    // L'XML fournit uniquement le temps passé (ActualWork).
+    // charge (temps prévu) et chargeRestante sont calculés par syncGanttFromResources (GHO).
+    let charge         = null;
+    let chargePassee   = null;
     let chargeRestante = null;
-    let assignments = [];
+    let assignments    = [];
 
     const asgns = taskAssignments[uid];
     if (asgns && asgns.length) {
-      // Somme toutes les ressources pour les totaux de la tâche
-      charge       = asgns.reduce((s, a) => s + (a.work       || 0), 0);
       chargePassee = asgns.reduce((s, a) => s + (a.actualWork || 0), 0);
-
-      charge       = Math.round(charge       * 10000) / 10000 || null;
       chargePassee = Math.round(chargePassee * 10000) / 10000 || null;
-      // Restante = prévu - passé
-      chargeRestante = (charge != null && chargePassee != null)
-        ? Math.round((charge - chargePassee) * 10000) / 10000
-        : charge;
-
-      // Les assignments sont alimentés exclusivement par l'import GHO (syncGanttFromResources)
-      // L'XML fournit uniquement les totaux de charge (charge, chargePassee, chargeRestante)
-    } else {
-      // Pas d'assignment : utilise Work ou Duration de la tâche
-      const workStr = getVal(el, 'Work') || getVal(el, 'Duration');
-      charge = parsePTtoDays(workStr);
     }
 
     const taskId = getVal(el, 'ID');
@@ -233,16 +219,17 @@ function handleXMLImport(file) {
       }
 
       if (proj) {
-        /* Sauvegarder les externalTaskId et assignments posés par l'import GHO
-           pour les restaurer après remplacement — l'XML ne doit pas écraser ces données.
-           Clé primaire : externalTaskId ; clé de secours : tache||niveaux */
-        const savedExtIds   = {};  // key → externalTaskId
-        const savedAssigns  = {};  // key → assignments[]
+        /* Sauvegarder les données GHO avant remplacement — l'XML ne doit pas les écraser.
+           Clé : tache||niveaux (identique entre XML et GHO pour un même projet) */
+        const savedExtIds  = {};  // key → externalTaskId
+        const savedAssigns = {};  // key → assignments[] (GHO)
+        const savedCharge  = {};  // key → charge (temps prévu calculé par Sync GHO)
         (proj.rows || []).forEach(r => {
           if (r._type !== 'tache') return;
           const k = `${(r.tache || '').trim()}||${JSON.stringify(r.niveaux || [])}`;
-          if (r.externalTaskId) savedExtIds[k] = r.externalTaskId;
+          if (r.externalTaskId)                  savedExtIds[k]  = r.externalTaskId;
           if (r.assignments && r.assignments.length) savedAssigns[k] = r.assignments;
+          if (r.charge != null)                  savedCharge[k]  = r.charge;
         });
 
         /* REPLACE all project data from the XML import */
@@ -250,12 +237,19 @@ function handleXMLImport(file) {
         proj.jalons = [...parsedJalons];
         proj.assignments = {};
 
-        /* Restaurer les externalTaskId et assignments GHO sur les nouvelles tâches XML */
+        /* Restaurer les données GHO sur les nouvelles tâches XML et recalculer chargeRestante */
         proj.rows.forEach(r => {
           if (r._type !== 'tache') return;
           const k = `${(r.tache || '').trim()}||${JSON.stringify(r.niveaux || [])}`;
           if (savedExtIds[k])  r.externalTaskId = savedExtIds[k];
-          if (savedAssigns[k]) r.assignments     = savedAssigns[k];
+          if (savedAssigns[k]) r.assignments    = savedAssigns[k];
+          if (savedCharge[k] != null) {
+            r.charge = savedCharge[k];
+            // chargeRestante = temps prévu − temps passé
+            r.chargeRestante = (r.chargePassee != null)
+              ? Math.round((r.charge - r.chargePassee) * 10000) / 10000
+              : r.charge;
+          }
         });
 
         rows = [

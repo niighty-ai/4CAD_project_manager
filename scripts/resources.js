@@ -947,10 +947,7 @@ function _upsertPortfolioFromGHO(taskData) {
       const { niveaux, tache, taskId, debut, fin, chargePassee, chargeRestante } = task;
       if (!debut || !fin || isNaN(debut) || isNaN(fin)) return;
 
-      const chargeTotal = (chargePassee !== null && chargeRestante !== null)
-        ? roundCharge(chargePassee + chargeRestante)
-        : (chargePassee !== null ? roundCharge(chargePassee) : null);
-
+      // charge (temps prévu) = calculé par syncGanttFromResources depuis les charges journalières GHO
       proj.rows.push({
         _type:          'tache',
         projet:         projName,
@@ -958,7 +955,7 @@ function _upsertPortfolioFromGHO(taskData) {
         tache,
         debut,
         fin,
-        charge:         chargeTotal,
+        charge:         null,
         chargePassee,
         chargeRestante,
         externalTaskId: taskId || null,
@@ -1415,66 +1412,52 @@ function _setSyncBtnState(state) {
   else if (state === 'fresh') btn.classList.add('btn-sync-fresh');
 }
 
-/* Bouton ⟳ Sync charges : rapproche toutes les tâches Gantt avec les données GHO */
+/* Bouton ⟳ Sync charges : reconstruit les assignments et les charges depuis GHO.
+   charge (temps prévu)   = somme des charges journalières GHO par ressource
+   chargePassee           = conservée telle quelle (issue de l'import XML)
+   chargeRestante         = charge − chargePassee                             */
 function syncGanttFromResources(silent = false) {
   if (!resources.length) {
     if (!silent) alert('Aucune ressource chargée.\nImportez d\'abord les données via l\'onglet Ressources.');
     return;
   }
 
-  /* ── Étape 1 : vider uniquement les charges journalières (daily) ──
-     Les affectations (personnes assignées aux tâches) sont gérées par
-     l'import XML et doivent être conservées même sans charge GHO.
-     On efface seulement le daily + charge calculée, pas la liste des
-     personnes affectées.                                               */
-  rows.filter(r => r._type === 'tache').forEach(r => {
-    (r.assignments || []).forEach(a => {
-      a.daily = {};
-      a.charge = 0;
-      delete a.debut;
-      delete a.fin;
-    });
-  });
-
-  /* Vider aussi les éditions en attente (non encore sauvegardées) */
-  if (typeof _ganttEdits !== 'undefined') {
-    Object.keys(_ganttEdits).forEach(k => delete _ganttEdits[k]);
-    if (typeof _updateSaveBtn === 'function') _updateSaveBtn();
-  }
-
-  /* ── Étape 2 : repeupler depuis GHO (toutes tâches, avec ou sans externalTaskId) ── */
   const taskRows = rows.filter(r => r._type === 'tache');
   if (!taskRows.length) {
     if (!silent) alert('Aucune tâche dans ce Gantt.');
     return;
   }
 
-  let syncCount = 0;
+  /* ── Étape 1 : vider toutes les assignments — GHO est la source unique ── */
+  taskRows.forEach(r => { r.assignments = []; });
+
+  /* Vider aussi les éditions en attente */
+  if (typeof _ganttEdits !== 'undefined') {
+    Object.keys(_ganttEdits).forEach(k => delete _ganttEdits[k]);
+    if (typeof _updateSaveBtn === 'function') _updateSaveBtn();
+  }
+
+  /* ── Étape 2 : repeupler depuis GHO ── */
+  let syncCount  = 0;
   let matchCount = 0;
 
   resources.forEach(res => {
     if (!res.ghoData?.projects) return;
 
-    res.ghoData.projects.forEach(proj => {
-      (proj.tasks || []).forEach(t => {
+    res.ghoData.projects.forEach(ghoProj => {
+      (ghoProj.tasks || []).forEach(t => {
         if (!t.taskId) return;
 
-        /* Trouver la tâche Gantt correspondante :
-           1) externalTaskId exact (IDs identiques depuis l'import GHO unifié)
-           2) nom de tâche + projet (fallback pour tâches sans externalTaskId) */
-        let matchedRow = null;
-        if (t.taskId) {
-          matchedRow = taskRows.find(r => r.externalTaskId === t.taskId);
-        }
+        /* Correspondance : externalTaskId exact (import GHO unifié) puis fallback nom+projet */
+        let matchedRow = taskRows.find(r => r.externalTaskId === t.taskId);
         if (!matchedRow) {
-          matchedRow = taskRows.find(r => (r.tache || '') === (t.taskName || '') && r.projet === proj.name);
+          matchedRow = taskRows.find(r =>
+            (r.tache || '') === (t.taskName || '') && r.projet === ghoProj.name);
         }
         if (!matchedRow) return;
         matchCount++;
 
         const daily = t.daily || {};
-
-        /* Calculer la charge totale et la plage de dates depuis le daily */
         let totalCharge = 0;
         let minDate = null;
         let maxDate = null;
@@ -1492,43 +1475,51 @@ function syncGanttFromResources(silent = false) {
 
         if (totalCharge <= 0) return;
 
-        /* Trouver ou créer l'affectation pour cette ressource sur cette tâche */
-        if (!matchedRow.assignments) matchedRow.assignments = [];
-        let asgn = matchedRow.assignments.find(a => a.resourceId === res.id);
-        if (!asgn) {
-          asgn = { resourceId: res.id, resourceNom: res.fullName || res.id };
-          matchedRow.assignments.push(asgn);
-        }
-
-        asgn.charge     = Math.round(totalCharge * 10000) / 10000;
-        asgn.daily      = { ...daily };
+        const asgn = { resourceId: res.id, resourceNom: res.fullName || res.id };
+        asgn.charge = Math.round(totalCharge * 10000) / 10000;
+        asgn.daily  = { ...daily };
         if (minDate) asgn.debut = minDate;
         if (maxDate) asgn.fin   = maxDate;
-
+        matchedRow.assignments.push(asgn);
         syncCount++;
       });
     });
   });
 
-  if (matchCount === 0) {
-    if (!silent) alert('Aucune correspondance trouvée entre les tâches du Gantt et les données ressources.');
-    return;
-  }
+  /* ── Étape 3 : calculer charge et chargeRestante pour chaque tâche ──
+     charge       = somme des charges journalières de toutes les ressources
+     chargeRestante = charge − chargePassee (temps prévu − temps passé)    */
+  taskRows.forEach(r => {
+    const asgns = r.assignments || [];
+    if (asgns.length) {
+      r.charge = Math.round(asgns.reduce((s, a) => s + (a.charge || 0), 0) * 10000) / 10000 || null;
+    }
+    if (r.charge != null) {
+      r.chargeRestante = (r.chargePassee != null)
+        ? Math.round((r.charge - r.chargePassee) * 10000) / 10000
+        : r.charge;
+    }
+  });
 
   saveCurrentProject();
   renderAll();
 
   /* Mettre à jour le badge de synchro si le panneau d'édition est ouvert */
-  const badge = document.getElementById('epSyncBadge');
+  const badge    = document.getElementById('epSyncBadge');
   const extInput = document.getElementById('epExternalId');
   if (badge && extInput && extInput.value) {
-    const synced = _isTaskSyncedWithGho(extInput.value);
-    badge.style.display = synced ? 'inline-flex' : 'none';
+    badge.style.display = _isTaskSyncedWithGho(extInput.value) ? 'inline-flex' : 'none';
   }
 
   _setSyncBtnState('fresh');
 
-  if (!silent) alert(`Synchronisation réussie :\n${syncCount} affectation(s) mise(s) à jour sur ${matchCount} correspondance(s) trouvée(s).`);
+  if (!silent) {
+    if (matchCount === 0) {
+      alert('Aucune correspondance trouvée entre les tâches du Gantt et les données GHO.');
+    } else {
+      alert(`Synchronisation réussie :\n${syncCount} affectation(s) sur ${matchCount} tâche(s) correspondante(s).`);
+    }
+  }
 }
 
 /* Legacy aliases used elsewhere */
