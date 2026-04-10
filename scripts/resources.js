@@ -883,10 +883,124 @@ function _showMissingResPopup(missingNames, updatedCount) {
   document.body.appendChild(el);
 }
 
+/* ── Upsert clients / projets / tâches dans le portfolio depuis les données GHO ──
+   Appelée après le parsing de l'Excel si les colonnes "Start Date" et "End Date" sont présentes.
+   taskData : map de clés 'client|projet|tKey' → {clientName, projName, niveaux, tache,
+              taskId, debut, fin, chargePassee, chargeRestante}
+   Retourne { projectsCreated, tasksUpserted }
+   ─────────────────────────────────────────────────────────────────────────────── */
+function _upsertPortfolioFromGHO(taskData) {
+  /* Sauvegarder l'état courant de l'affichage dans le portfolio avant toute modification */
+  if (typeof _saveBackToPortfolio === 'function') _saveBackToPortfolio();
+
+  let walletChanged   = false;
+  let projectsCreated = 0;
+  let tasksUpserted   = 0;
+  let _idSeq          = 0; /* évite les collisions d'ID si Date.now() identique dans une boucle */
+
+  Object.values(taskData).forEach(task => {
+    const { clientName, projName, niveaux, tache, taskId, debut, fin, chargePassee, chargeRestante } = task;
+    if (!projName || !tache) return;
+
+    /* ── Trouver ou créer le projet dans le portfolio ── */
+    let proj = portfolio.find(p => p.name === projName && (p.client || '') === clientName);
+    if (!proj) {
+      _idSeq++;
+      proj = {
+        id: `p_${Date.now()}_${_idSeq}_${Math.random().toString(36).slice(2, 6)}`,
+        name: projName,
+        client: clientName,
+        folder: '',
+        rows: [],
+        jalons: [],
+        projectColors: {},
+        collapsed: {}
+      };
+      portfolio.push(proj);
+      projectsCreated++;
+      if (clientName && !userWalletClients.has(clientName)) {
+        userWalletClients.add(clientName);
+        walletChanged = true;
+      }
+    }
+    if (!proj.rows)   proj.rows   = [];
+    if (!proj.jalons) proj.jalons = [];
+
+    /* ── Chercher la tâche existante : par externalTaskId, puis par nom+niveaux ── */
+    let existingRow = null;
+    if (taskId && typeof _matchTaskId === 'function') {
+      existingRow = proj.rows.find(r =>
+        r._type === 'tache' && r.externalTaskId && _matchTaskId(r.externalTaskId, taskId)
+      );
+    }
+    if (!existingRow) {
+      const nivStr = JSON.stringify(niveaux);
+      existingRow = proj.rows.find(r =>
+        r._type === 'tache' &&
+        r.tache === tache &&
+        JSON.stringify(r.niveaux || []) === nivStr
+      );
+    }
+
+    /* Charge totale prévue = passée + restante */
+    const chargeTotal = (chargePassee !== null && chargeRestante !== null)
+      ? roundCharge(chargePassee + chargeRestante)
+      : (chargePassee !== null ? roundCharge(chargePassee) : null);
+
+    if (existingRow) {
+      /* ── Mise à jour d'une tâche existante ── */
+      if (debut instanceof Date && !isNaN(debut)) existingRow.debut = debut;
+      if (fin   instanceof Date && !isNaN(fin))   existingRow.fin   = fin;
+      if (chargePassee   !== null) existingRow.chargePassee   = chargePassee;
+      if (chargeRestante !== null) existingRow.chargeRestante = chargeRestante;
+      if (chargeTotal    !== null) existingRow.charge         = chargeTotal;
+      if (taskId) existingRow.externalTaskId = taskId;
+      existingRow.niveaux = niveaux; /* mise à jour de la hiérarchie */
+      tasksUpserted++;
+    } else {
+      /* ── Création d'une nouvelle tâche (dates obligatoires) ── */
+      if (!debut || !fin || isNaN(debut) || isNaN(fin)) return;
+      proj.rows.push({
+        _type:          'tache',
+        projet:         projName,
+        niveaux,
+        tache,
+        debut,
+        fin,
+        charge:         chargeTotal,
+        chargePassee,
+        chargeRestante,
+        externalTaskId: taskId || null,
+        assignments:    []
+      });
+      tasksUpserted++;
+    }
+  });
+
+  /* ── Sauvegarder et rafraîchir la navigation ── */
+  if (walletChanged && typeof saveUserWallet === 'function') saveUserWallet();
+  savePortfolio();
+  if (typeof renderNavList === 'function') renderNavList();
+
+  /* Recharger la vue Gantt courante si elle affiche un projet modifié */
+  if (selectedProjectIds.size > 0 && typeof _loadSelectedProjects === 'function') {
+    _loadSelectedProjects();
+    if (typeof renderAll === 'function') renderAll();
+  }
+
+  return { projectsCreated, tasksUpserted };
+}
+
 function parseGHOExcel(buffer) {
   /* Format attendu (vertical) :
-     Resource User | Activity Name | ID Task | Task Name | Date | Charge (J)
-     Une ligne par jour/tâche. La charge est en jours (virgule décimale fr). */
+     [Société] | Activity Name | [Full Name] | ID Task | Task Name |
+     [Start Date] | [End Date] | [Expended Effort] | [Remaining Effort] |
+     Resource User | Date | Charge (J)
+     Une ligne par jour/tâche/ressource. La charge est en jours (virgule décimale fr).
+     Les colonnes entre crochets sont optionnelles. Si "Start Date" et "End Date" sont
+     présentes, le portfolio (clients / projets / tâches) est créé ou mis à jour
+     automatiquement. L'import XML reste complémentaire pour les jalons et le détail
+     par ressource non couvert ici. */
   try {
     if (typeof XLSX === 'undefined') {
       alert('SheetJS non disponible — vérifiez le chargement de la librairie.');
@@ -903,25 +1017,56 @@ function parseGHOExcel(buffer) {
     while (headerRowIdx < raw.length && !(raw[headerRowIdx] || []).some(v => v != null)) headerRowIdx++;
     const header = (raw[headerRowIdx] || []).map(h => _normalizeExcelStr(h).toLowerCase());
 
-    /* ── Détection flexible des colonnes ── */
+    /* ── Helpers de détection ── */
     const _findCol = (patterns, label) => {
       const idx = header.findIndex(h => patterns.some(p => p.test(h)));
       if (idx < 0) { alert(`Colonne "${label}" introuvable dans le fichier.`); }
       return idx;
     };
+    const _findColOpt = patterns => header.findIndex(h => patterns.some(p => p.test(h)));
 
+    /* ── Colonnes optionnelles (portfolio) détectées en premier pour éviter
+       les faux positifs sur les colonnes requises "Date" et "Charge" ── */
+    const colClient    = _findColOpt([/soci[eé]t[eé]|company|organisation|\bclient\b/]);
+    const colFullName  = _findColOpt([/full[\s_-]?name|chemin|full[\s_-]?path/]);
+    const colStartDate = _findColOpt([/start[\s_-]?date|d[eé]but[\s_-]t[aâ]che|date[\s_-]?d[eé]but/]);
+    const colEndDate   = _findColOpt([/end[\s_-]?date|fin[\s_-]t[aâ]che|date[\s_-]?fin/]);
+    const colExpended  = _findColOpt([/expended[\s_-]?effort|temps[\s_-]pass[eé]|charge[\s_-]pass[eé]/]);
+    const colRemaining = _findColOpt([/remaining[\s_-]?effort|temps[\s_-]restant|charge[\s_-]restante/]);
+
+    /* ── Colonnes requises ── */
     const colRes      = _findCol([/ressource|resource[\s_-]?user|\buser\b|\bnom\b/],         'Resource / Ressource');
     const colProj     = _findCol([/activit[yé][\s_-]?name|scoped[\s_:]?with|activit[éye]|projet|project/], 'Activity Name / Projet');
     const colTaskId   = _findCol([/\bid[\s_-]?task\b|\btask[\s_-]?id\b/],                    'ID Task');
     const colTaskName = _findCol([/task[\s_:]+name|nom[\s_-]?t[aâ]che/],                      'Task Name');
-    const colDate     = _findCol([/\bdate\b/],                                                'Date');
-    const colCharge   = _findCol([/charge|effort|load|jours?\b/],                             'Charge (J)');
+
+    /* "Date" (charge ressource) : exclure les indices déjà pris par Start/End Date */
+    const _skipDateIdx = new Set([colStartDate, colEndDate].filter(i => i >= 0));
+    const colDate = (() => {
+      const idx = header.findIndex((h, i) => !_skipDateIdx.has(i) && /\bdate\b/.test(h));
+      if (idx < 0) alert('Colonne "Date" introuvable dans le fichier.');
+      return idx;
+    })();
+
+    /* "Charge (J)" : exclure les indices déjà pris par Expended/Remaining Effort */
+    const _skipChargeIdx = new Set([colExpended, colRemaining].filter(i => i >= 0));
+    const colCharge = (() => {
+      const idx = header.findIndex((h, i) => !_skipChargeIdx.has(i) && /charge|effort|load|jours?\b/.test(h));
+      if (idx < 0) alert('Colonne "Charge (J)" introuvable dans le fichier.');
+      return idx;
+    })();
 
     if ([colRes, colProj, colDate, colCharge].some(c => c < 0)) return;
 
-    /* ── Lecture des lignes (format vertical : 1 ligne = 1 jour pour 1 tâche) ── */
-    /* parsed : { resName → { projName → { taskKey → { taskId, taskName, daily: {dateKey: jours} } } } } */
-    const parsed = {};
+    /* L'import portfolio est activé si les colonnes de dates de tâche sont présentes */
+    const doPortfolioImport = colStartDate >= 0 && colEndDate >= 0;
+
+    /* ── Lecture des lignes ── */
+    /* parsed  : { resName → { projName → { tKey → { taskId, taskName, daily } } } } */
+    /* taskData: { 'client|proj|tKey' → task-level info } (si doPortfolioImport) */
+    const parsed   = {};
+    const taskData = {};
+
     for (let ri = headerRowIdx + 1; ri < raw.length; ri++) {
       const row = raw[ri];
       if (!row) continue;
@@ -929,7 +1074,7 @@ function parseGHOExcel(buffer) {
       const projName = _normalizeExcelStr(row[colProj]);
       if (!resName || !projName) continue;
 
-      /* Date de la ligne */
+      /* Date de la charge (ressource) */
       const dateKey = _parseDateValue(row[colDate]);
       if (!dateKey) continue;
 
@@ -942,12 +1087,52 @@ function parseGHOExcel(buffer) {
       const taskName = colTaskName >= 0 ? _normalizeExcelStr(row[colTaskName]) : '';
       const tKey     = taskId || taskName || '__default__';
 
-      if (!parsed[resName])                       parsed[resName]              = {};
-      if (!parsed[resName][projName])             parsed[resName][projName]    = {};
-      if (!parsed[resName][projName][tKey])       parsed[resName][projName][tKey] = { taskId, taskName: taskName || taskId, daily: {} };
-
+      if (!parsed[resName])             parsed[resName]           = {};
+      if (!parsed[resName][projName])   parsed[resName][projName] = {};
+      if (!parsed[resName][projName][tKey]) {
+        parsed[resName][projName][tKey] = { taskId, taskName: taskName || taskId, daily: {} };
+      }
       const daily = parsed[resName][projName][tKey].daily;
       daily[dateKey] = Math.round(((daily[dateKey] || 0) + jours) * 10000) / 10000;
+
+      /* ── Collecte des données portfolio (une seule fois par tâche unique) ── */
+      if (doPortfolioImport) {
+        const clientName  = colClient   >= 0 ? (_normalizeExcelStr(row[colClient])   || '') : '';
+        const fullNameRaw = colFullName >= 0 ? (_normalizeExcelStr(row[colFullName]) || '') : '';
+
+        /* Déduire niveaux + nom de tâche depuis Full Name (séparateur ">") */
+        const parts   = fullNameRaw ? fullNameRaw.split(/>/).map(s => s.trim()).filter(Boolean) : [];
+        const niveaux = parts.length > 1 ? parts.slice(0, -1) : [];
+        const tache   = parts.length > 0 ? parts[parts.length - 1] : (taskName || taskId);
+
+        const dataKey = `${clientName}|${projName}|${tKey}`;
+        if (!taskData[dataKey]) {
+          /* Dates de la tâche (globales — pas celles de la ligne ressource) */
+          const startStr  = _parseDateValue(row[colStartDate]);
+          const endStr    = _parseDateValue(row[colEndDate]);
+          const debutTask = startStr ? parseDate(startStr) : null;
+          const finTask   = endStr   ? parseDate(endStr)   : null;
+
+          const rawExp = colExpended  >= 0 ? row[colExpended]  : null;
+          const rawRem = colRemaining >= 0 ? row[colRemaining] : null;
+          const cpVal  = rawExp != null ? parseFloat(String(rawExp).replace(',', '.'))  : null;
+          const crVal  = rawRem != null ? parseFloat(String(rawRem).replace(',', '.')) : null;
+
+          taskData[dataKey] = {
+            clientName, projName, niveaux, tache, taskId,
+            debut:          debutTask,
+            fin:            finTask,
+            chargePassee:   (cpVal != null && !isNaN(cpVal)  && cpVal  >= 0) ? cpVal  : null,
+            chargeRestante: (crVal != null && !isNaN(crVal) && crVal >= 0) ? crVal : null
+          };
+        }
+      }
+    }
+
+    /* ── Mise à jour du portfolio si colonnes portfolio présentes ── */
+    let portfolioStats = null;
+    if (doPortfolioImport && Object.keys(taskData).length > 0) {
+      portfolioStats = _upsertPortfolioFromGHO(taskData);
     }
 
     /* ── Correspondance ressources : jamais de création ── */
@@ -981,7 +1166,10 @@ function parseGHOExcel(buffer) {
     if (missing.length > 0) {
       _showMissingResPopup(missing, updated);
     } else {
-      alert(`Import GHO ✓\n• ${updated} ressource(s) mise(s) à jour`);
+      const pMsg = portfolioStats
+        ? `\n• ${portfolioStats.projectsCreated} projet(s) créé(s), ${portfolioStats.tasksUpserted} tâche(s) mises à jour`
+        : '';
+      alert(`Import GHO ✓\n• ${updated} ressource(s) mise(s) à jour${pMsg}`);
     }
   } catch(err) {
     console.error('GHO import error:', err);
