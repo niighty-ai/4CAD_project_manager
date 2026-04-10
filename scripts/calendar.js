@@ -316,12 +316,15 @@ function _calGetEventsForDate(dateStr) {
         const resKey   = asgn.resourceId || asgn.resourceNom;
         const key      = _calEventKey(proj.id, rowIdx, resKey, dateStr);
         if (calHidden.has(key)) continue;  // Retirée du calendrier
-        const projName = row.projet || proj.name || '';
-        const taskName = row.tache  || '';
+        const clientName = proj.client || '';
+        const projName   = row.projet || proj.name || '';
+        const taskName   = row.tache  || '';
+        const displayName = clientName || projName;
         events.push({
           key, charge,
-          label:    `${escH(projName)} – ${escH(taskName)}`,
-          rawLabel: `${projName} - ${taskName}`,
+          label:    `${escH(displayName)} – ${escH(taskName)}`,
+          rawLabel: `${displayName} - ${taskName}`,
+          projName, taskDebut: row.debut, taskFin: row.fin,
           color: projectColors[projName] || projectColors[proj.name] || '#3b82f6'
         });
       }
@@ -697,14 +700,34 @@ function _calBuildAndDownloadIcs(mondays) {
       const dateStr = _calDateStr(d);
       const events  = _calGetEventsForDate(dateStr);
       events.forEach((ev, idx) => {
-        const startMin = _calGetStartMin(ev.key, idx, events);
-        const durMin   = Math.round(ev.charge * CAL_HOURS_PER_DAY * 60);
-        const endMin   = startMin + durMin;
         const [dd, mm, yyyy] = dateStr.split('/');
-        const base    = `${yyyy}${mm}${dd}`;
-        const uid     = `${ev.key.replace(/[^a-zA-Z0-9]/g,'x').substring(0,48)}@4cad`;
-        const summary = _calIcalEsc(ev.rawLabel);
-        const desc    = _calIcalEsc(`Ressource : ${calSelectedRes}\nCharge : ${_calFmtMinDur(Math.round(ev.charge*CAL_HOURS_PER_DAY*60))} (${_calFmt(ev.charge)} j)\nHoraire : ${_calFmtMin(startMin)} \u2013 ${_calFmtMin(endMin)}`);
+        const base         = `${yyyy}${mm}${dd}`;
+        const uid          = `${ev.key.replace(/[^a-zA-Z0-9]/g,'x').substring(0,48)}@4cad`;
+        const summary      = _calIcalEsc(ev.rawLabel);
+        const totalDurMin  = Math.round(ev.charge * CAL_HOURS_PER_DAY * 60);
+        const _fmtDate     = d => { if (!d) return '?'; const dt = d instanceof Date ? d : new Date(d); return fmtD(dt); };
+        const debutStr     = _fmtDate(ev.taskDebut);
+        const finStr       = _fmtDate(ev.taskFin);
+
+        /* Gestion des tâches découpées : export en VEVENT unique */
+        const segs = calSplits[ev.key];
+        let startMin, endMin, horaire;
+        if (segs && segs.length) {
+          startMin = segs[0].startMin;
+          const last = segs[segs.length - 1];
+          endMin   = last.startMin + last.durMin;
+          horaire  = segs.map(s => `${_calFmtMin(s.startMin)}\u2013${_calFmtMin(s.startMin + s.durMin)}`).join(', ');
+        } else {
+          startMin = _calGetStartMin(ev.key, idx, events);
+          endMin   = startMin + totalDurMin;
+          horaire  = `${_calFmtMin(startMin)}\u2013${_calFmtMin(endMin)}`;
+        }
+
+        const desc = _calIcalEsc(
+          `Projet : ${ev.projName}\nD\u00e9but t\u00e2che : ${debutStr}\nFin t\u00e2che : ${finStr}\n` +
+          `Ressource : ${calSelectedRes}\nCharge : ${_calFmtMinDur(totalDurMin)} (${_calFmt(ev.charge)} j)\n` +
+          `Horaire : ${horaire}`
+        );
         lines.push('BEGIN:VEVENT');
         lines.push(`UID:${uid}`);
         lines.push(`DTSTART:${base}T${_calFmtIso(startMin)}00`);
