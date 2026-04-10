@@ -883,11 +883,16 @@ function _showMissingResPopup(missingNames, updatedCount) {
   document.body.appendChild(el);
 }
 
-/* ── Upsert clients / projets / tâches dans le portfolio depuis les données GHO ──
-   Appelée après le parsing de l'Excel si les colonnes "Start Date" et "End Date" sont présentes.
-   taskData : map de clés 'client|projet|tKey' → {clientName, projName, niveaux, tache,
+/* ── Reconstruction des projets dans le portfolio depuis les données GHO ──
+   Stratégie :
+   • Projet présent dans l'import ET dans le portfolio → tâches remplacées entièrement.
+     Les jalons (issus de l'XML) et les métadonnées projet (couleurs, collapsed) sont conservés.
+   • Projet présent dans le portfolio mais ABSENT de l'import → intouché.
+   • Projet présent dans l'import mais absent du portfolio → créé.
+
+   taskData : map 'client|projet|tKey' → {clientName, projName, niveaux, tache,
               taskId, debut, fin, chargePassee, chargeRestante}
-   Retourne { projectsCreated, tasksUpserted }
+   Retourne { projectsCreated, tasksImported }
    ─────────────────────────────────────────────────────────────────────────────── */
 function _upsertPortfolioFromGHO(taskData) {
   /* Sauvegarder l'état courant de l'affichage dans le portfolio avant toute modification */
@@ -895,14 +900,22 @@ function _upsertPortfolioFromGHO(taskData) {
 
   let walletChanged   = false;
   let projectsCreated = 0;
-  let tasksUpserted   = 0;
-  let _idSeq          = 0; /* évite les collisions d'ID si Date.now() identique dans une boucle */
+  let tasksImported   = 0;
+  let _idSeq          = 0;
 
+  /* ── Regrouper les tâches par (clientName, projName) ── */
+  const byProject = {};
   Object.values(taskData).forEach(task => {
-    const { clientName, projName, niveaux, tache, taskId, debut, fin, chargePassee, chargeRestante } = task;
-    if (!projName || !tache) return;
+    if (!task.projName || !task.tache) return;
+    const pKey = `${task.clientName}|${task.projName}`;
+    if (!byProject[pKey]) byProject[pKey] = { clientName: task.clientName, projName: task.projName, tasks: [] };
+    byProject[pKey].tasks.push(task);
+  });
 
-    /* ── Trouver ou créer le projet dans le portfolio ── */
+  /* ── Traiter chaque projet présent dans l'import ── */
+  Object.values(byProject).forEach(({ clientName, projName, tasks }) => {
+
+    /* Trouver ou créer le projet */
     let proj = portfolio.find(p => p.name === projName && (p.client || '') === clientName);
     if (!proj) {
       _idSeq++;
@@ -926,40 +939,18 @@ function _upsertPortfolioFromGHO(taskData) {
     if (!proj.rows)   proj.rows   = [];
     if (!proj.jalons) proj.jalons = [];
 
-    /* ── Chercher la tâche existante : par externalTaskId, puis par nom+niveaux ── */
-    let existingRow = null;
-    if (taskId && typeof _matchTaskId === 'function') {
-      existingRow = proj.rows.find(r =>
-        r._type === 'tache' && r.externalTaskId && _matchTaskId(r.externalTaskId, taskId)
-      );
-    }
-    if (!existingRow) {
-      const nivStr = JSON.stringify(niveaux);
-      existingRow = proj.rows.find(r =>
-        r._type === 'tache' &&
-        r.tache === tache &&
-        JSON.stringify(r.niveaux || []) === nivStr
-      );
-    }
+    /* Remplacer TOUTES les tâches du projet par celles de l'import.
+       Les jalons (XML) sont conservés dans proj.jalons — non touchés. */
+    proj.rows = [];
 
-    /* Charge totale prévue = passée + restante */
-    const chargeTotal = (chargePassee !== null && chargeRestante !== null)
-      ? roundCharge(chargePassee + chargeRestante)
-      : (chargePassee !== null ? roundCharge(chargePassee) : null);
-
-    if (existingRow) {
-      /* ── Mise à jour d'une tâche existante ── */
-      if (debut instanceof Date && !isNaN(debut)) existingRow.debut = debut;
-      if (fin   instanceof Date && !isNaN(fin))   existingRow.fin   = fin;
-      if (chargePassee   !== null) existingRow.chargePassee   = chargePassee;
-      if (chargeRestante !== null) existingRow.chargeRestante = chargeRestante;
-      if (chargeTotal    !== null) existingRow.charge         = chargeTotal;
-      if (taskId) existingRow.externalTaskId = taskId;
-      existingRow.niveaux = niveaux; /* mise à jour de la hiérarchie */
-      tasksUpserted++;
-    } else {
-      /* ── Création d'une nouvelle tâche (dates obligatoires) ── */
+    tasks.forEach(task => {
+      const { niveaux, tache, taskId, debut, fin, chargePassee, chargeRestante } = task;
       if (!debut || !fin || isNaN(debut) || isNaN(fin)) return;
+
+      const chargeTotal = (chargePassee !== null && chargeRestante !== null)
+        ? roundCharge(chargePassee + chargeRestante)
+        : (chargePassee !== null ? roundCharge(chargePassee) : null);
+
       proj.rows.push({
         _type:          'tache',
         projet:         projName,
@@ -973,22 +964,22 @@ function _upsertPortfolioFromGHO(taskData) {
         externalTaskId: taskId || null,
         assignments:    []
       });
-      tasksUpserted++;
-    }
+      tasksImported++;
+    });
   });
 
-  /* ── Sauvegarder et rafraîchir la navigation ── */
+  /* ── Sauvegarder et rafraîchir ── */
   if (walletChanged && typeof saveUserWallet === 'function') saveUserWallet();
   savePortfolio();
   if (typeof renderNavList === 'function') renderNavList();
 
-  /* Recharger la vue Gantt courante si elle affiche un projet modifié */
+  /* Recharger la vue Gantt si un projet affiché a été modifié */
   if (selectedProjectIds.size > 0 && typeof _loadSelectedProjects === 'function') {
     _loadSelectedProjects();
     if (typeof renderAll === 'function') renderAll();
   }
 
-  return { projectsCreated, tasksUpserted };
+  return { projectsCreated, tasksImported };
 }
 
 function parseGHOExcel(buffer) {
@@ -1171,7 +1162,7 @@ function parseGHOExcel(buffer) {
       _showMissingResPopup(missing, updated);
     } else {
       const pMsg = portfolioStats
-        ? `\n• ${portfolioStats.projectsCreated} projet(s) créé(s), ${portfolioStats.tasksUpserted} tâche(s) mises à jour`
+        ? `\n• ${portfolioStats.projectsCreated} projet(s) créé(s), ${portfolioStats.tasksImported} tâche(s) importées`
         : '';
       alert(`Import GHO ✓\n• ${updated} ressource(s) mise(s) à jour${pMsg}`);
     }
