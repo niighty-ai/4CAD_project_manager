@@ -172,11 +172,27 @@
   background:rgba(236,114,6,.1)
 }
 
+.nav-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 8px 10px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.nav-sidebar.collapsed .nav-controls {
+  padding: 6px 4px;
+  gap: 4px;
+}
+
+.nav-sidebar.collapsed .nav-search-container {
+  display: none;
+}
+
 .nav-btn-row {
   display: flex;
-  margin: 6px 8px 4px;
   gap: 6px;
-  flex-shrink: 0;
 }
 
 .nav-icon-btn {
@@ -227,7 +243,6 @@
 
 .nav-sidebar.collapsed .nav-btn-row {
   flex-direction: column;
-  margin: 4px;
   gap: 4px;
 }
 
@@ -855,12 +870,7 @@ select.ep-input {
 
 .nav-search-container {
   position: relative;
-  margin: 0 8px 6px;
   flex-shrink: 0;
-}
-
-.nav-sidebar.collapsed .nav-search-container {
-  display: none;
 }
 
 .nav-search-input {
@@ -868,13 +878,13 @@ select.ep-input {
   box-sizing: border-box;
   background: var(--surface2);
   border: 1px solid var(--border);
-  border-radius: 4px;
+  border-radius: 6px;
   color: var(--text);
   font-family: Arial, sans-serif;
   font-size: 11px;
-  padding: 5px 8px;
+  padding: 6px 8px;
   outline: none;
-  transition: border-color .15s;
+  transition: border-color .15s, background .15s;
 }
 
 .nav-search-input:focus {
@@ -884,12 +894,12 @@ select.ep-input {
 
 .nav-search-results {
   position: absolute;
-  top: calc(100% + 2px);
+  top: calc(100% + 4px);
   left: 0;
   right: 0;
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 4px;
+  border-radius: 6px;
   box-shadow: 0 4px 14px var(--shadow);
   z-index: 100;
   max-height: 200px;
