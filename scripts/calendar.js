@@ -460,47 +460,81 @@ function _calRenderGrid() {
       ? `<div class="cal-now-line" style="top:${(nowMin-CAL_START_MIN)*CAL_PX_PER_MIN}px"></div>`
       : '';
 
-    const evHTML = events.flatMap((ev, idx) => {
-      const totalDurMin = Math.round(ev.charge * CAL_HOURS_PER_DAY * 60);
-      const ek = ev.key.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+    const evHTML = (() => {
+      /* ── Étape 1 : calculer startMin/endMin pour chaque événement ── */
+      const layouts = events.map((ev, idx) => {
+        const totalDurMin = Math.round(ev.charge * CAL_HOURS_PER_DAY * 60);
+        const segs        = ev._displaySegs || (calSplits[ev.key] ? calSplits[ev.key].map((s,si)=>({...s,_si:si})) : null);
+        let startMin, endMin;
+        if (segs && segs.length) {
+          startMin = Math.min(...segs.map(s => s.startMin));
+          endMin   = Math.max(...segs.map(s => s.startMin + s.durMin));
+        } else {
+          startMin = _calGetStartMin(ev.key, idx, events);
+          endMin   = startMin + totalDurMin;
+        }
+        return { ev, idx, totalDurMin, segs, startMin, endMin, subCol: 0 };
+      });
 
-      /* ── Tâche découpée en segments ── */
-      const _displaySegs = ev._displaySegs;
-      const _allSegs     = calSplits[ev.key];
-      if (_displaySegs || (_allSegs && _allSegs.length)) {
-        const segsToShow = _displaySegs || _allSegs.map((s, si) => ({...s, _si: si}));
-        const nb         = _allSegs ? _allSegs.length : segsToShow.length;
-        return segsToShow.map(seg => {
-          const si       = seg._si !== undefined ? seg._si : segsToShow.indexOf(seg);
-          const topPx    = (seg.startMin - CAL_START_MIN) * CAL_PX_PER_MIN;
-          const heightPx = Math.max(26, seg.durMin * CAL_PX_PER_MIN);
-          return `
-            <div class="cal-event cal-event-segment"
-                 style="top:${topPx}px;height:${heightPx}px;--ev-color:${ev.color};"
-                 data-key="${ev.key}" data-seg="${si}"
-                 onmousedown="_calDragStart(event,'${ek}',${si})">
-              <div class="cal-event-time">${_calFmtMin(seg.startMin)} – ${_calFmtMin(seg.startMin+seg.durMin)}</div>
-              <div class="cal-event-label">${ev.label}</div>
-              <span class="cal-event-charge">${si+1}/${nb} &middot; ${_calFmtMinDur(seg.durMin)}</span>
-            </div>`;
-        });
+      /* ── Étape 2 : assigner des sous-colonnes si chevauchement ── */
+      const groups = [];
+      for (const lay of layouts) {
+        let placed = false;
+        for (let c = 0; c < groups.length; c++) {
+          if (!groups[c].some(l => lay.startMin < l.endMin && lay.endMin > l.startMin)) {
+            groups[c].push(lay);
+            lay.subCol = c;
+            placed = true;
+            break;
+          }
+        }
+        if (!placed) { lay.subCol = groups.length; groups.push([lay]); }
       }
+      const N = groups.length || 1;
 
-      /* ── Tâche normale (non découpée) ── */
-      const startMin = _calGetStartMin(ev.key, idx, events);
-      const topPx    = (startMin - CAL_START_MIN) * CAL_PX_PER_MIN;
-      const heightPx = Math.max(26, totalDurMin * CAL_PX_PER_MIN);
-      const isDraft  = calDraft[ev.key] !== undefined;
-      return [`
-        <div class="cal-event${isDraft?' cal-event-draft':''}"
-             style="top:${topPx}px;height:${heightPx}px;--ev-color:${ev.color};"
-             data-key="${ev.key}" data-seg="-1"
-             onmousedown="_calDragStart(event,'${ek}',-1)">
-          <div class="cal-event-time">${_calFmtMin(startMin)} – ${_calFmtMin(startMin+totalDurMin)}</div>
-          <div class="cal-event-label">${ev.label}</div>
-          <span class="cal-event-charge">${_calFmtMinDur(totalDurMin)}</span>
-        </div>`];
-    }).join('');
+      /* ── Étape 3 : générer le HTML ── */
+      /* Pour N > 1 : diviser la largeur utile (après les 40px d'heures) en N parts */
+      const colStyle = (c) => N === 1 ? '' :
+        `left:calc(40px + ${c}*(100% - 44px)/${N});right:calc(4px + ${N-1-c}*(100% - 44px)/${N});`;
+
+      return layouts.flatMap(({ ev, idx, totalDurMin, segs, startMin, subCol }) => {
+        const ek = ev.key.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+        const cs = colStyle(subCol);
+
+        /* ── Tâche découpée en segments ── */
+        if (segs && segs.length) {
+          const nb = calSplits[ev.key] ? calSplits[ev.key].length : segs.length;
+          return segs.map(seg => {
+            const si       = seg._si !== undefined ? seg._si : segs.indexOf(seg);
+            const topPx    = (seg.startMin - CAL_START_MIN) * CAL_PX_PER_MIN;
+            const heightPx = Math.max(26, seg.durMin * CAL_PX_PER_MIN);
+            return `
+              <div class="cal-event cal-event-segment"
+                   style="top:${topPx}px;height:${heightPx}px;${cs}--ev-color:${ev.color};"
+                   data-key="${ev.key}" data-seg="${si}"
+                   onmousedown="_calDragStart(event,'${ek}',${si})">
+                <div class="cal-event-time">${_calFmtMin(seg.startMin)} – ${_calFmtMin(seg.startMin+seg.durMin)}</div>
+                <div class="cal-event-label">${ev.label}</div>
+                <span class="cal-event-charge">${si+1}/${nb} &middot; ${_calFmtMinDur(seg.durMin)}</span>
+              </div>`;
+          });
+        }
+
+        /* ── Tâche normale ── */
+        const topPx    = (startMin - CAL_START_MIN) * CAL_PX_PER_MIN;
+        const heightPx = Math.max(26, totalDurMin * CAL_PX_PER_MIN);
+        const isDraft  = calDraft[ev.key] !== undefined;
+        return [`
+          <div class="cal-event${isDraft?' cal-event-draft':''}"
+               style="top:${topPx}px;height:${heightPx}px;${cs}--ev-color:${ev.color};"
+               data-key="${ev.key}" data-seg="-1"
+               onmousedown="_calDragStart(event,'${ek}',-1)">
+            <div class="cal-event-time">${_calFmtMin(startMin)} – ${_calFmtMin(startMin+totalDurMin)}</div>
+            <div class="cal-event-label">${ev.label}</div>
+            <span class="cal-event-charge">${_calFmtMinDur(totalDurMin)}</span>
+          </div>`];
+      }).join('');
+    })();
 
     return `
       <div class="cal-day-col${isToday?' cal-today':''}" data-date="${dateStr}">
