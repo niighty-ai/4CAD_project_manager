@@ -1389,25 +1389,8 @@ function initResources() {
 
 /* ══════════════════════════════════════════════════════════════
    SYNCHRONISATION GANTT ↔ RESSOURCES
-   Rapprochement par externalTaskId ↔ taskId (préfixe ou slice -3)
+   Rapprochement par externalTaskId exact (ID issu de l'import GHO unifié)
    ══════════════════════════════════════════════════════════════ */
-
-/* Compare deux Task IDs :
-   - Correspondance exacte
-   - Ou l'un est un préfixe de l'autre (le taskId ressource est souvent la version
-     tronquée du externalTaskId XML, ex: "aAHW50000000t6A" ↔ "aAHW50000000t6AOAQ")
-   - Fallback : ignorer les 3 derniers chars des deux */
-function _matchTaskId(a, b) {
-  if (!a || !b) return false;
-  if (a === b) return true;
-  /* Préfixe : le plus court doit être au début du plus long */
-  const shorter = a.length <= b.length ? a : b;
-  const longer  = a.length <= b.length ? b : a;
-  if (longer.startsWith(shorter)) return true;
-  /* Fallback : slice(0,-3) sur les deux */
-  if (a.length > 3 && b.length > 3 && a.slice(0, -3) === b.slice(0, -3)) return true;
-  return false;
-}
 
 /* Vérifie si un externalTaskId est référencé dans les données GHO */
 function _isTaskSyncedWithGho(externalTaskId) {
@@ -1416,7 +1399,7 @@ function _isTaskSyncedWithGho(externalTaskId) {
     if (!res.ghoData?.projects) continue;
     for (const proj of res.ghoData.projects) {
       for (const t of (proj.tasks || [])) {
-        if (_matchTaskId(externalTaskId, t.taskId)) return true;
+        if (t.taskId === externalTaskId) return true;
       }
     }
   }
@@ -1477,11 +1460,11 @@ function syncGanttFromResources(silent = false) {
         if (!t.taskId) return;
 
         /* Trouver la tâche Gantt correspondante :
-           1) par externalTaskId (tâches importées XML)
-           2) par nom de tâche (tâches créées manuellement) */
+           1) externalTaskId exact (IDs identiques depuis l'import GHO unifié)
+           2) nom de tâche + projet (fallback pour tâches sans externalTaskId) */
         let matchedRow = null;
-        if (typeof _matchTaskId === 'function') {
-          matchedRow = taskRows.find(r => r.externalTaskId && _matchTaskId(r.externalTaskId, t.taskId));
+        if (t.taskId) {
+          matchedRow = taskRows.find(r => r.externalTaskId === t.taskId);
         }
         if (!matchedRow) {
           matchedRow = taskRows.find(r => (r.tache || '') === (t.taskName || '') && r.projet === proj.name);

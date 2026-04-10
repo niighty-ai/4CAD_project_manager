@@ -182,19 +182,8 @@ function parseMSProjectXML(xmlText, projectName) {
 
     const taskId = getVal(el, 'ID');
 
-    /* Extraire l'identifiant externe depuis le premier <ExtendedAttribute><Value>
-       (FieldID ignoré volontairement — il varie selon les projets MS Project) */
-    const eaEls = el.getElementsByTagNameNS(ns, 'ExtendedAttribute');
-    const eaList = eaEls.length ? Array.from(eaEls) : Array.from(el.getElementsByTagName('ExtendedAttribute'));
-    let externalTaskId = null;
-    for (const ea of eaList) {
-      const v = (ea.getElementsByTagNameNS(ns, 'Value')[0] || ea.getElementsByTagName('Value')[0])
-        ?.textContent?.trim();
-      if (v) { externalTaskId = v; break; }
-    }
-
     tasks.push({ uid, id: taskId, name, depth, isSummary, isMilestone, start, finish,
-                 charge, chargePassee, chargeRestante, assignments, externalTaskId });
+                 charge, chargePassee, chargeRestante, assignments });
   }
 
   if (!tasks.length) throw new Error('Aucune tâche trouvée dans ce fichier XML.');
@@ -236,9 +225,9 @@ function parseMSProjectXML(xmlText, projectName) {
       chargePassee:   t.chargePassee,
       chargeRestante: t.chargeRestante,
       assignments:    t.assignments,
-      xmlUid:         t.uid,          // lien fort avec MS Project Task.UID
-      xmlId:          t.id,           // ordre d'affichage MS Project
-      externalTaskId: t.externalTaskId || null, // identifiant unique côté système source
+      xmlUid:         t.uid,  // lien fort avec MS Project Task.UID
+      xmlId:          t.id,   // ordre d'affichage MS Project
+      // externalTaskId : NON posé par l'XML — provient exclusivement de l'import GHO unifié
     });
   }
 
@@ -267,10 +256,27 @@ function handleXMLImport(file) {
       }
 
       if (proj) {
+        /* Sauvegarder les externalTaskId posés par l'import GHO (clé : tache||niveaux)
+           pour les restaurer après remplacement — l'XML ne doit pas écraser ces IDs. */
+        const savedExtIds = {};
+        (proj.rows || []).forEach(r => {
+          if (r._type === 'tache' && r.externalTaskId) {
+            const k = `${(r.tache || '').trim()}||${JSON.stringify(r.niveaux || [])}`;
+            savedExtIds[k] = r.externalTaskId;
+          }
+        });
+
         /* REPLACE all project data from the XML import */
         proj.rows   = [...parsedRows];
         proj.jalons = [...parsedJalons];
         proj.assignments = {};
+
+        /* Restaurer les externalTaskId GHO sur les nouvelles tâches XML */
+        proj.rows.forEach(r => {
+          if (r._type !== 'tache') return;
+          const k = `${(r.tache || '').trim()}||${JSON.stringify(r.niveaux || [])}`;
+          if (savedExtIds[k]) r.externalTaskId = savedExtIds[k];
+        });
 
         rows = [
           ...proj.rows.map(r => ({...r})),
