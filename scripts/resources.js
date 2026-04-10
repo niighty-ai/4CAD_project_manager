@@ -1058,6 +1058,10 @@ function parseGHOExcel(buffer) {
     /* taskData: { 'client|proj|tKey' → task-level info } (si doPortfolioImport) */
     const parsed   = {};
     const taskData = {};
+    /* seenRes : toutes les ressources rencontrées dans le fichier, même si Charge (J) = 0.
+       Sert à vider les anciennes données GHO pour ces ressources même quand elles
+       n'ont aucune charge réelle dans l'import courant. */
+    const seenRes = new Set();
 
     for (let ri = headerRowIdx + 1; ri < raw.length; ri++) {
       const row = raw[ri];
@@ -1104,16 +1108,19 @@ function parseGHOExcel(buffer) {
       }
 
       /* ── Collecte données charge ressource ──
-         Uniquement pour les lignes avec ressource + date + Charge (J) > 0. */
+         On track la ressource dès qu'elle apparaît, AVANT de tester la charge. */
       const resName = _normalizeExcelStr(row[colRes]);
       if (!resName) continue;
+
+      /* Enregistrer la ressource comme "vue dans ce fichier" même si charge = 0 */
+      seenRes.add(resName);
 
       const dateKey = _parseDateValue(row[colDate]);
       if (!dateKey) continue;
 
       const chargeRaw = row[colCharge];
       const jours = parseFloat(String(chargeRaw ?? '').replace(',', '.'));
-      if (!jours || jours <= 0) continue;
+      if (!jours || jours <= 0) continue; /* Charge nulle/vide → pas d'entrée daily */
 
       if (!parsed[resName])             parsed[resName]           = {};
       if (!parsed[resName][projName])   parsed[resName][projName] = {};
@@ -1130,12 +1137,13 @@ function parseGHOExcel(buffer) {
       portfolioStats = _upsertPortfolioFromGHO(taskData);
     }
 
-    /* ── Correspondance ressources : jamais de création ── */
+    /* ── Mise à jour ghoData des ressources ── */
     const now        = new Date();
     const importDate = `${String(now.getDate()).padStart(2,'0')}/${String(now.getMonth()+1).padStart(2,'0')}/${now.getFullYear()}`;
     const missing    = [];
     let   updated    = 0;
 
+    /* 1. Ressources avec des charges effectives → mettre à jour */
     Object.entries(parsed).forEach(([resName, projMap]) => {
       const res = _findResourceByName(resName);
       if (!res) { missing.push(resName); return; }
@@ -1147,10 +1155,18 @@ function parseGHOExcel(buffer) {
         }))
         .filter(p => p.tasks.length > 0);
 
-      if (projects.length) {
-        res.ghoData = { importDate, projects };
-        updated++;
-      }
+      /* Toujours écrire ghoData, même si projects est vide, pour écraser les anciennes données */
+      res.ghoData = { importDate, projects };
+      updated++;
+    });
+
+    /* 2. Ressources vues dans le fichier mais sans aucune charge réelle (Charge J = 0 partout)
+          → vider explicitement leurs anciennes données GHO pour éviter les résidus */
+    seenRes.forEach(resName => {
+      if (parsed[resName]) return; /* Déjà traitée ci-dessus */
+      const res = _findResourceByName(resName);
+      if (!res) return; /* Introuvable — déjà dans missing si nécessaire */
+      res.ghoData = { importDate, projects: [] }; /* Vide → plus de charges affichées */
     });
 
     saveResources(); // métadonnées → gantt_resources
