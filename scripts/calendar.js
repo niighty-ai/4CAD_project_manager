@@ -8,11 +8,13 @@
    ═══════════════════════════════════════════ */
 
 /* ── Constantes ────────────────────────────────────────────────────────────── */
-const CAL_START_MIN     = 7  * 60;  // 07:00
-const CAL_END_MIN       = 20 * 60;  // 20:00
-const CAL_HOURS_PER_DAY = 7;        // 1 jour de charge = 7 h de travail
-const CAL_PX_PER_MIN    = 1.5;      // pixels par minute
-const CAL_SNAP_MIN      = 15;       // snap à 15 min
+const CAL_START_MIN         = 7  * 60;  // 07:00 — début de la grille
+const CAL_END_MIN           = 20 * 60;  // 20:00 — fin de la grille
+const CAL_DEFAULT_START_MIN = 8  * 60;  // 08:00 — position par défaut des tâches
+const CAL_DEFAULT_END_MIN   = 17 * 60;  // 17:00 — fin plage par défaut (indicatif)
+const CAL_HOURS_PER_DAY     = 7;        // 1 jour de charge = 7 h de travail
+const CAL_PX_PER_MIN        = 1.5;      // pixels par minute
+const CAL_SNAP_MIN          = 15;       // snap à 15 min
 
 /* ── État ──────────────────────────────────────────────────────────────────── */
 let calWeekStart   = null;
@@ -20,8 +22,13 @@ let calSelectedRes = '';
 let calPositions   = {};   // { eventKey: startMinutes }  — source de vérité (Firebase + localStorage)
 let calChecksums   = {};   // { eventKey: charge }        — snapshot des charges à la dernière sauvegarde
 let calDraft       = {};   // { eventKey: startMinutes }  — modifications non encore sauvegardées
+let calSplits      = {};   // { eventKey: [{startMin, durMin}] } — segments d'une tâche découpée
+let calHidden      = new Set(); // eventKeys retirés du calendrier (sans supprimer de la BDD)
+let _calSplitsBackup  = {};
+let _calHiddenBackup  = new Set();
 let calDirty       = false;
 let _calDragState  = null;
+let _calClickSetup = false;
 
 /* ── Clé localStorage ──────────────────────────────────────────────────────── */
 function _calStorageKey() {
@@ -33,7 +40,9 @@ function _calWriteLocalStorage() {
   try {
     localStorage.setItem(_calStorageKey(), JSON.stringify({
       positions: calPositions,
-      checksums: calChecksums
+      checksums: calChecksums,
+      splits:    calSplits,
+      hidden:    [...calHidden]
     }));
   } catch(e) {}
 }
@@ -45,16 +54,24 @@ function _calReadLocalStorage() {
       const d = JSON.parse(raw);
       calPositions = d.positions || {};
       calChecksums = d.checksums || {};
+      calSplits    = d.splits    || {};
+      calHidden    = new Set(d.hidden || []);
     } else {
       calPositions = {};
       calChecksums = {};
+      calSplits    = {};
+      calHidden    = new Set();
     }
   } catch(e) {
     calPositions = {};
     calChecksums = {};
+    calSplits    = {};
+    calHidden    = new Set();
   }
-  calDraft = {};
-  calDirty = false;
+  calDraft          = {};
+  calDirty          = false;
+  _calSplitsBackup  = JSON.parse(JSON.stringify(calSplits));
+  _calHiddenBackup  = new Set(calHidden);
 }
 
 /* ── Sauvegarde vers Firebase ──────────────────────────────────────────────── */
@@ -63,6 +80,8 @@ function _calSaveToFirebase() {
   window._fbSetCalPositions(currentUserId, {
     positions: calPositions,
     checksums: calChecksums,
+    splits:    calSplits,
+    hidden:    [...calHidden],
     savedAt:   new Date().toISOString()
   });
 }
@@ -72,10 +91,14 @@ function _calLoadFromFirebase() {
   if (typeof window._fbGetCalPositions !== 'function' || !currentUserId) return;
   window._fbGetCalPositions(currentUserId, (data) => {
     if (data && typeof data.positions === 'object') {
-      calPositions = data.positions || {};
-      calChecksums = data.checksums || {};
-      calDraft     = {};
-      calDirty     = false;
+      calPositions      = data.positions || {};
+      calChecksums      = data.checksums || {};
+      calSplits         = data.splits    || {};
+      calHidden         = new Set(data.hidden || []);
+      calDraft          = {};
+      calDirty          = false;
+      _calSplitsBackup  = JSON.parse(JSON.stringify(calSplits));
+      _calHiddenBackup  = new Set(calHidden);
       /* Synchroniser localStorage avec Firebase */
       _calWriteLocalStorage();
     }
@@ -114,6 +137,19 @@ function renderCalendarView() {
   _calRender();
   /* 2. Mise à jour asynchrone depuis Firebase */
   _calLoadFromFirebase();
+  /* 3. Délégation de clic (une seule fois) */
+  if (!_calClickSetup) {
+    _calClickSetup = true;
+    const grid = document.getElementById('calWeekGrid');
+    if (grid) {
+      grid.addEventListener('click', _calHandleGridClick);
+    }
+    document.addEventListener('click', function(e) {
+      if (!e.target.closest('#calWeekGrid') && !e.target.closest('.cal-action-panel')) {
+        _calDismissActions();
+      }
+    });
+  }
 }
 
 /* ── Dropdown ressources ───────────────────────────────────────────────────── */
@@ -279,6 +315,7 @@ function _calGetEventsForDate(dateStr) {
         if (!charge) continue;
         const resKey   = asgn.resourceId || asgn.resourceNom;
         const key      = _calEventKey(proj.id, rowIdx, resKey, dateStr);
+        if (calHidden.has(key)) continue;  // Retirée du calendrier
         const projName = row.projet || proj.name || '';
         const taskName = row.tache  || '';
         events.push({
@@ -293,15 +330,15 @@ function _calGetEventsForDate(dateStr) {
   return events;
 }
 
-/* ── Position de départ (draft > sauvegardé > empilage par défaut) ─────────── */
+/* ── Position de départ (draft > sauvegardé > empilage par défaut 8h) ──────── */
 function _calGetStartMin(key, idx, events) {
   if (calDraft[key]     !== undefined) return calDraft[key];
   if (calPositions[key] !== undefined) return calPositions[key];
-  /* Empiler les événements sans position depuis CAL_START_MIN */
-  let cursor = CAL_START_MIN;
+  /* Empiler les événements sans position depuis CAL_DEFAULT_START_MIN (8h) */
+  let cursor = CAL_DEFAULT_START_MIN;
   for (let i=0; i<idx; i++) {
     const p = events[i];
-    if (calDraft[p.key]===undefined && calPositions[p.key]===undefined) {
+    if (calDraft[p.key]===undefined && calPositions[p.key]===undefined && !calSplits[p.key]) {
       cursor += Math.round(p.charge * CAL_HOURS_PER_DAY * 60);
     }
   }
@@ -351,22 +388,43 @@ function _calRenderGrid() {
       ? `<div class="cal-now-line" style="top:${(nowMin-CAL_START_MIN)*CAL_PX_PER_MIN}px"></div>`
       : '';
 
-    const evHTML = events.map((ev, idx) => {
-      const startMin = _calGetStartMin(ev.key, idx, events);
-      const durMin   = Math.round(ev.charge * CAL_HOURS_PER_DAY * 60);
-      const topPx    = (startMin - CAL_START_MIN) * CAL_PX_PER_MIN;
-      const heightPx = Math.max(26, durMin * CAL_PX_PER_MIN);
-      const isDraft  = calDraft[ev.key] !== undefined;
+    const evHTML = events.flatMap((ev, idx) => {
+      const totalDurMin = Math.round(ev.charge * CAL_HOURS_PER_DAY * 60);
+      const ek = ev.key.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
 
-      return `
+      /* ── Tâche découpée en segments ── */
+      if (calSplits[ev.key] && calSplits[ev.key].length) {
+        return calSplits[ev.key].map((seg, si) => {
+          const topPx    = (seg.startMin - CAL_START_MIN) * CAL_PX_PER_MIN;
+          const heightPx = Math.max(26, seg.durMin * CAL_PX_PER_MIN);
+          const nb = calSplits[ev.key].length;
+          const canSplit = seg.durMin >= 30;
+          return `
+            <div class="cal-event cal-event-segment"
+                 style="top:${topPx}px;height:${heightPx}px;--ev-color:${ev.color};"
+                 data-key="${ev.key}" data-seg="${si}"
+                 onmousedown="_calDragStart(event,'${ek}',${si})">
+              <div class="cal-event-time">${_calFmtMin(seg.startMin)} – ${_calFmtMin(seg.startMin+seg.durMin)}</div>
+              <div class="cal-event-label">${ev.label}</div>
+              <span class="cal-event-charge">${si+1}/${nb} &middot; ${_calFmt(ev.charge)}&thinsp;j</span>
+                </div>`;
+        });
+      }
+
+      /* ── Tâche normale (non découpée) ── */
+      const startMin = _calGetStartMin(ev.key, idx, events);
+      const topPx    = (startMin - CAL_START_MIN) * CAL_PX_PER_MIN;
+      const heightPx = Math.max(26, totalDurMin * CAL_PX_PER_MIN);
+      const isDraft  = calDraft[ev.key] !== undefined;
+      return [`
         <div class="cal-event${isDraft?' cal-event-draft':''}"
              style="top:${topPx}px;height:${heightPx}px;--ev-color:${ev.color};"
-             data-key="${ev.key}"
-             onmousedown="_calDragStart(event,'${ev.key.replace(/\\/g,'\\\\').replace(/'/g,"\\'")}')">
-          <div class="cal-event-time">${_calFmtMin(startMin)} – ${_calFmtMin(startMin+durMin)}</div>
+             data-key="${ev.key}" data-seg="-1"
+             onmousedown="_calDragStart(event,'${ek}',-1)">
+          <div class="cal-event-time">${_calFmtMin(startMin)} – ${_calFmtMin(startMin+totalDurMin)}</div>
           <div class="cal-event-label">${ev.label}</div>
           <span class="cal-event-charge">${_calFmt(ev.charge)}&thinsp;j</span>
-        </div>`;
+        </div>`];
     }).join('');
 
     return `
@@ -386,11 +444,10 @@ function _calRenderGrid() {
 }
 
 /* ── Drag vertical ─────────────────────────────────────────────────────────── */
-function _calDragStart(e, key) {
+function _calDragStart(e, key, segIdx = -1) {
   e.preventDefault();
   const evEl    = e.currentTarget;
-  _calDragState = { key, evEl, startMouseY: e.clientY, startTop: parseFloat(evEl.style.top)||0 };
-  evEl.classList.add('cal-dragging');
+  _calDragState = { key, segIdx, evEl, startMouseY: e.clientY, startTop: parseFloat(evEl.style.top)||0, moved: false };
   document.addEventListener('mousemove', _calDragMove);
   document.addEventListener('mouseup',   _calDragEnd);
 }
@@ -398,22 +455,44 @@ function _calDragStart(e, key) {
 function _calDragMove(e) {
   if (!_calDragState) return;
   const { evEl, startMouseY, startTop } = _calDragState;
-  const maxTop = (CAL_END_MIN - CAL_START_MIN) * CAL_PX_PER_MIN - 26;
-  evEl.style.top = `${Math.max(0, Math.min(maxTop, startTop + e.clientY - startMouseY))}px`;
+  const delta = e.clientY - startMouseY;
+  if (!_calDragState.moved && Math.abs(delta) > 5) {
+    _calDragState.moved = true;
+    evEl.classList.add('cal-dragging');
+    _calDismissActions();
+  }
+  if (_calDragState.moved) {
+    const maxTop = (CAL_END_MIN - CAL_START_MIN) * CAL_PX_PER_MIN - 26;
+    evEl.style.top = `${Math.max(0, Math.min(maxTop, startTop + delta))}px`;
+  }
 }
 
 function _calDragEnd(e) {
   if (!_calDragState) return;
-  const { key, evEl } = _calDragState;
+  const { key, segIdx, evEl, moved } = _calDragState;
   _calDragState = null;
   document.removeEventListener('mousemove', _calDragMove);
   document.removeEventListener('mouseup',   _calDragEnd);
   evEl.classList.remove('cal-dragging');
 
-  const topPx    = parseFloat(evEl.style.top) || 0;
-  const rawMin   = CAL_START_MIN + topPx / CAL_PX_PER_MIN;
-  const snapped  = Math.round(rawMin / CAL_SNAP_MIN) * CAL_SNAP_MIN;
-  calDraft[key]  = Math.max(CAL_START_MIN, Math.min(CAL_END_MIN - CAL_SNAP_MIN, snapped));
+  if (!moved) {
+    /* Clic simple → afficher/masquer les boutons d'action */
+    _calToggleActive(evEl);
+    return;
+  }
+
+  const topPx   = parseFloat(evEl.style.top) || 0;
+  const rawMin  = CAL_START_MIN + topPx / CAL_PX_PER_MIN;
+  const snapped = Math.round(rawMin / CAL_SNAP_MIN) * CAL_SNAP_MIN;
+  const clamped = Math.max(CAL_START_MIN, Math.min(CAL_END_MIN - CAL_SNAP_MIN, snapped));
+
+  if (segIdx >= 0 && calSplits[key] && calSplits[key][segIdx]) {
+    /* Segment déplacé */
+    calSplits[key][segIdx].startMin = clamped;
+  } else {
+    /* Événement normal déplacé */
+    calDraft[key] = clamped;
+  }
   calDirty = true;
   const actions = document.getElementById('calDirtyActions');
   if (actions) actions.style.display = '';
@@ -496,10 +575,12 @@ function calDismissWarning() {
 /* ── Sauvegarde ────────────────────────────────────────────────────────────── */
 function saveCalendar() {
   Object.assign(calPositions, calDraft);
-  calDraft       = {};
-  calDirty       = false;
-  calChecksums   = _calComputeChecksums();
-  const actions  = document.getElementById('calDirtyActions');
+  calDraft          = {};
+  calDirty          = false;
+  calChecksums      = _calComputeChecksums();
+  _calSplitsBackup  = JSON.parse(JSON.stringify(calSplits));
+  _calHiddenBackup  = new Set(calHidden);
+  const actions     = document.getElementById('calDirtyActions');
   if (actions) actions.style.display = 'none';
   _calWriteLocalStorage();
   _calSaveToFirebase();
@@ -509,8 +590,10 @@ function saveCalendar() {
 
 /* ── Annulation ────────────────────────────────────────────────────────────── */
 function cancelCalendar() {
-  calDraft = {};
-  calDirty = false;
+  calDraft    = {};
+  calDirty    = false;
+  calSplits   = JSON.parse(JSON.stringify(_calSplitsBackup));
+  calHidden   = new Set(_calHiddenBackup);
   const actions = document.getElementById('calDirtyActions');
   if (actions) actions.style.display = 'none';
   _calRender();
@@ -663,4 +746,129 @@ function openIcalInfo()  {
 function closeIcalInfo() {
   const el = document.getElementById('calIcalInfoModal');
   if (el) el.style.display = 'none';
+}
+
+/* ── Rechargement depuis la BDD ────────────────────────────────────────────── */
+function calReload() {
+  const btn = document.getElementById('calReloadBtn');
+  if (btn) { btn.disabled = true; btn.classList.add('cal-reloading'); }
+  _calLoadFromFirebase();
+  setTimeout(() => {
+    if (btn) { btn.disabled = false; btn.classList.remove('cal-reloading'); }
+  }, 2500);
+}
+
+/* ── Retirer une tâche du calendrier (sans supprimer de la BDD) ─────────────── */
+function calDeleteEvent(key) {
+  calHidden.add(key);
+  delete calSplits[key];
+  delete calDraft[key];
+  calDirty = true;
+  const actions = document.getElementById('calDirtyActions');
+  if (actions) actions.style.display = '';
+  _calRender();
+}
+
+/* ── Découper une tâche en deux segments ────────────────────────────────────── */
+function calSplitEvent(key, segIdx) {
+  const [projId, rowIdxStr, resKey, dateStr] = key.split('|');
+  const rowIdx = parseInt(rowIdxStr, 10);
+  const proj   = portfolio.find(p => p.id === projId);
+  if (!proj) return;
+  const row    = (proj.rows||[])[rowIdx];
+  if (!row) return;
+  const asgn   = row.assignments?.find(a => (a.resourceId||a.resourceNom) === resKey);
+  if (!asgn) return;
+  const charge  = (asgn.daily||{})[dateStr];
+  if (!charge) return;
+
+  if (segIdx < 0 || !calSplits[key]) {
+    /* Découper l'événement entier en deux */
+    const events   = _calGetEventsForDate(dateStr);
+    const idx      = events.findIndex(ev => ev.key === key);
+    const startMin = _calGetStartMin(key, Math.max(0, idx), events);
+    const totalDur = Math.round(charge * CAL_HOURS_PER_DAY * 60);
+    const half     = Math.round(totalDur / 2);
+    const gap      = 60; // 1h de pause par défaut
+    calSplits[key] = [
+      { startMin, durMin: half },
+      { startMin: Math.min(startMin + half + gap, CAL_END_MIN - 30), durMin: totalDur - half }
+    ];
+    delete calDraft[key];
+    delete calPositions[key];
+  } else {
+    /* Découper un segment existant */
+    const segs = calSplits[key];
+    const seg  = segs[segIdx];
+    if (!seg || seg.durMin < 30) return;
+    const half    = Math.round(seg.durMin / 2);
+    const gap     = 30;
+    const newSeg1 = { startMin: seg.startMin, durMin: half };
+    const newSeg2 = { startMin: Math.min(seg.startMin + half + gap, CAL_END_MIN - 30), durMin: seg.durMin - half };
+    segs.splice(segIdx, 1, newSeg1, newSeg2);
+  }
+
+  calDirty = true;
+  const actions = document.getElementById('calDirtyActions');
+  if (actions) actions.style.display = '';
+  _calRender();
+}
+
+/* ── Panel d'action flottant (position:fixed — échappe aux overflow:hidden) ── */
+let _calActionPanel = null;
+
+function _calToggleActive(evEl) {
+  const key  = evEl.dataset.key;
+  const seg  = parseInt(evEl.dataset.seg ?? '-1');
+  const wasKey = _calActionPanel?.dataset.forKey;
+  _calDismissActions();
+  if (wasKey === key + '|' + seg) return; // toggle off si même événement
+
+  const rect  = evEl.getBoundingClientRect();
+  const segObj = seg >= 0 ? calSplits[key]?.[seg] : null;
+  const canSplit = seg < 0
+    ? true
+    : segObj && segObj.durMin >= 30;
+
+  const panel = document.createElement('div');
+  panel.className = 'cal-action-panel';
+  panel.dataset.forKey = key + '|' + seg;
+
+  if (canSplit) {
+    const btnSplit = document.createElement('button');
+    btnSplit.className = 'cal-event-action-btn cal-action-split';
+    btnSplit.textContent = '✂ Couper en deux';
+    btnSplit.addEventListener('click', () => { _calDismissActions(); calSplitEvent(key, seg); });
+    panel.appendChild(btnSplit);
+  }
+
+  const btnDel = document.createElement('button');
+  btnDel.className = 'cal-event-action-btn cal-action-delete';
+  btnDel.textContent = '✕ Retirer';
+  btnDel.addEventListener('click', () => { _calDismissActions(); calDeleteEvent(key); });
+  panel.appendChild(btnDel);
+
+  /* Positionnement fixe juste sous l'événement */
+  const panelW = Math.max(rect.width, canSplit ? 220 : 110);
+  let left     = rect.left;
+  if (left + panelW > window.innerWidth - 8) left = window.innerWidth - panelW - 8;
+  Object.assign(panel.style, {
+    top:      (rect.bottom + 4) + 'px',
+    left:     left + 'px',
+    minWidth: panelW + 'px'
+  });
+
+  evEl.classList.add('cal-event-active');
+  document.body.appendChild(panel);
+  _calActionPanel = panel;
+}
+
+function _calDismissActions() {
+  document.querySelectorAll('.cal-event-active')
+    .forEach(el => el.classList.remove('cal-event-active'));
+  if (_calActionPanel) { _calActionPanel.remove(); _calActionPanel = null; }
+}
+
+function _calHandleGridClick(e) {
+  if (!e.target.closest('.cal-event')) _calDismissActions();
 }

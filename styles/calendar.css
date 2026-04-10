@@ -153,6 +153,29 @@
 
 .cal-cancel-btn:hover { background: var(--border); }
 
+.cal-reload-btn {
+  padding: 5px 11px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: var(--surface2);
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: border-color .15s, color .15s, opacity .15s;
+}
+
+.cal-reload-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.cal-reload-btn.cal-reloading {
+  opacity: .55;
+  cursor: default;
+}
+
 .cal-ical-btn {
   padding: 5px 10px;
   border: 1px solid var(--border);
@@ -361,6 +384,72 @@
   cursor: grabbing;
   z-index: 10;
   transition: none;
+}
+
+/* Segment découpé — léger hachurage */
+.cal-event.cal-event-segment {
+  background: repeating-linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--ev-color, #3b82f6) 13%, var(--surface)),
+    color-mix(in srgb, var(--ev-color, #3b82f6) 13%, var(--surface)) 8px,
+    color-mix(in srgb, var(--ev-color, #3b82f6) 8%, var(--surface)) 8px,
+    color-mix(in srgb, var(--ev-color, #3b82f6) 8%, var(--surface)) 16px
+  );
+}
+
+/* Événement sélectionné (clic) */
+.cal-event.cal-event-active {
+  z-index: 20;
+  box-shadow: 0 0 0 2px var(--ev-color, #3b82f6), 0 4px 14px rgba(0,0,0,.18);
+  cursor: pointer;
+}
+
+/* ── Panel d'action flottant (appended to body via JS, position:fixed) ─────── */
+.cal-action-panel {
+  position: fixed;
+  display: flex;
+  gap: 5px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  box-shadow: 0 6px 20px rgba(0,0,0,.18);
+  padding: 5px;
+  z-index: 9999;
+}
+
+.cal-event-action-btn {
+  flex: 1;
+  padding: 6px 10px;
+  border-radius: 5px;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all .12s;
+  white-space: nowrap;
+  text-align: center;
+  line-height: 1;
+}
+
+.cal-action-split {
+  background: rgba(59,130,246,.08);
+  border: 1px solid rgba(59,130,246,.3);
+  color: #3b82f6;
+}
+.cal-action-split:hover {
+  background: #3b82f6;
+  border-color: #3b82f6;
+  color: #fff;
+}
+
+.cal-action-delete {
+  background: rgba(220,53,69,.07);
+  border: 1px solid rgba(220,53,69,.3);
+  color: #dc3545;
+}
+.cal-action-delete:hover {
+  background: #dc3545;
+  border-color: #dc3545;
+  color: #fff;
 }
 
 .cal-event-time {
