@@ -143,6 +143,14 @@ function renderGantt(){
   const legend=document.getElementById('legend');
   const allTasks=rows.filter(r=>r._type==='tache');
   if(!allTasks.length){
+    if(!activeProjectId && (!userWalletClients || userWalletClients.size === 0)){
+      layout.innerHTML=`<div class="gantt-empty">
+        <div class="gantt-empty-icon">📁</div>
+        <div class="gantt-empty-title">Portefeuille vide</div>
+        <div class="gantt-empty-desc">Recherchez un client dans la barre de gauche pour commencer.</div>
+      </div>`;
+      legend.innerHTML='';return;
+    }
     const projName = portfolio.find(p=>p.id===activeProjectId)?.name || 'ce projet';
     layout.innerHTML=`<div class="gantt-empty">
       <div class="gantt-empty-icon">📐</div>
