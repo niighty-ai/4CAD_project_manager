@@ -396,17 +396,23 @@ function _calGetEventsForDate(dateStr) {
   return events;
 }
 
-/* ── Position de départ (draft > sauvegardé > empilage par défaut 8h) ──────── */
+/* ── Position de départ (draft > sauvegardé > empilage sans chevauchement à 8h) */
 function _calGetStartMin(key, idx, events) {
   if (calDraft[key]     !== undefined) return calDraft[key];
   if (calPositions[key] !== undefined) return calPositions[key];
-  /* Empiler les événements sans position depuis CAL_DEFAULT_START_MIN (8h) */
+
+  /* Pas de position explicite : empiler après tous les événements précédents */
   let cursor = CAL_DEFAULT_START_MIN;
-  for (let i=0; i<idx; i++) {
+  for (let i = 0; i < idx; i++) {
     const p = events[i];
-    if (calDraft[p.key]===undefined && calPositions[p.key]===undefined && !calSplits[p.key]) {
-      cursor += Math.round(p.charge * CAL_HOURS_PER_DAY * 60);
+    let pEnd;
+    if (calSplits[p.key] && calSplits[p.key].length) {
+      /* Tâche découpée : finit au dernier segment */
+      pEnd = Math.max(...calSplits[p.key].map(s => s.startMin + s.durMin));
+    } else {
+      pEnd = _calGetStartMin(p.key, i, events) + Math.round(p.charge * CAL_HOURS_PER_DAY * 60);
     }
+    if (pEnd > cursor) cursor = pEnd;
   }
   return Math.min(cursor, CAL_END_MIN - 30);
 }
