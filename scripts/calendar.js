@@ -748,14 +748,50 @@ function closeIcalInfo() {
   if (el) el.style.display = 'none';
 }
 
-/* ── Rechargement depuis la BDD ────────────────────────────────────────────── */
+/* ── Rechargement depuis la BDD (réinitialise semaine courante / ressource) ── */
 function calReload() {
+  if (!calSelectedRes || !calWeekStart) return;
   const btn = document.getElementById('calReloadBtn');
   if (btn) { btn.disabled = true; btn.classList.add('cal-reloading'); }
-  _calLoadFromFirebase();
+
+  /* Collecter toutes les clés de la semaine courante pour la ressource */
+  const keysToReset = new Set();
+  _calWeekDays().forEach(d => {
+    const dateStr = _calDateStr(d);
+    for (const proj of portfolio) {
+      (proj.rows||[]).forEach((row, rowIdx) => {
+        if (row._type !== 'tache') return;
+        for (const asgn of (row.assignments||[])) {
+          if (asgn.resourceNom !== calSelectedRes) continue;
+          if (!(asgn.daily||{})[dateStr]) continue;
+          keysToReset.add(_calEventKey(proj.id, rowIdx, asgn.resourceId||asgn.resourceNom, dateStr));
+        }
+      });
+    }
+  });
+
+  /* Supprimer toutes les personnalisations (positions, splits, masquage) */
+  keysToReset.forEach(k => {
+    delete calPositions[k];
+    delete calChecksums[k];
+    delete calSplits[k];
+    delete calDraft[k];
+    calHidden.delete(k);
+  });
+
+  /* Mettre à jour les backups et sauvegarder immédiatement */
+  _calSplitsBackup = JSON.parse(JSON.stringify(calSplits));
+  _calHiddenBackup = new Set(calHidden);
+  calDirty = false;
+  const dirtyEl = document.getElementById('calDirtyActions');
+  if (dirtyEl) dirtyEl.style.display = 'none';
+  _calWriteLocalStorage();
+  _calSaveToFirebase();
+  _calRender();
+
   setTimeout(() => {
     if (btn) { btn.disabled = false; btn.classList.remove('cal-reloading'); }
-  }, 2500);
+  }, 800);
 }
 
 /* ── Retirer une tâche du calendrier (sans supprimer de la BDD) ─────────────── */
@@ -769,7 +805,10 @@ function calDeleteEvent(key) {
   _calRender();
 }
 
-/* ── Découper une tâche en deux segments ────────────────────────────────────── */
+/* ── Modal découpage : état en attente ──────────────────────────────────────── */
+let _calPendingSplit = null; // { key, segIdx, totalDurMin, startMin }
+
+/* ── Découper une tâche — ouvre le modal de choix de durée ─────────────────── */
 function calSplitEvent(key, segIdx) {
   const [projId, rowIdxStr, resKey, dateStr] = key.split('|');
   const rowIdx = parseInt(rowIdxStr, 10);
@@ -782,35 +821,106 @@ function calSplitEvent(key, segIdx) {
   const charge  = (asgn.daily||{})[dateStr];
   if (!charge) return;
 
+  let totalDurMin, startMin;
   if (segIdx < 0 || !calSplits[key]) {
-    /* Découper l'événement entier en deux */
-    const events   = _calGetEventsForDate(dateStr);
-    const idx      = events.findIndex(ev => ev.key === key);
-    const startMin = _calGetStartMin(key, Math.max(0, idx), events);
-    const totalDur = Math.round(charge * CAL_HOURS_PER_DAY * 60);
-    const half     = Math.round(totalDur / 2);
-    const gap      = 60; // 1h de pause par défaut
+    totalDurMin = Math.round(charge * CAL_HOURS_PER_DAY * 60);
+    const events = _calGetEventsForDate(dateStr);
+    const idx    = events.findIndex(ev => ev.key === key);
+    startMin     = _calGetStartMin(key, Math.max(0, idx), events);
+  } else {
+    const seg = calSplits[key]?.[segIdx];
+    if (!seg || seg.durMin < 30) return;
+    totalDurMin = seg.durMin;
+    startMin    = seg.startMin;
+  }
+
+  _calPendingSplit = { key, segIdx, totalDurMin, startMin };
+  _calOpenSplitModal(totalDurMin);
+}
+
+function _calFmtMinDur(min) {
+  const h = Math.floor(min / 60), m = min % 60;
+  if (h === 0) return `${m}min`;
+  if (m === 0) return `${h}h`;
+  return `${h}h${String(m).padStart(2,'0')}`;
+}
+
+function _calOpenSplitModal(totalDurMin) {
+  const defaultFirst = Math.round(totalDurMin / 2 / 15) * 15 || 15;
+  const slider = document.getElementById('calSplitSlider');
+  const input  = document.getElementById('calSplitInput');
+  document.getElementById('calSplitTotalDur').textContent = _calFmtMinDur(totalDurMin);
+  slider.min = input.min = 15;
+  slider.max = input.max = totalDurMin - 15;
+  slider.step = input.step = 15;
+  slider.value = input.value = defaultFirst;
+  _calUpdateSplitPreview(defaultFirst, totalDurMin);
+  document.getElementById('calSplitModal').style.display = 'flex';
+}
+
+function _calUpdateSplitPreview(first, total) {
+  const second = total - first;
+  document.getElementById('calSplitBlock2Dur').textContent = _calFmtMinDur(second);
+  const pct1 = Math.round(first  / total * 100);
+  const pct2 = 100 - pct1;
+  document.getElementById('calSplitPreview').innerHTML = `
+    <div class="cal-split-bar">
+      <div class="cal-split-bar-1" style="flex:${pct1}">${_calFmtMinDur(first)}</div>
+      <div class="cal-split-bar-gap"></div>
+      <div class="cal-split-bar-2" style="flex:${pct2}">${_calFmtMinDur(second)}</div>
+    </div>`;
+}
+
+function _calSyncSplitSlider() {
+  /* Slider → met à jour le number et le preview */
+  const slider = document.getElementById('calSplitSlider');
+  const input  = document.getElementById('calSplitInput');
+  input.value = slider.value;
+  _calUpdateSplitPreview(parseInt(slider.value), _calPendingSplit?.totalDurMin || 60);
+}
+
+function _calSyncSplitInput() {
+  /* Number input → met à jour le slider et le preview (pas de snap forcé ici) */
+  const slider = document.getElementById('calSplitSlider');
+  const input  = document.getElementById('calSplitInput');
+  const total  = _calPendingSplit?.totalDurMin || 60;
+  const v = Math.max(15, Math.min(total - 15, parseInt(input.value) || 15));
+  slider.value = v;
+  _calUpdateSplitPreview(v, total);
+}
+
+function _calCloseSplitModal() {
+  document.getElementById('calSplitModal').style.display = 'none';
+  _calPendingSplit = null;
+}
+
+function _calApplySplit() {
+  if (!_calPendingSplit) return;
+  const { key, segIdx, totalDurMin, startMin } = _calPendingSplit;
+  const input      = document.getElementById('calSplitInput');
+  let firstDur     = Math.round((parseInt(input.value) || 15) / 15) * 15;
+  firstDur         = Math.max(15, Math.min(totalDurMin - 15, firstDur));
+  const secondDur  = totalDurMin - firstDur;
+  const gap        = 60; // 1h de pause par défaut entre les blocs
+
+  if (segIdx < 0 || !calSplits[key]) {
     calSplits[key] = [
-      { startMin, durMin: half },
-      { startMin: Math.min(startMin + half + gap, CAL_END_MIN - 30), durMin: totalDur - half }
+      { startMin, durMin: firstDur },
+      { startMin: Math.min(startMin + firstDur + gap, CAL_END_MIN - 30), durMin: secondDur }
     ];
     delete calDraft[key];
     delete calPositions[key];
   } else {
-    /* Découper un segment existant */
-    const segs = calSplits[key];
-    const seg  = segs[segIdx];
-    if (!seg || seg.durMin < 30) return;
-    const half    = Math.round(seg.durMin / 2);
-    const gap     = 30;
-    const newSeg1 = { startMin: seg.startMin, durMin: half };
-    const newSeg2 = { startMin: Math.min(seg.startMin + half + gap, CAL_END_MIN - 30), durMin: seg.durMin - half };
-    segs.splice(segIdx, 1, newSeg1, newSeg2);
+    const seg      = calSplits[key][segIdx];
+    const newSeg1  = { startMin: seg.startMin, durMin: firstDur };
+    const newSeg2  = { startMin: Math.min(seg.startMin + firstDur + gap, CAL_END_MIN - 30), durMin: secondDur };
+    calSplits[key].splice(segIdx, 1, newSeg1, newSeg2);
   }
 
   calDirty = true;
   const actions = document.getElementById('calDirtyActions');
   if (actions) actions.style.display = '';
+  _calCloseSplitModal();
   _calRender();
 }
 

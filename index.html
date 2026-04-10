@@ -351,6 +351,35 @@
 </div>
 
 <!-- ══════════════════════════════════════════════
+     MODAL — Découpage de tâche calendrier
+     ══════════════════════════════════════════════ -->
+<div id="calSplitModal" class="cal-split-backdrop" style="display:none" onclick="if(event.target===this)_calCloseSplitModal()">
+  <div class="cal-split-box">
+    <div class="cal-split-header">
+      <span class="cal-split-title">&#9986; Découper la tâche</span>
+      <button class="cal-split-close" onclick="_calCloseSplitModal()">&#215;</button>
+    </div>
+    <div class="cal-split-body">
+      <div class="cal-split-info">Durée totale&nbsp;: <strong id="calSplitTotalDur"></strong></div>
+      <div class="cal-split-inputs">
+        <label class="cal-split-label">Durée du bloc&nbsp;1 (minutes)</label>
+        <div class="cal-split-controls">
+          <input type="range"  id="calSplitSlider" class="cal-split-slider" oninput="_calSyncSplitSlider()">
+          <input type="number" id="calSplitInput"  class="cal-split-number" oninput="_calSyncSplitInput()" min="15" step="15">
+          <span class="cal-split-unit">min</span>
+        </div>
+        <div class="cal-split-bloc2">Bloc&nbsp;2&nbsp;: <strong id="calSplitBlock2Dur"></strong></div>
+      </div>
+      <div id="calSplitPreview" class="cal-split-preview-wrap"></div>
+    </div>
+    <div class="cal-split-footer">
+      <button class="cal-split-btn cal-split-btn-cancel" onclick="_calCloseSplitModal()">Annuler</button>
+      <button class="cal-split-btn cal-split-btn-confirm" onclick="_calApplySplit()">&#9986; Découper</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════
      MODAL — Synchronisation calendrier
      ══════════════════════════════════════════════ -->
 <div id="calIcalInfoModal" class="cal-ical-modal" style="display:none" onclick="if(event.target===this)closeIcalInfo()">
