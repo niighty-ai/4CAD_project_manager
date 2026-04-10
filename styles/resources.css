@@ -464,17 +464,6 @@
 /* Fond bleu : cellule éditée manuellement depuis le Gantt */
 .gho-td-day.gho-td-edited { background: rgba(59,130,246,.14) !important; }
 
-/* Bouton Sync charges : rouge = données GHO plus récentes, vert = synchro OK */
-#btnSyncCharges.btn-sync-stale {
-  color: #dc3545 !important;
-  border-color: rgba(220,53,69,.6) !important;
-  background: rgba(220,53,69,.08) !important;
-}
-#btnSyncCharges.btn-sync-fresh {
-  color: #198754 !important;
-  border-color: rgba(25,135,84,.6) !important;
-  background: rgba(25,135,84,.08) !important;
-}
 .gho-cell.c-low  { background: rgba(76,175,80,.2);  color: #2e7d32; }
 .gho-cell.c-high { background: rgba(255,152,0,.25); color: #e65100; }
 .gho-cell.c-over { background: rgba(244,67,54,.25); color: #b71c1c; }

@@ -200,3 +200,30 @@ function parseResourceName(fullName) {
   const nom    = parts.slice(nomIdx).join(' ');
   return { prenom, nom, profession };
 }
+
+/* ── Calcul du lundi de la semaine pour une date donnée ── */
+function _weekMonday(date) {
+  const d = new Date(date);
+  d.setHours(0, 0, 0, 0);
+  const day = d.getDay(); // 0=Dim, 1=Lun, …, 6=Sam
+  d.setDate(d.getDate() - (day === 0 ? 6 : day - 1));
+  return d;
+}
+
+/* ── Charge passée calculée en temps réel depuis les données journalières GHO ──
+   Somme toutes les entrées daily[date] dont la semaine (lundi→dimanche)
+   est strictement antérieure à la semaine en cours.
+   Retourne null si aucune charge passée trouvée. */
+function _chargePasseeFromDaily(daily) {
+  if (!daily) return null;
+  const currentWeekStart = _weekMonday(new Date()).getTime();
+  let total = 0;
+  for (const [k, v] of Object.entries(daily)) {
+    if (!v || v <= 0) continue;
+    const parts = k.split('/');
+    if (parts.length !== 3) continue;
+    const d = new Date(parseInt(parts[2]), parseInt(parts[1]) - 1, parseInt(parts[0]));
+    if (_weekMonday(d).getTime() < currentWeekStart) total += v;
+  }
+  return total > 0 ? Math.round(total * 10000) / 10000 : null;
+}

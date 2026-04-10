@@ -169,9 +169,10 @@ function renderGantt(){
   });
   const today=new Date();today.setHours(0,0,0,0);
 
-  /* ── Détermine si des données de suivi existent (3 colonnes) ── */
-  const hasTracking = visible.some(r => r._type==='tache' &&
-    (r.chargePassee != null || r.chargeRestante != null || (r.assignments && r.assignments.length)));
+  /* ── Détermine si des données de suivi existent (3 colonnes) ──
+     Vrai dès qu'une tâche visible a au moins une ressource affectée.
+     chargePassee est calculée dynamiquement depuis daily → pas stockée. */
+  const hasTracking = visible.some(r => r._type==='tache' && r.assignments && r.assignments.length > 0);
 
   /* ── Nombre de lignes ressources visibles par tâche (pour alignement côté droit) ── */
   function resRowCount(r) {
@@ -200,14 +201,15 @@ function renderGantt(){
     return r.charge;
   }
 
-  /* ── Charge passée effective d'une tâche ── */
+  /* ── Charge passée effective d'une tâche ──
+     Calculée en temps réel : somme des daily de chaque ressource pour les semaines passées. */
   function _effPassee(r) {
     const asgns = r.assignments;
     if (asgns && asgns.length > 0) {
-      const s = asgns.reduce((acc, a) => acc + (a.chargePassee || 0), 0);
+      const s = asgns.reduce((acc, a) => acc + (_chargePasseeFromDaily(a.daily || {}) || 0), 0);
       return Math.round(s * 10000) / 10000 || null;
     }
-    return r.chargePassee;
+    return null;
   }
 
   /* ── Charge restante = prévu - passé ── */
@@ -232,13 +234,14 @@ function renderGantt(){
 
   /* ── Colonnes charge sur une ligne ressource ── */
   function chargeColsRes(a) {
-    const restante = _effRestante(a.charge, a.chargePassee);
+    const passee   = _chargePasseeFromDaily(a.daily || {});
+    const restante = _effRestante(a.charge, passee);
     if (!hasTracking) {
       return chCell(a.charge, 'ch-prev') +
              '<span class="ch-col ch-dates ch-dates-empty"></span>';
     }
     return chCell(a.charge, 'ch-prev') +
-           chCell(a.chargePassee, 'ch-pass') +
+           chCell(passee, 'ch-pass') +
            chCell(restante, 'ch-rest') +
            '<span class="ch-col ch-dates ch-dates-empty"></span>';
   }
@@ -256,7 +259,8 @@ function renderGantt(){
       const datesTxt = (dRes && fRes)
         ? `<span class="ch-col ch-dates" style="font-size:9px">${fmtShort(dRes)}<span class="d-sep">→</span>${fmtShort(fRes)}</span>`
         : `<span class="ch-col ch-dates ch-dates-empty"></span>`;
-      const aRestante = _effRestante(a.charge, a.chargePassee);
+      const aPassee   = _chargePasseeFromDaily(a.daily || {});
+      const aRestante = _effRestante(a.charge, aPassee);
       return `<div class="gantt-left-row is-res-detail" onclick="event.stopPropagation();openAffectPanel(${realIdx})" style="cursor:pointer" title="Cliquer pour gérer les affectations">
         <span class="row-label-cell" style="padding-left:${indent+20}px">
           <span class="rd-icon">👤</span>
@@ -265,7 +269,7 @@ function renderGantt(){
         <span class="ch-col ch-slot"></span>
         ${!hasTracking
           ? chCell(a.charge,'ch-prev') + datesTxt
-          : chCell(a.charge,'ch-prev') + chCell(a.chargePassee,'ch-pass') + chCell(aRestante,'ch-rest') + datesTxt
+          : chCell(a.charge,'ch-prev') + chCell(aPassee,'ch-pass') + chCell(aRestante,'ch-rest') + datesTxt
         }
       </div>`;
     }).join('');

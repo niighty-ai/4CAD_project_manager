@@ -891,7 +891,8 @@ function _showMissingResPopup(missingNames, updatedCount) {
    • Projet présent dans l'import mais absent du portfolio → créé.
 
    taskData : map 'client|projet|tKey' → {clientName, projName, niveaux, tache,
-              taskId, debut, fin, chargePassee, chargeRestante}
+              taskId, debut, fin}
+   chargePassee / chargeRestante : NON lues depuis taskData — calculées dynamiquement au rendu.
    Retourne { projectsCreated, tasksImported }
    ─────────────────────────────────────────────────────────────────────────────── */
 function _upsertPortfolioFromGHO(taskData, taskAssignmentMap = {}) {
@@ -944,7 +945,7 @@ function _upsertPortfolioFromGHO(taskData, taskAssignmentMap = {}) {
     proj.rows = [];
 
     tasks.forEach(task => {
-      const { niveaux, tache, taskId, tKey, debut, fin, chargePassee, chargeRestante } = task;
+      const { niveaux, tache, taskId, tKey, debut, fin } = task;
       if (!debut || !fin || isNaN(debut) || isNaN(fin)) return;
 
       /* Récupérer les assignments GHO pour cette tâche */
@@ -955,11 +956,8 @@ function _upsertPortfolioFromGHO(taskData, taskAssignmentMap = {}) {
       const totalCharge = assignments.reduce((s, a) => s + (a.charge || 0), 0);
       const charge      = totalCharge > 0 ? Math.round(totalCharge * 10000) / 10000 : null;
 
-      /* chargeRestante = charge − chargePassee si charge GHO disponible */
-      const chargeRest  = (charge != null && chargePassee != null)
-        ? Math.round((charge - chargePassee) * 10000) / 10000
-        : chargeRestante;  // fallback : Remaining Effort du fichier
-
+      /* chargePassee et chargeRestante sont calculées dynamiquement au rendu
+         depuis les données daily — elles ne sont plus stockées. */
       proj.rows.push({
         _type:          'tache',
         projet:         projName,
@@ -968,8 +966,8 @@ function _upsertPortfolioFromGHO(taskData, taskAssignmentMap = {}) {
         debut,
         fin,
         charge,
-        chargePassee,
-        chargeRestante:  chargeRest,
+        chargePassee:   null,
+        chargeRestante: null,
         externalTaskId:  taskId || null,
         assignments
       });
@@ -1221,7 +1219,6 @@ function parseGHOExcel(buffer) {
 
     saveResources(); // métadonnées → gantt_resources
     saveGhoData();   // charges/projets/tâches → gantt_gho
-    _setSyncBtnState('stale');
     _refreshResView();
 
     if (missing.length > 0) {
@@ -1456,19 +1453,8 @@ function _isTaskSyncedWithGho(externalTaskId) {
   return false;
 }
 
-/* État visuel du bouton Sync charges : 'stale' = rouge (données GHO plus récentes), 'fresh' = vert (synchro OK) */
-function _setSyncBtnState(state) {
-  const btn = document.getElementById('btnSyncCharges');
-  if (!btn) return;
-  btn.classList.remove('btn-sync-stale', 'btn-sync-fresh');
-  if (state === 'stale') btn.classList.add('btn-sync-stale');
-  else if (state === 'fresh') btn.classList.add('btn-sync-fresh');
-}
-
-/* Bouton ⟳ Sync charges : reconstruit les assignments et les charges depuis GHO.
-   charge (temps prévu)   = somme des charges journalières GHO par ressource
-   chargePassee           = conservée telle quelle (issue de l'import XML)
-   chargeRestante         = charge − chargePassee                             */
+/* Bouton 🔄 Actualiser : reconstruit les assignments depuis GHO et recalcule charge.
+   chargePassee / chargeRestante : calculées dynamiquement au rendu depuis daily. */
 function syncGanttFromResources(silent = false) {
   if (!resources.length) {
     if (!silent) alert('Aucune ressource chargée.\nImportez d\'abord les données via l\'onglet Ressources.');
@@ -1540,19 +1526,16 @@ function syncGanttFromResources(silent = false) {
     });
   });
 
-  /* ── Étape 3 : calculer charge et chargeRestante pour chaque tâche ──
-     charge       = somme des charges journalières de toutes les ressources
-     chargeRestante = charge − chargePassee (temps prévu − temps passé)    */
+  /* ── Étape 3 : recalculer charge (temps prévu total) pour chaque tâche ──
+     chargePassee et chargeRestante sont calculées dynamiquement au rendu. */
   taskRows.forEach(r => {
     const asgns = r.assignments || [];
     if (asgns.length) {
       r.charge = Math.round(asgns.reduce((s, a) => s + (a.charge || 0), 0) * 10000) / 10000 || null;
     }
-    if (r.charge != null) {
-      r.chargeRestante = (r.chargePassee != null)
-        ? Math.round((r.charge - r.chargePassee) * 10000) / 10000
-        : r.charge;
-    }
+    /* Effacer les anciennes valeurs stockées — elles sont désormais calculées au rendu */
+    r.chargePassee   = null;
+    r.chargeRestante = null;
   });
 
   saveCurrentProject();
@@ -1565,13 +1548,11 @@ function syncGanttFromResources(silent = false) {
     badge.style.display = _isTaskSyncedWithGho(extInput.value) ? 'inline-flex' : 'none';
   }
 
-  _setSyncBtnState('fresh');
-
   if (!silent) {
     if (matchCount === 0) {
       alert('Aucune correspondance trouvée entre les tâches du Gantt et les données GHO.');
     } else {
-      alert(`Synchronisation réussie :\n${syncCount} affectation(s) sur ${matchCount} tâche(s) correspondante(s).`);
+      alert(`Actualisation réussie :\n${syncCount} affectation(s) sur ${matchCount} tâche(s) correspondante(s).`);
     }
   }
 }
