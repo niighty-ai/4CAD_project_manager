@@ -1105,7 +1105,8 @@ function parseGHOExcel(buffer) {
       }
 
       /* ── Collecte données charge ressource ──
-         On track la ressource dès qu'elle apparaît, AVANT de tester la charge. */
+         La relation ressource↔tâche est enregistrée AVANT le test de charge,
+         pour que les ressources affectées sans charge journalière restent visibles. */
       const resName = _normalizeExcelStr(row[colRes]);
       if (!resName) continue;
 
@@ -1115,15 +1116,17 @@ function parseGHOExcel(buffer) {
       const dateKey = _parseDateValue(row[colDate]);
       if (!dateKey) continue;
 
-      const chargeRaw = row[colCharge];
-      const jours = parseFloat(String(chargeRaw ?? '').replace(',', '.'));
-      if (!jours || jours <= 0) continue; /* Charge nulle/vide → pas d'entrée daily */
-
+      /* Créer l'entrée parsed ressource↔tâche même si charge = 0 */
       if (!parsed[resName])             parsed[resName]           = {};
       if (!parsed[resName][projName])   parsed[resName][projName] = {};
       if (!parsed[resName][projName][tKey]) {
         parsed[resName][projName][tKey] = { taskId, taskName: taskName || taskId, daily: {} };
       }
+
+      const chargeRaw = row[colCharge];
+      const jours = parseFloat(String(chargeRaw ?? '').replace(',', '.'));
+      if (!jours || jours <= 0) continue; /* Charge nulle/vide → pas d'entrée daily */
+
       const daily = parsed[resName][projName][tKey].daily;
       daily[dateKey] = Math.round(((daily[dateKey] || 0) + jours) * 10000) / 10000;
     }
@@ -1148,7 +1151,7 @@ function parseGHOExcel(buffer) {
       const projects = Object.entries(projMap)
         .map(([projName, taskMap]) => ({
           name : projName,
-          tasks: Object.values(taskMap).filter(t => Object.values(t.daily).some(v => v > 0))
+          tasks: Object.values(taskMap)  // inclut les tâches sans charge (daily:{}) pour conserver les assignations
         }))
         .filter(p => p.tasks.length > 0);
 
@@ -1473,13 +1476,14 @@ function syncGanttFromResources(silent = false) {
           }
         });
 
-        if (totalCharge <= 0) return;
-
+        /* Créer l'assignment même sans charge : la ressource est affectée à la tâche */
         const asgn = { resourceId: res.id, resourceNom: res.fullName || res.id };
-        asgn.charge = Math.round(totalCharge * 10000) / 10000;
-        asgn.daily  = { ...daily };
-        if (minDate) asgn.debut = minDate;
-        if (maxDate) asgn.fin   = maxDate;
+        if (totalCharge > 0) {
+          asgn.charge = Math.round(totalCharge * 10000) / 10000;
+          asgn.daily  = { ...daily };
+          if (minDate) asgn.debut = minDate;
+          if (maxDate) asgn.fin   = maxDate;
+        }
         matchedRow.assignments.push(asgn);
         syncCount++;
       });
