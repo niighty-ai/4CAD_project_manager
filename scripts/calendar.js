@@ -4,7 +4,7 @@
    • L'utilisateur positionne les tâches dans la journée (heure de début)
    • Les positions sont sauvegardées dans Firebase ET localStorage
    • Détection des charges modifiées depuis la dernière sauvegarde
-   • L'export ICS ne couvre que les semaines planifiées (au moins 1 événement positionné)
+   • L'export ICS couvre les semaines avec au moins 1 tâche modifiée (position, split, masquée)
    ═══════════════════════════════════════════ */
 
 /* ── Constantes ────────────────────────────────────────────────────────────── */
@@ -602,23 +602,26 @@ function cancelCalendar() {
   _calRender();
 }
 
-/* ── Semaines planifiées (au moins 1 événement positionné par l'utilisateur) ── */
+/* ── Semaines modifiées (position, draft, split, ou tâche masquée) ─────────── */
 function _calGetWorkedWeekMondays() {
   const mondayTimes = new Set();
-  for (const key of Object.keys(calPositions)) {
+  const _addKey = key => {
     const parts = key.split('|');
-    if (parts.length < 4) continue;
+    if (parts.length < 4) return;
     const [projId, rowIdxStr, resKey, dateStr] = parts;
-    const rowIdx = parseInt(rowIdxStr, 10);
-    const proj   = portfolio.find(p => p.id === projId);
-    if (!proj) continue;
-    const row    = (proj.rows||[])[rowIdx];
-    if (!row) continue;
-    const asgn   = row.assignments?.find(a => (a.resourceId||a.resourceNom) === resKey);
-    if (!asgn || asgn.resourceNom !== calSelectedRes) continue;
+    const proj = portfolio.find(p => p.id === projId);
+    if (!proj) return;
+    const row  = (proj.rows||[])[parseInt(rowIdxStr, 10)];
+    if (!row) return;
+    const asgn = row.assignments?.find(a => (a.resourceId||a.resourceNom) === resKey);
+    if (!asgn || asgn.resourceNom !== calSelectedRes) return;
     const [d, m, y] = dateStr.split('/');
     mondayTimes.add(_calMonday(new Date(+y, +m-1, +d)).getTime());
-  }
+  };
+  for (const k of Object.keys(calPositions)) _addKey(k);
+  for (const k of Object.keys(calDraft))     _addKey(k);
+  for (const k of Object.keys(calSplits))    _addKey(k);
+  for (const k of calHidden)                 _addKey(k);
   return [...mondayTimes].sort().map(t => new Date(t));
 }
 
@@ -676,7 +679,7 @@ function calDoExport() {
     .filter(t => workedTimes.has(t));
 
   if (selected.length === 0) {
-    alert("Aucune semaine planifiée parmi la sélection.\nPositionnez et sauvegardez des tâches dans ces semaines d'abord.");
+    alert("Aucune semaine modifiée parmi la sélection.\nPositionnez, découpez ou masquez au moins une tâche dans ces semaines d'abord.");
     return;
   }
   closeIcalExportModal();
@@ -701,40 +704,45 @@ function _calBuildAndDownloadIcs(mondays) {
       const events  = _calGetEventsForDate(dateStr);
       events.forEach((ev, idx) => {
         const [dd, mm, yyyy] = dateStr.split('/');
-        const base         = `${yyyy}${mm}${dd}`;
-        const uid          = `${ev.key.replace(/[^a-zA-Z0-9]/g,'x').substring(0,48)}@4cad`;
-        const summary      = _calIcalEsc(ev.rawLabel);
-        const totalDurMin  = Math.round(ev.charge * CAL_HOURS_PER_DAY * 60);
-        const _fmtDate     = d => { if (!d) return '?'; const dt = d instanceof Date ? d : new Date(d); return fmtD(dt); };
-        const debutStr     = _fmtDate(ev.taskDebut);
-        const finStr       = _fmtDate(ev.taskFin);
+        const base        = `${yyyy}${mm}${dd}`;
+        const keySlug     = ev.key.replace(/[^a-zA-Z0-9]/g,'x').substring(0,44);
+        const totalDurMin = Math.round(ev.charge * CAL_HOURS_PER_DAY * 60);
+        const _fmtDate    = dt => { if (!dt) return '?'; const d2 = dt instanceof Date ? dt : new Date(dt); return fmtD(d2); };
+        const debutStr    = _fmtDate(ev.taskDebut);
+        const finStr      = _fmtDate(ev.taskFin);
+        const baseDesc    = `Projet : ${ev.projName}\nD\u00e9but t\u00e2che : ${debutStr}\nFin t\u00e2che : ${finStr}\nRessource : ${calSelectedRes}`;
 
-        /* Gestion des tâches découpées : export en VEVENT unique */
         const segs = calSplits[ev.key];
-        let startMin, endMin, horaire;
         if (segs && segs.length) {
-          startMin = segs[0].startMin;
-          const last = segs[segs.length - 1];
-          endMin   = last.startMin + last.durMin;
-          horaire  = segs.map(s => `${_calFmtMin(s.startMin)}\u2013${_calFmtMin(s.startMin + s.durMin)}`).join(', ');
+          /* Tâche découpée : un VEVENT par segment avec suffixe (n/total) */
+          segs.forEach((seg, si) => {
+            const n       = `${si + 1}/${segs.length}`;
+            const summary = _calIcalEsc(`${ev.rawLabel} (${n})`);
+            const horaire = `${_calFmtMin(seg.startMin)}\u2013${_calFmtMin(seg.startMin + seg.durMin)}`;
+            const desc    = _calIcalEsc(`${baseDesc}\nCharge : ${_calFmtMinDur(seg.durMin)} (${n})\nHoraire : ${horaire}`);
+            lines.push('BEGIN:VEVENT');
+            lines.push(`UID:${keySlug}s${si}@4cad`);
+            lines.push(`DTSTART:${base}T${_calFmtIso(seg.startMin)}00`);
+            lines.push(`DTEND:${base}T${_calFmtIso(seg.startMin + seg.durMin)}00`);
+            lines.push(`SUMMARY:${summary}`);
+            lines.push(`DESCRIPTION:${desc}`);
+            lines.push('END:VEVENT');
+          });
         } else {
-          startMin = _calGetStartMin(ev.key, idx, events);
-          endMin   = startMin + totalDurMin;
-          horaire  = `${_calFmtMin(startMin)}\u2013${_calFmtMin(endMin)}`;
+          /* Tâche normale : un seul VEVENT */
+          const startMin = _calGetStartMin(ev.key, idx, events);
+          const endMin   = startMin + totalDurMin;
+          const horaire  = `${_calFmtMin(startMin)}\u2013${_calFmtMin(endMin)}`;
+          const summary  = _calIcalEsc(ev.rawLabel);
+          const desc     = _calIcalEsc(`${baseDesc}\nCharge : ${_calFmtMinDur(totalDurMin)} (${_calFmt(ev.charge)} j)\nHoraire : ${horaire}`);
+          lines.push('BEGIN:VEVENT');
+          lines.push(`UID:${keySlug}@4cad`);
+          lines.push(`DTSTART:${base}T${_calFmtIso(startMin)}00`);
+          lines.push(`DTEND:${base}T${_calFmtIso(endMin)}00`);
+          lines.push(`SUMMARY:${summary}`);
+          lines.push(`DESCRIPTION:${desc}`);
+          lines.push('END:VEVENT');
         }
-
-        const desc = _calIcalEsc(
-          `Projet : ${ev.projName}\nD\u00e9but t\u00e2che : ${debutStr}\nFin t\u00e2che : ${finStr}\n` +
-          `Ressource : ${calSelectedRes}\nCharge : ${_calFmtMinDur(totalDurMin)} (${_calFmt(ev.charge)} j)\n` +
-          `Horaire : ${horaire}`
-        );
-        lines.push('BEGIN:VEVENT');
-        lines.push(`UID:${uid}`);
-        lines.push(`DTSTART:${base}T${_calFmtIso(startMin)}00`);
-        lines.push(`DTEND:${base}T${_calFmtIso(endMin)}00`);
-        lines.push(`SUMMARY:${summary}`);
-        lines.push(`DESCRIPTION:${desc}`);
-        lines.push('END:VEVENT');
       });
     });
   }
