@@ -1071,32 +1071,15 @@ function parseGHOExcel(buffer) {
     for (let ri = headerRowIdx + 1; ri < raw.length; ri++) {
       const row = raw[ri];
       if (!row) continue;
-      const resName  = _normalizeExcelStr(row[colRes]);
       const projName = _normalizeExcelStr(row[colProj]);
-      if (!resName || !projName) continue;
-
-      /* Date de la charge (ressource) */
-      const dateKey = _parseDateValue(row[colDate]);
-      if (!dateKey) continue;
-
-      /* Charge en jours — séparateur décimal fr (virgule) ou en (point) */
-      const chargeRaw = row[colCharge];
-      const jours = parseFloat(String(chargeRaw ?? '').replace(',', '.'));
-      if (!jours || jours <= 0) continue;
+      if (!projName) continue;
 
       const taskId   = colTaskId   >= 0 ? _normalizeExcelStr(row[colTaskId])   : '';
       const taskName = colTaskName >= 0 ? _normalizeExcelStr(row[colTaskName]) : '';
       const tKey     = taskId || taskName || '__default__';
 
-      if (!parsed[resName])             parsed[resName]           = {};
-      if (!parsed[resName][projName])   parsed[resName][projName] = {};
-      if (!parsed[resName][projName][tKey]) {
-        parsed[resName][projName][tKey] = { taskId, taskName: taskName || taskId, daily: {} };
-      }
-      const daily = parsed[resName][projName][tKey].daily;
-      daily[dateKey] = Math.round(((daily[dateKey] || 0) + jours) * 10000) / 10000;
-
-      /* ── Collecte des données portfolio (une seule fois par tâche unique) ── */
+      /* ── Collecte données portfolio (indépendante de la charge ressource) ──
+         Exécutée pour toutes les lignes ayant un projet, même si Charge (J) est vide. */
       if (doPortfolioImport) {
         const clientName  = colClient   >= 0 ? (_normalizeExcelStr(row[colClient])   || '') : '';
         const fullNameRaw = colFullName >= 0 ? (_normalizeExcelStr(row[colFullName]) || '') : '';
@@ -1128,6 +1111,26 @@ function parseGHOExcel(buffer) {
           };
         }
       }
+
+      /* ── Collecte données charge ressource ──
+         Uniquement pour les lignes avec ressource + date + Charge (J) > 0. */
+      const resName = _normalizeExcelStr(row[colRes]);
+      if (!resName) continue;
+
+      const dateKey = _parseDateValue(row[colDate]);
+      if (!dateKey) continue;
+
+      const chargeRaw = row[colCharge];
+      const jours = parseFloat(String(chargeRaw ?? '').replace(',', '.'));
+      if (!jours || jours <= 0) continue;
+
+      if (!parsed[resName])             parsed[resName]           = {};
+      if (!parsed[resName][projName])   parsed[resName][projName] = {};
+      if (!parsed[resName][projName][tKey]) {
+        parsed[resName][projName][tKey] = { taskId, taskName: taskName || taskId, daily: {} };
+      }
+      const daily = parsed[resName][projName][tKey].daily;
+      daily[dateKey] = Math.round(((daily[dateKey] || 0) + jours) * 10000) / 10000;
     }
 
     /* ── Mise à jour du portfolio si colonnes portfolio présentes ── */
