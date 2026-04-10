@@ -139,8 +139,14 @@ function parseMSProjectXML(xmlText, projectName) {
 
     const asgns = taskAssignments[uid];
     if (asgns && asgns.length) {
+      // Somme des ActualWork par ressource (source prioritaire)
       chargePassee = asgns.reduce((s, a) => s + (a.actualWork || 0), 0);
       chargePassee = Math.round(chargePassee * 10000) / 10000 || null;
+    }
+    // Fallback : ActualWork au niveau de la tâche si les assignments ne donnent rien
+    if (chargePassee === null) {
+      const taskActualStr = getVal(el, 'ActualWork');
+      if (taskActualStr) chargePassee = parsePTtoDays(taskActualStr) || null;
     }
 
     const taskId = getVal(el, 'ID');
