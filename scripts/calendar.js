@@ -806,10 +806,14 @@ function exportIcal() {
   const workedMondays  = _calGetWorkedWeekMondays();
   const workedTimes    = new Set(workedMondays.map(m => m.getTime()));
   const currentTime    = calWeekStart.getTime();
+  const todayMonday    = _calMonday(new Date()).getTime();
 
-  /* Construire la liste unifiée : semaines planifiées + semaine courante */
+  /* Construire la liste : semaines modifiées + semaine affichée, à partir de cette semaine seulement */
   const allTimes = new Set([...workedTimes, currentTime]);
-  const allMondays = [...allTimes].sort().map(t => new Date(t));
+  const allMondays = [...allTimes]
+    .filter(t => t >= todayMonday)
+    .sort()
+    .map(t => new Date(t));
 
   const list = document.getElementById('calExportWeekList');
   if (!list) return;
@@ -845,10 +849,11 @@ function calExportToggleAll() {
 }
 
 function calDoExport() {
-  const workedTimes = new Set(_calGetWorkedWeekMondays().map(m => m.getTime()));
-  const selected    = [...document.querySelectorAll('.cal-export-cb:checked')]
+  const workedTimes  = new Set(_calGetWorkedWeekMondays().map(m => m.getTime()));
+  const todayMonday  = _calMonday(new Date()).getTime();
+  const selected     = [...document.querySelectorAll('.cal-export-cb:checked')]
     .map(cb => parseInt(cb.value))
-    .filter(t => workedTimes.has(t));
+    .filter(t => workedTimes.has(t) && t >= todayMonday);
 
   if (selected.length === 0) {
     alert("Aucune semaine modifiée parmi la sélection.\nPositionnez, découpez ou masquez au moins une tâche dans ces semaines d'abord.");
