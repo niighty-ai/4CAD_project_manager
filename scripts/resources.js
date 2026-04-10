@@ -1028,11 +1028,11 @@ function parseGHOExcel(buffer) {
     /* ── Colonnes optionnelles (portfolio) détectées en premier pour éviter
        les faux positifs sur les colonnes requises "Date" et "Charge" ── */
     const colClient    = _findColOpt([/soci[eé]t[eé]|company|organisation|\bclient\b/]);
-    const colFullName  = _findColOpt([/full[\s_-]?name|chemin|full[\s_-]?path/]);
-    const colStartDate = _findColOpt([/start[\s_-]?date|d[eé]but[\s_-]t[aâ]che|date[\s_-]?d[eé]but/]);
-    const colEndDate   = _findColOpt([/end[\s_-]?date|fin[\s_-]t[aâ]che|date[\s_-]?fin/]);
-    const colExpended  = _findColOpt([/expended[\s_-]?effort|temps[\s_-]pass[eé]|charge[\s_-]pass[eé]/]);
-    const colRemaining = _findColOpt([/remaining[\s_-]?effort|temps[\s_-]restant|charge[\s_-]restante/]);
+    const colFullName  = _findColOpt([/full[\s_]+name|chemin|full[\s_]+path/]);
+    const colStartDate = _findColOpt([/start[\s_]+date|d[eé]but[\s_]+t[aâ]che|date[\s_]+d[eé]but/]);
+    const colEndDate   = _findColOpt([/end[\s_]+date|fin[\s_]+t[aâ]che|date[\s_]+fin/]);
+    const colExpended  = _findColOpt([/expended[\s_]+effort|temps[\s_]+pass[eé]|charge[\s_]+pass[eé]/]);
+    const colRemaining = _findColOpt([/remaining[\s_]+effort|temps[\s_]+restant|charge[\s_]+restante/]);
 
     /* ── Colonnes requises ── */
     const colRes      = _findCol([/ressource|resource[\s_-]?user|\buser\b|\bnom\b/],         'Resource / Ressource');
@@ -1048,10 +1048,11 @@ function parseGHOExcel(buffer) {
       return idx;
     })();
 
-    /* "Charge (J)" : exclure les indices déjà pris par Expended/Remaining Effort */
+    /* "Charge (J)" : on n'utilise PAS "effort" comme pattern (trop ambigu avec
+       Expended/Remaining Effort). Le mécanisme _skipChargeIdx reste en sécurité. */
     const _skipChargeIdx = new Set([colExpended, colRemaining].filter(i => i >= 0));
     const colCharge = (() => {
-      const idx = header.findIndex((h, i) => !_skipChargeIdx.has(i) && /charge|effort|load|jours?\b/.test(h));
+      const idx = header.findIndex((h, i) => !_skipChargeIdx.has(i) && /\bcharge\b|^jours?\b|^load\b/.test(h));
       if (idx < 0) alert('Colonne "Charge (J)" introuvable dans le fichier.');
       return idx;
     })();
