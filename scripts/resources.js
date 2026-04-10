@@ -1117,23 +1117,26 @@ function parseGHOExcel(buffer) {
       }
 
       /* ── Collecte données charge ressource ──
-         La relation ressource↔tâche est enregistrée AVANT le test de charge,
-         pour que les ressources affectées sans charge journalière restent visibles. */
+         La relation ressource↔tâche est enregistrée AVANT le test de date et AVANT le test de charge,
+         pour que les ressources affectées sans charge journalière restent visibles même si
+         aucune date n'est renseignée pour cette ligne dans le fichier GHO. */
       const resName = _normalizeExcelStr(row[colRes]);
       if (!resName) continue;
 
       /* Enregistrer la ressource comme "vue dans ce fichier" même si charge = 0 */
       seenRes.add(resName);
 
-      const dateKey = _parseDateValue(row[colDate]);
-      if (!dateKey) continue;
-
-      /* Créer l'entrée parsed ressource↔tâche même si charge = 0 */
+      /* Créer l'entrée parsed ressource↔tâche même sans date et même si charge = 0 :
+         la relation d'affectation est enregistrée dès qu'une ligne existe pour cette ressource,
+         quelle que soit la présence d'une date ou d'une charge journalière. */
       if (!parsed[resName])             parsed[resName]           = {};
       if (!parsed[resName][projName])   parsed[resName][projName] = {};
       if (!parsed[resName][projName][tKey]) {
         parsed[resName][projName][tKey] = { taskId, taskName: taskName || taskId, daily: {} };
       }
+
+      const dateKey = _parseDateValue(row[colDate]);
+      if (!dateKey) continue;
 
       const chargeRaw = row[colCharge];
       const jours = parseFloat(String(chargeRaw ?? '').replace(',', '.'));
