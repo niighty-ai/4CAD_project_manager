@@ -894,7 +894,7 @@ function _showMissingResPopup(missingNames, updatedCount) {
               taskId, debut, fin, chargePassee, chargeRestante}
    Retourne { projectsCreated, tasksImported }
    ─────────────────────────────────────────────────────────────────────────────── */
-function _upsertPortfolioFromGHO(taskData) {
+function _upsertPortfolioFromGHO(taskData, taskAssignmentMap = {}) {
   /* Sauvegarder l'état courant de l'affichage dans le portfolio avant toute modification */
   if (typeof _saveBackToPortfolio === 'function') _saveBackToPortfolio();
 
@@ -944,10 +944,22 @@ function _upsertPortfolioFromGHO(taskData) {
     proj.rows = [];
 
     tasks.forEach(task => {
-      const { niveaux, tache, taskId, debut, fin, chargePassee, chargeRestante } = task;
+      const { niveaux, tache, taskId, tKey, debut, fin, chargePassee, chargeRestante } = task;
       if (!debut || !fin || isNaN(debut) || isNaN(fin)) return;
 
-      // charge (temps prévu) = calculé par syncGanttFromResources depuis les charges journalières GHO
+      /* Récupérer les assignments GHO pour cette tâche */
+      const asgnKey     = `${projName}|${tKey || taskId || tache}`;
+      const assignments = (taskAssignmentMap[asgnKey] || []).map(a => ({ ...a }));
+
+      /* charge (temps prévu) = somme des charges journalières GHO par ressource */
+      const totalCharge = assignments.reduce((s, a) => s + (a.charge || 0), 0);
+      const charge      = totalCharge > 0 ? Math.round(totalCharge * 10000) / 10000 : null;
+
+      /* chargeRestante = charge − chargePassee si charge GHO disponible */
+      const chargeRest  = (charge != null && chargePassee != null)
+        ? Math.round((charge - chargePassee) * 10000) / 10000
+        : chargeRestante;  // fallback : Remaining Effort du fichier
+
       proj.rows.push({
         _type:          'tache',
         projet:         projName,
@@ -955,11 +967,11 @@ function _upsertPortfolioFromGHO(taskData) {
         tache,
         debut,
         fin,
-        charge:         null,
+        charge,
         chargePassee,
-        chargeRestante,
-        externalTaskId: taskId || null,
-        assignments:    []
+        chargeRestante:  chargeRest,
+        externalTaskId:  taskId || null,
+        assignments
       });
       tasksImported++;
     });
@@ -1095,7 +1107,7 @@ function parseGHOExcel(buffer) {
           const crVal  = rawRem != null ? parseFloat(String(rawRem).replace(',', '.')) : null;
 
           taskData[dataKey] = {
-            clientName, projName, niveaux, tache, taskId,
+            clientName, projName, niveaux, tache, taskId, tKey,
             debut:          debutTask,
             fin:            finTask,
             chargePassee:   (cpVal != null && !isNaN(cpVal)  && cpVal  >= 0) ? cpVal  : null,
@@ -1131,10 +1143,45 @@ function parseGHOExcel(buffer) {
       daily[dateKey] = Math.round(((daily[dateKey] || 0) + jours) * 10000) / 10000;
     }
 
+    /* ── Construire la map ressource↔tâche pour peupler les assignments du portfolio ──
+       Clé : 'projName|tKey' → [{ resourceId, resourceNom, charge?, daily?, debut?, fin? }]
+       Construit à partir de parsed (déjà complet) et de resources[]. */
+    const taskAssignmentMap = {};
+    Object.entries(parsed).forEach(([resName, projMap]) => {
+      const res = _findResourceByName(resName);
+      if (!res) return;
+      Object.entries(projMap).forEach(([pName, taskMap]) => {
+        Object.entries(taskMap).forEach(([tKey, taskInfo]) => {
+          const key = `${pName}|${tKey}`;
+          if (!taskAssignmentMap[key]) taskAssignmentMap[key] = [];
+          const daily = taskInfo.daily || {};
+          let totalCharge = 0, minDate = null, maxDate = null;
+          Object.entries(daily).forEach(([k, v]) => {
+            if (v <= 0) return;
+            totalCharge += v;
+            const parts = k.split('/');
+            if (parts.length === 3) {
+              const d = new Date(parseInt(parts[2]), parseInt(parts[1]) - 1, parseInt(parts[0]));
+              if (!minDate || d < minDate) minDate = new Date(d);
+              if (!maxDate || d > maxDate) maxDate = new Date(d);
+            }
+          });
+          const asgn = { resourceId: res.id, resourceNom: res.fullName || res.id };
+          if (totalCharge > 0) {
+            asgn.charge = Math.round(totalCharge * 10000) / 10000;
+            asgn.daily  = { ...daily };
+            if (minDate) asgn.debut = minDate;
+            if (maxDate) asgn.fin   = maxDate;
+          }
+          taskAssignmentMap[key].push(asgn);
+        });
+      });
+    });
+
     /* ── Mise à jour du portfolio si colonnes portfolio présentes ── */
     let portfolioStats = null;
     if (doPortfolioImport && Object.keys(taskData).length > 0) {
-      portfolioStats = _upsertPortfolioFromGHO(taskData);
+      portfolioStats = _upsertPortfolioFromGHO(taskData, taskAssignmentMap);
     }
 
     /* ── Mise à jour ghoData des ressources ── */
