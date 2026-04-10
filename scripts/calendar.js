@@ -473,13 +473,11 @@ function _calRenderGrid() {
         } else {
           naturalStart = _calGetStartMin(ev.key, idx, events);
         }
-        /* Sous-colonne : 0 si la tâche démarre avant 18h, sinon wrap par tranches de 10h */
+        /* Sous-colonne : 0 si la tâche démarre avant 18h, sinon colonne suivante par tranche de 10h */
         const subCol = naturalStart < CAL_DEFAULT_END_MIN
           ? 0
           : Math.floor((naturalStart - CAL_DEFAULT_START_MIN) / dayCapacity);
-        /* Décalage à soustraire pour ramener la tâche dans la plage 8h-18h */
-        const shift = subCol * dayCapacity;
-        return { ev, idx, totalDurMin, segs, naturalStart, subCol, shift };
+        return { ev, idx, totalDurMin, segs, naturalStart, subCol };
       });
 
       /* ── Étape 2 : nombre total de sous-colonnes ── */
@@ -490,19 +488,17 @@ function _calRenderGrid() {
       const colStyle = (c) => N === 1 ? '' :
         `left:calc(40px + ${c}*(100% - 44px)/${N});right:calc(4px + ${N-1-c}*(100% - 44px)/${N});`;
 
-      return layouts.flatMap(({ ev, idx, totalDurMin, segs, naturalStart, subCol, shift }) => {
-        const ek           = ev.key.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
-        const cs           = colStyle(subCol);
-        const displayStart = naturalStart - shift;  // ramène dans la plage 8h-18h
+      return layouts.flatMap(({ ev, idx, totalDurMin, segs, naturalStart, subCol }) => {
+        const ek = ev.key.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+        const cs = colStyle(subCol);
 
         /* ── Tâche découpée en segments ── */
         if (segs && segs.length) {
           const nb = calSplits[ev.key] ? calSplits[ev.key].length : segs.length;
           return segs.map(seg => {
-            const si         = seg._si !== undefined ? seg._si : segs.indexOf(seg);
-            const segDisplay = seg.startMin - shift;
-            const topPx      = (segDisplay - CAL_START_MIN) * CAL_PX_PER_MIN;
-            const heightPx   = Math.max(26, seg.durMin * CAL_PX_PER_MIN);
+            const si       = seg._si !== undefined ? seg._si : segs.indexOf(seg);
+            const topPx    = (seg.startMin - CAL_START_MIN) * CAL_PX_PER_MIN;
+            const heightPx = Math.max(26, seg.durMin * CAL_PX_PER_MIN);
             return `
               <div class="cal-event cal-event-segment"
                    style="top:${topPx}px;height:${heightPx}px;${cs}--ev-color:${ev.color};"
@@ -516,7 +512,7 @@ function _calRenderGrid() {
         }
 
         /* ── Tâche normale ── */
-        const topPx    = (displayStart - CAL_START_MIN) * CAL_PX_PER_MIN;
+        const topPx    = (naturalStart - CAL_START_MIN) * CAL_PX_PER_MIN;
         const heightPx = Math.max(26, totalDurMin * CAL_PX_PER_MIN);
         const isDraft  = calDraft[ev.key] !== undefined;
         return [`
