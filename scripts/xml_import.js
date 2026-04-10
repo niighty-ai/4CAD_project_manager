@@ -149,31 +149,8 @@ function parseMSProjectXML(xmlText, projectName) {
         ? Math.round((charge - chargePassee) * 10000) / 10000
         : charge;
 
-      // Détail par ressource
-      assignments = asgns.map(a => {
-        const appId = uidToAppId[a.resourceUID];
-        const res   = typeof resources !== 'undefined'
-          ? resources.find(r => r.id === appId)
-          : null;
-        const resourceNom = res?.fullName || '?';
-        const aCharge  = a.work       != null ? Math.round(a.work       * 10000) / 10000 : null;
-        const aPassee  = a.actualWork != null ? Math.round(a.actualWork * 10000) / 10000 : null;
-        // Restante = prévu - passé
-        const aRestante = (aCharge != null && aPassee != null)
-          ? Math.round((aCharge - aPassee) * 10000) / 10000
-          : aCharge;
-        return {
-          xmlUid:          a.xmlUid || null,
-          resourceId:      appId,
-          resourceNom,
-          charge:          aCharge,
-          chargePassee:    aPassee,
-          chargeRestante:  aRestante,
-          debut:           a.debut  || null,
-          fin:             a.fin    || null,
-          percentComplete: a.percentComplete || 0,
-        };
-      });
+      // Les assignments sont alimentés exclusivement par l'import GHO (syncGanttFromResources)
+      // L'XML fournit uniquement les totaux de charge (charge, chargePassee, chargeRestante)
     } else {
       // Pas d'assignment : utilise Work ou Duration de la tâche
       const workStr = getVal(el, 'Work') || getVal(el, 'Duration');
@@ -182,19 +159,8 @@ function parseMSProjectXML(xmlText, projectName) {
 
     const taskId = getVal(el, 'ID');
 
-    /* Extraire l'identifiant externe depuis le premier <ExtendedAttribute><Value>
-       (FieldID ignoré volontairement — il varie selon les projets MS Project) */
-    const eaEls = el.getElementsByTagNameNS(ns, 'ExtendedAttribute');
-    const eaList = eaEls.length ? Array.from(eaEls) : Array.from(el.getElementsByTagName('ExtendedAttribute'));
-    let externalTaskId = null;
-    for (const ea of eaList) {
-      const v = (ea.getElementsByTagNameNS(ns, 'Value')[0] || ea.getElementsByTagName('Value')[0])
-        ?.textContent?.trim();
-      if (v) { externalTaskId = v; break; }
-    }
-
     tasks.push({ uid, id: taskId, name, depth, isSummary, isMilestone, start, finish,
-                 charge, chargePassee, chargeRestante, assignments, externalTaskId });
+                 charge, chargePassee, chargeRestante, assignments });
   }
 
   if (!tasks.length) throw new Error('Aucune tâche trouvée dans ce fichier XML.');
@@ -236,9 +202,9 @@ function parseMSProjectXML(xmlText, projectName) {
       chargePassee:   t.chargePassee,
       chargeRestante: t.chargeRestante,
       assignments:    t.assignments,
-      xmlUid:         t.uid,          // lien fort avec MS Project Task.UID
-      xmlId:          t.id,           // ordre d'affichage MS Project
-      externalTaskId: t.externalTaskId || null, // identifiant unique côté système source
+      xmlUid:         t.uid,  // lien fort avec MS Project Task.UID
+      xmlId:          t.id,   // ordre d'affichage MS Project
+      // externalTaskId : NON posé par l'XML — provient exclusivement de l'import GHO unifié
     });
   }
 
@@ -267,10 +233,30 @@ function handleXMLImport(file) {
       }
 
       if (proj) {
+        /* Sauvegarder les externalTaskId et assignments posés par l'import GHO
+           pour les restaurer après remplacement — l'XML ne doit pas écraser ces données.
+           Clé primaire : externalTaskId ; clé de secours : tache||niveaux */
+        const savedExtIds   = {};  // key → externalTaskId
+        const savedAssigns  = {};  // key → assignments[]
+        (proj.rows || []).forEach(r => {
+          if (r._type !== 'tache') return;
+          const k = `${(r.tache || '').trim()}||${JSON.stringify(r.niveaux || [])}`;
+          if (r.externalTaskId) savedExtIds[k] = r.externalTaskId;
+          if (r.assignments && r.assignments.length) savedAssigns[k] = r.assignments;
+        });
+
         /* REPLACE all project data from the XML import */
         proj.rows   = [...parsedRows];
         proj.jalons = [...parsedJalons];
         proj.assignments = {};
+
+        /* Restaurer les externalTaskId et assignments GHO sur les nouvelles tâches XML */
+        proj.rows.forEach(r => {
+          if (r._type !== 'tache') return;
+          const k = `${(r.tache || '').trim()}||${JSON.stringify(r.niveaux || [])}`;
+          if (savedExtIds[k])  r.externalTaskId = savedExtIds[k];
+          if (savedAssigns[k]) r.assignments     = savedAssigns[k];
+        });
 
         rows = [
           ...proj.rows.map(r => ({...r})),
