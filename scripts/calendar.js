@@ -11,7 +11,7 @@
 const CAL_START_MIN         = 7  * 60;  // 07:00 — début de la grille
 const CAL_END_MIN           = 20 * 60;  // 20:00 — fin de la grille
 const CAL_DEFAULT_START_MIN = 8  * 60;  // 08:00 — position par défaut des tâches
-const CAL_DEFAULT_END_MIN   = 17 * 60;  // 17:00 — fin plage par défaut (indicatif)
+const CAL_DEFAULT_END_MIN   = 18 * 60;  // 18:00 — fin de la plage de travail journalière
 const CAL_HOURS_PER_DAY     = 8;        // 1 jour de charge = 8 h de travail
 const CAL_PX_PER_MIN        = 1.5;      // pixels par minute
 const CAL_SNAP_MIN          = 15;       // snap à 15 min
@@ -414,7 +414,8 @@ function _calGetStartMin(key, idx, events) {
     }
     if (pEnd > cursor) cursor = pEnd;
   }
-  return Math.min(cursor, CAL_END_MIN - 30);
+  /* Pas de clamping ici : le renderer wrappera les débordements en sous-colonnes */
+  return cursor;
 }
 
 /* ── Rendu de la grille ────────────────────────────────────────────────────── */
@@ -461,53 +462,47 @@ function _calRenderGrid() {
       : '';
 
     const evHTML = (() => {
-      /* ── Étape 1 : calculer startMin/endMin pour chaque événement ── */
+      /* ── Étape 1 : calculer la position naturelle de chaque événement ── */
+      const dayCapacity = CAL_DEFAULT_END_MIN - CAL_DEFAULT_START_MIN; // 600 min = 10 h
       const layouts = events.map((ev, idx) => {
         const totalDurMin = Math.round(ev.charge * CAL_HOURS_PER_DAY * 60);
-        const segs        = ev._displaySegs || (calSplits[ev.key] ? calSplits[ev.key].map((s,si)=>({...s,_si:si})) : null);
-        let startMin, endMin;
+        const segs = ev._displaySegs || (calSplits[ev.key] ? calSplits[ev.key].map((s,si)=>({...s,_si:si})) : null);
+        let naturalStart;
         if (segs && segs.length) {
-          startMin = Math.min(...segs.map(s => s.startMin));
-          endMin   = Math.max(...segs.map(s => s.startMin + s.durMin));
+          naturalStart = Math.min(...segs.map(s => s.startMin));
         } else {
-          startMin = _calGetStartMin(ev.key, idx, events);
-          endMin   = startMin + totalDurMin;
+          naturalStart = _calGetStartMin(ev.key, idx, events);
         }
-        return { ev, idx, totalDurMin, segs, startMin, endMin, subCol: 0 };
+        /* Sous-colonne : 0 si la tâche démarre avant 18h, sinon wrap par tranches de 10h */
+        const subCol = naturalStart < CAL_DEFAULT_END_MIN
+          ? 0
+          : Math.floor((naturalStart - CAL_DEFAULT_START_MIN) / dayCapacity);
+        /* Décalage à soustraire pour ramener la tâche dans la plage 8h-18h */
+        const shift = subCol * dayCapacity;
+        return { ev, idx, totalDurMin, segs, naturalStart, subCol, shift };
       });
 
-      /* ── Étape 2 : assigner des sous-colonnes si chevauchement ── */
-      const groups = [];
-      for (const lay of layouts) {
-        let placed = false;
-        for (let c = 0; c < groups.length; c++) {
-          if (!groups[c].some(l => lay.startMin < l.endMin && lay.endMin > l.startMin)) {
-            groups[c].push(lay);
-            lay.subCol = c;
-            placed = true;
-            break;
-          }
-        }
-        if (!placed) { lay.subCol = groups.length; groups.push([lay]); }
-      }
-      const N = groups.length || 1;
+      /* ── Étape 2 : nombre total de sous-colonnes ── */
+      const N = layouts.length ? Math.max(...layouts.map(l => l.subCol)) + 1 : 1;
 
       /* ── Étape 3 : générer le HTML ── */
       /* Pour N > 1 : diviser la largeur utile (après les 40px d'heures) en N parts */
       const colStyle = (c) => N === 1 ? '' :
         `left:calc(40px + ${c}*(100% - 44px)/${N});right:calc(4px + ${N-1-c}*(100% - 44px)/${N});`;
 
-      return layouts.flatMap(({ ev, idx, totalDurMin, segs, startMin, subCol }) => {
-        const ek = ev.key.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
-        const cs = colStyle(subCol);
+      return layouts.flatMap(({ ev, idx, totalDurMin, segs, naturalStart, subCol, shift }) => {
+        const ek           = ev.key.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+        const cs           = colStyle(subCol);
+        const displayStart = naturalStart - shift;  // ramène dans la plage 8h-18h
 
         /* ── Tâche découpée en segments ── */
         if (segs && segs.length) {
           const nb = calSplits[ev.key] ? calSplits[ev.key].length : segs.length;
           return segs.map(seg => {
-            const si       = seg._si !== undefined ? seg._si : segs.indexOf(seg);
-            const topPx    = (seg.startMin - CAL_START_MIN) * CAL_PX_PER_MIN;
-            const heightPx = Math.max(26, seg.durMin * CAL_PX_PER_MIN);
+            const si         = seg._si !== undefined ? seg._si : segs.indexOf(seg);
+            const segDisplay = seg.startMin - shift;
+            const topPx      = (segDisplay - CAL_START_MIN) * CAL_PX_PER_MIN;
+            const heightPx   = Math.max(26, seg.durMin * CAL_PX_PER_MIN);
             return `
               <div class="cal-event cal-event-segment"
                    style="top:${topPx}px;height:${heightPx}px;${cs}--ev-color:${ev.color};"
@@ -521,7 +516,7 @@ function _calRenderGrid() {
         }
 
         /* ── Tâche normale ── */
-        const topPx    = (startMin - CAL_START_MIN) * CAL_PX_PER_MIN;
+        const topPx    = (displayStart - CAL_START_MIN) * CAL_PX_PER_MIN;
         const heightPx = Math.max(26, totalDurMin * CAL_PX_PER_MIN);
         const isDraft  = calDraft[ev.key] !== undefined;
         return [`
@@ -529,7 +524,7 @@ function _calRenderGrid() {
                style="top:${topPx}px;height:${heightPx}px;${cs}--ev-color:${ev.color};"
                data-key="${ev.key}" data-seg="-1"
                onmousedown="_calDragStart(event,'${ek}',-1)">
-            <div class="cal-event-time">${_calFmtMin(startMin)} – ${_calFmtMin(startMin+totalDurMin)}</div>
+            <div class="cal-event-time">${_calFmtMin(naturalStart)} – ${_calFmtMin(naturalStart+totalDurMin)}</div>
             <div class="cal-event-label">${ev.label}</div>
             <span class="cal-event-charge">${_calFmtMinDur(totalDurMin)}</span>
           </div>`];
