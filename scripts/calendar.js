@@ -12,7 +12,7 @@ const CAL_START_MIN         = 7  * 60;  // 07:00 — début de la grille
 const CAL_END_MIN           = 20 * 60;  // 20:00 — fin de la grille
 const CAL_DEFAULT_START_MIN = 8  * 60;  // 08:00 — position par défaut des tâches
 const CAL_DEFAULT_END_MIN   = 17 * 60;  // 17:00 — fin plage par défaut (indicatif)
-const CAL_HOURS_PER_DAY     = 7;        // 1 jour de charge = 7 h de travail
+const CAL_HOURS_PER_DAY     = 8;        // 1 jour de charge = 8 h de travail
 const CAL_PX_PER_MIN        = 1.5;      // pixels par minute
 const CAL_SNAP_MIN          = 15;       // snap à 15 min
 
@@ -406,7 +406,7 @@ function _calRenderGrid() {
                  onmousedown="_calDragStart(event,'${ek}',${si})">
               <div class="cal-event-time">${_calFmtMin(seg.startMin)} – ${_calFmtMin(seg.startMin+seg.durMin)}</div>
               <div class="cal-event-label">${ev.label}</div>
-              <span class="cal-event-charge">${si+1}/${nb} &middot; ${_calFmt(ev.charge)}&thinsp;j</span>
+              <span class="cal-event-charge">${si+1}/${nb} &middot; ${_calFmtMinDur(seg.durMin)}</span>
                 </div>`;
         });
       }
@@ -423,7 +423,7 @@ function _calRenderGrid() {
              onmousedown="_calDragStart(event,'${ek}',-1)">
           <div class="cal-event-time">${_calFmtMin(startMin)} – ${_calFmtMin(startMin+totalDurMin)}</div>
           <div class="cal-event-label">${ev.label}</div>
-          <span class="cal-event-charge">${_calFmt(ev.charge)}&thinsp;j</span>
+          <span class="cal-event-charge">${_calFmtMinDur(totalDurMin)}</span>
         </div>`];
     }).join('');
 
@@ -432,7 +432,7 @@ function _calRenderGrid() {
         <div class="cal-day-header">
           <span class="cal-day-name">${_CAL_DAYS[i]}</span>
           <span class="cal-day-date">${dayShort}</span>
-          ${total>0?`<span class="cal-day-total">${_calFmt(total)}&thinsp;j</span>`:''}
+          ${total>0?`<span class="cal-day-total">${_calFmtMinDur(Math.round(total*CAL_HOURS_PER_DAY*60))}</span>`:''}
         </div>
         <div class="cal-day-scroll">
           <div class="cal-day-body" style="height:${totalPx}px;">
@@ -704,7 +704,7 @@ function _calBuildAndDownloadIcs(mondays) {
         const base    = `${yyyy}${mm}${dd}`;
         const uid     = `${ev.key.replace(/[^a-zA-Z0-9]/g,'x').substring(0,48)}@4cad`;
         const summary = _calIcalEsc(ev.rawLabel);
-        const desc    = _calIcalEsc(`Ressource : ${calSelectedRes}\nCharge : ${_calFmt(ev.charge)} jour(s)\nHoraire : ${_calFmtMin(startMin)} \u2013 ${_calFmtMin(endMin)}`);
+        const desc    = _calIcalEsc(`Ressource : ${calSelectedRes}\nCharge : ${_calFmtMinDur(Math.round(ev.charge*CAL_HOURS_PER_DAY*60))} (${_calFmt(ev.charge)} j)\nHoraire : ${_calFmtMin(startMin)} \u2013 ${_calFmtMin(endMin)}`);
         lines.push('BEGIN:VEVENT');
         lines.push(`UID:${uid}`);
         lines.push(`DTSTART:${base}T${_calFmtIso(startMin)}00`);
