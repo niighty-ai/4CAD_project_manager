@@ -286,6 +286,22 @@ function removeClientFromWallet(clientName, e) {
   renderAll();
 }
 
+/* ── Décharger tous les clients du portefeuille d'un coup ── */
+function clearWallet() {
+  if (!userWalletClients.size) return;
+  const n = userWalletClients.size;
+  if (!confirm(`Retirer les ${n} client${n > 1 ? 's' : ''} de votre portefeuille ?\n\nLes données restent disponibles dans la base de données.`)) return;
+  _saveBackToPortfolio();
+  selectedProjectIds.clear();
+  activeProjectId  = null;
+  multiViewMode    = false;
+  userWalletClients.clear();
+  saveUserWallet();
+  rows = []; projectColors = {}; collapsed = {};
+  renderNavList();
+  renderAll();
+}
+
 /* ── Supprimer définitivement un client et tous ses projets de la base ── */
 function deleteClientFromDB(clientName, e) {
   if (e) e.stopPropagation();
