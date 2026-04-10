@@ -22,10 +22,12 @@ let calSelectedRes = '';
 let calPositions   = {};   // { eventKey: startMinutes }  — source de vérité (Firebase + localStorage)
 let calChecksums   = {};   // { eventKey: charge }        — snapshot des charges à la dernière sauvegarde
 let calDraft       = {};   // { eventKey: startMinutes }  — modifications non encore sauvegardées
-let calSplits      = {};   // { eventKey: [{startMin, durMin}] } — segments d'une tâche découpée
+let calSplits      = {};   // { eventKey: [{startMin, durMin, dateStr?}] } — segments d'une tâche découpée
 let calHidden      = new Set(); // eventKeys retirés du calendrier (sans supprimer de la BDD)
+let calMoved       = {};   // { origKey: newDateStr } — tâches/segments déplacés sur un autre jour de la semaine
 let _calSplitsBackup  = {};
 let _calHiddenBackup  = new Set();
+let _calMovedBackup   = {};
 let calDirty       = false;
 let _calDragState  = null;
 let _calClickSetup = false;
@@ -42,7 +44,8 @@ function _calWriteLocalStorage() {
       positions: calPositions,
       checksums: calChecksums,
       splits:    calSplits,
-      hidden:    [...calHidden]
+      hidden:    [...calHidden],
+      moved:     calMoved
     }));
   } catch(e) {}
 }
@@ -56,22 +59,26 @@ function _calReadLocalStorage() {
       calChecksums = d.checksums || {};
       calSplits    = d.splits    || {};
       calHidden    = new Set(d.hidden || []);
+      calMoved     = d.moved     || {};
     } else {
       calPositions = {};
       calChecksums = {};
       calSplits    = {};
       calHidden    = new Set();
+      calMoved     = {};
     }
   } catch(e) {
     calPositions = {};
     calChecksums = {};
     calSplits    = {};
     calHidden    = new Set();
+    calMoved     = {};
   }
   calDraft          = {};
   calDirty          = false;
   _calSplitsBackup  = JSON.parse(JSON.stringify(calSplits));
   _calHiddenBackup  = new Set(calHidden);
+  _calMovedBackup   = {...calMoved};
 }
 
 /* ── Sauvegarde vers Firebase ──────────────────────────────────────────────── */
@@ -82,6 +89,7 @@ function _calSaveToFirebase() {
     checksums: calChecksums,
     splits:    calSplits,
     hidden:    [...calHidden],
+    moved:     calMoved,
     savedAt:   new Date().toISOString()
   });
 }
@@ -95,10 +103,12 @@ function _calLoadFromFirebase() {
       calChecksums      = data.checksums || {};
       calSplits         = data.splits    || {};
       calHidden         = new Set(data.hidden || []);
+      calMoved          = data.moved     || {};
       calDraft          = {};
       calDirty          = false;
       _calSplitsBackup  = JSON.parse(JSON.stringify(calSplits));
       _calHiddenBackup  = new Set(calHidden);
+      _calMovedBackup   = {...calMoved};
       /* Synchroniser localStorage avec Firebase */
       _calWriteLocalStorage();
     }
@@ -306,30 +316,83 @@ function _calEventKey(projId, rowIdx, resKey, date) {
 function _calGetEventsForDate(dateStr) {
   if (!calSelectedRes) return [];
   const events = [];
+
+  /* Helper : construit l'objet événement de base */
+  const _mkEv = (proj, row, charge, key) => {
+    const clientName  = proj.client || '';
+    const projName    = row.projet || proj.name || '';
+    const taskName    = row.tache  || '';
+    const displayName = clientName || projName;
+    return {
+      key, charge,
+      label:    `${escH(displayName)} – ${escH(taskName)}`,
+      rawLabel: `${displayName} - ${taskName}`,
+      projName, taskDebut: row.debut, taskFin: row.fin,
+      color: projectColors[projName] || projectColors[proj.name] || '#3b82f6'
+    };
+  };
+
+  /* 1. Événements avec charge sur cette date (non déplacés) */
   for (const proj of portfolio) {
-    (proj.rows||[]).forEach((row,rowIdx) => {
+    (proj.rows||[]).forEach((row, rowIdx) => {
       if (row._type !== 'tache') return;
       for (const asgn of (row.assignments||[])) {
         if (asgn.resourceNom !== calSelectedRes) continue;
         const charge = (asgn.daily||{})[dateStr];
         if (!charge) continue;
-        const resKey   = asgn.resourceId || asgn.resourceNom;
-        const key      = _calEventKey(proj.id, rowIdx, resKey, dateStr);
-        if (calHidden.has(key)) continue;  // Retirée du calendrier
-        const clientName = proj.client || '';
-        const projName   = row.projet || proj.name || '';
-        const taskName   = row.tache  || '';
-        const displayName = clientName || projName;
-        events.push({
-          key, charge,
-          label:    `${escH(displayName)} – ${escH(taskName)}`,
-          rawLabel: `${displayName} - ${taskName}`,
-          projName, taskDebut: row.debut, taskFin: row.fin,
-          color: projectColors[projName] || projectColors[proj.name] || '#3b82f6'
-        });
+        const resKey = asgn.resourceId || asgn.resourceNom;
+        const key    = _calEventKey(proj.id, rowIdx, resKey, dateStr);
+        if (calHidden.has(key)) continue;
+        if (calMoved[key] !== undefined) continue;  // Déplacé sur un autre jour
+        const ev = _mkEv(proj, row, charge, key);
+        /* Segments : ne montrer que ceux qui appartiennent à ce jour */
+        if (calSplits[key] && calSplits[key].length) {
+          const localSegs = calSplits[key]
+            .map((s, si) => ({...s, _si: si}))
+            .filter(s => !s.dateStr || s.dateStr === dateStr);
+          if (localSegs.length) ev._displaySegs = localSegs;
+          else return;  // Tous les segments ont migré vers d'autres jours
+        }
+        events.push(ev);
       }
     });
   }
+
+  /* 2. Événements entiers déplacés VERS cette date */
+  for (const [origKey, targetDate] of Object.entries(calMoved)) {
+    if (targetDate !== dateStr) continue;
+    const [projId, rowIdxStr, resKey, origDateStr] = origKey.split('|');
+    const proj = portfolio.find(p => p.id === projId);
+    if (!proj) continue;
+    const row  = (proj.rows||[])[parseInt(rowIdxStr, 10)];
+    if (!row) continue;
+    const asgn = row.assignments?.find(a => (a.resourceId||a.resourceNom) === resKey);
+    if (!asgn || asgn.resourceNom !== calSelectedRes) continue;
+    const charge = (asgn.daily||{})[origDateStr];
+    if (!charge) continue;
+    events.push(_mkEv(proj, row, charge, origKey));
+  }
+
+  /* 3. Segments isolés déplacés VERS cette date (tâche partiellement déplacée) */
+  for (const [key, segs] of Object.entries(calSplits)) {
+    if (calMoved[key] !== undefined) continue;  // Tâche entière déplacée, déjà gérée
+    const [projId, rowIdxStr, resKey, origDateStr] = key.split('|');
+    if (origDateStr === dateStr) continue;  // Segments du jour courant, déjà gérés en step 1
+    const crossSegs = segs.map((s, si) => ({...s, _si: si})).filter(s => s.dateStr === dateStr);
+    if (!crossSegs.length) continue;
+    const proj = portfolio.find(p => p.id === projId);
+    if (!proj) continue;
+    const row  = (proj.rows||[])[parseInt(rowIdxStr, 10)];
+    if (!row) continue;
+    const asgn = row.assignments?.find(a => (a.resourceId||a.resourceNom) === resKey);
+    if (!asgn || asgn.resourceNom !== calSelectedRes) continue;
+    const charge = (asgn.daily||{})[origDateStr];
+    if (!charge) continue;
+    const ev = _mkEv(proj, row, charge, key);
+    ev._displaySegs = crossSegs;
+    events.push(ev);
+  }
+
   return events;
 }
 
@@ -396,12 +459,15 @@ function _calRenderGrid() {
       const ek = ev.key.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
 
       /* ── Tâche découpée en segments ── */
-      if (calSplits[ev.key] && calSplits[ev.key].length) {
-        return calSplits[ev.key].map((seg, si) => {
+      const _displaySegs = ev._displaySegs;
+      const _allSegs     = calSplits[ev.key];
+      if (_displaySegs || (_allSegs && _allSegs.length)) {
+        const segsToShow = _displaySegs || _allSegs.map((s, si) => ({...s, _si: si}));
+        const nb         = _allSegs ? _allSegs.length : segsToShow.length;
+        return segsToShow.map(seg => {
+          const si       = seg._si !== undefined ? seg._si : segsToShow.indexOf(seg);
           const topPx    = (seg.startMin - CAL_START_MIN) * CAL_PX_PER_MIN;
           const heightPx = Math.max(26, seg.durMin * CAL_PX_PER_MIN);
-          const nb = calSplits[ev.key].length;
-          const canSplit = seg.durMin >= 30;
           return `
             <div class="cal-event cal-event-segment"
                  style="top:${topPx}px;height:${heightPx}px;--ev-color:${ev.color};"
@@ -410,7 +476,7 @@ function _calRenderGrid() {
               <div class="cal-event-time">${_calFmtMin(seg.startMin)} – ${_calFmtMin(seg.startMin+seg.durMin)}</div>
               <div class="cal-event-label">${ev.label}</div>
               <span class="cal-event-charge">${si+1}/${nb} &middot; ${_calFmtMinDur(seg.durMin)}</span>
-                </div>`;
+            </div>`;
         });
       }
 
@@ -431,7 +497,7 @@ function _calRenderGrid() {
     }).join('');
 
     return `
-      <div class="cal-day-col${isToday?' cal-today':''}">
+      <div class="cal-day-col${isToday?' cal-today':''}" data-date="${dateStr}">
         <div class="cal-day-header">
           <span class="cal-day-name">${_CAL_DAYS[i]}</span>
           <span class="cal-day-date">${dayShort}</span>
@@ -446,37 +512,81 @@ function _calRenderGrid() {
   }).join('');
 }
 
-/* ── Drag vertical ─────────────────────────────────────────────────────────── */
+/* ── Drag (vertical + changement de jour) ──────────────────────────────────── */
 function _calDragStart(e, key, segIdx = -1) {
   e.preventDefault();
   const evEl    = e.currentTarget;
-  _calDragState = { key, segIdx, evEl, startMouseY: e.clientY, startTop: parseFloat(evEl.style.top)||0, moved: false };
+  const parts   = key.split('|');
+  /* currentDateStr = jour où l'événement est actuellement affiché (peut différer si déjà déplacé) */
+  const currentDateStr = (segIdx >= 0 && calSplits[key]?.[segIdx]?.dateStr)
+    ? calSplits[key][segIdx].dateStr
+    : (calMoved[key] || parts[3] || '');
+  _calDragState = {
+    key, segIdx, evEl,
+    startMouseY: e.clientY, startMouseX: e.clientX,
+    startTop:    parseFloat(evEl.style.top) || 0,
+    origDateStr: currentDateStr,
+    crossDay:    false,
+    moved:       false
+  };
   document.addEventListener('mousemove', _calDragMove);
   document.addEventListener('mouseup',   _calDragEnd);
 }
 
 function _calDragMove(e) {
   if (!_calDragState) return;
-  const { evEl, startMouseY, startTop } = _calDragState;
-  const delta = e.clientY - startMouseY;
-  if (!_calDragState.moved && Math.abs(delta) > 5) {
+  const { evEl, startMouseY, startMouseX, startTop } = _calDragState;
+  const deltaY = e.clientY - startMouseY;
+  const deltaX = e.clientX - startMouseX;
+
+  if (!_calDragState.moved && (Math.abs(deltaY) > 5 || Math.abs(deltaX) > 5)) {
     _calDragState.moved = true;
     evEl.classList.add('cal-dragging');
     _calDismissActions();
   }
-  if (_calDragState.moved) {
+  if (!_calDragState.moved) return;
+
+  if (!_calDragState.crossDay && Math.abs(deltaX) > 24) {
+    /* Passage en mode cross-day : ancrer l'élément en position fixe */
+    _calDragState.crossDay = true;
+    const rect = evEl.getBoundingClientRect();
+    _calDragState._fixedTop  = rect.top;
+    _calDragState._fixedLeft = rect.left;
+    Object.assign(evEl.style, {
+      position:      'fixed',
+      width:         rect.width  + 'px',
+      height:        rect.height + 'px',
+      zIndex:        '9998',
+      pointerEvents: 'none',
+      margin:        '0'
+    });
+    document.body.appendChild(evEl);
+  }
+
+  if (_calDragState.crossDay) {
+    evEl.style.top  = (_calDragState._fixedTop  + deltaY) + 'px';
+    evEl.style.left = (_calDragState._fixedLeft + deltaX) + 'px';
+    _calHighlightDropTarget(_calFindColumnAtX(e.clientX));
+  } else {
     const maxTop = (CAL_END_MIN - CAL_START_MIN) * CAL_PX_PER_MIN - 26;
-    evEl.style.top = `${Math.max(0, Math.min(maxTop, startTop + delta))}px`;
+    evEl.style.top = `${Math.max(0, Math.min(maxTop, startTop + deltaY))}px`;
   }
 }
 
 function _calDragEnd(e) {
   if (!_calDragState) return;
-  const { key, segIdx, evEl, moved } = _calDragState;
+  const { key, segIdx, evEl, moved, crossDay, origDateStr } = _calDragState;
   _calDragState = null;
   document.removeEventListener('mousemove', _calDragMove);
   document.removeEventListener('mouseup',   _calDragEnd);
-  evEl.classList.remove('cal-dragging');
+
+  /* Nettoyer l'élément flottant cross-day */
+  if (crossDay) {
+    _calHighlightDropTarget(null);
+    if (evEl.parentNode === document.body) document.body.removeChild(evEl);
+  } else {
+    evEl.classList.remove('cal-dragging');
+  }
 
   if (!moved) {
     /* Clic simple → afficher/masquer les boutons d'action */
@@ -484,22 +594,81 @@ function _calDragEnd(e) {
     return;
   }
 
-  const topPx   = parseFloat(evEl.style.top) || 0;
-  const rawMin  = CAL_START_MIN + topPx / CAL_PX_PER_MIN;
-  const snapped = Math.round(rawMin / CAL_SNAP_MIN) * CAL_SNAP_MIN;
-  const clamped = Math.max(CAL_START_MIN, Math.min(CAL_END_MIN - CAL_SNAP_MIN, snapped));
+  if (crossDay) {
+    /* ── Déplacement inter-colonne ── */
+    const targetCol = _calFindColumnAtX(e.clientX);
+    if (!targetCol) { _calRender(); return; }
 
-  if (segIdx >= 0 && calSplits[key] && calSplits[key][segIdx]) {
-    /* Segment déplacé */
-    calSplits[key][segIdx].startMin = clamped;
+    const newDateStr = targetCol.dataset.date;
+    if (!newDateStr) { _calRender(); return; }
+
+    /* Vérifier que c'est la même semaine */
+    const [od, om, oy] = origDateStr.split('/');
+    const [nd, nm, ny] = newDateStr.split('/');
+    const origMonday = _calMonday(new Date(+oy, +om-1, +od)).getTime();
+    const newMonday  = _calMonday(new Date(+ny, +nm-1, +nd)).getTime();
+    if (origMonday !== newMonday) { _calRender(); return; }
+
+    /* Calculer startMin dans la colonne cible via position Y du drop */
+    const bodyEl    = targetCol.querySelector('.cal-day-body');
+    const scrollEl  = targetCol.querySelector('.cal-day-scroll');
+    const bodyRect  = bodyEl ? bodyEl.getBoundingClientRect() : { top: 0 };
+    const scrollTop = scrollEl ? scrollEl.scrollTop : 0;
+    const relY      = e.clientY - bodyRect.top + scrollTop;
+    const rawMin    = CAL_START_MIN + relY / CAL_PX_PER_MIN;
+    const snapped   = Math.round(rawMin / CAL_SNAP_MIN) * CAL_SNAP_MIN;
+    const clamped   = Math.max(CAL_START_MIN, Math.min(CAL_END_MIN - CAL_SNAP_MIN, snapped));
+
+    if (segIdx >= 0 && calSplits[key] && calSplits[key][segIdx]) {
+      /* Segment individuel cross-day */
+      if (newDateStr === origDateStr) {
+        delete calSplits[key][segIdx].dateStr;
+      } else {
+        calSplits[key][segIdx].dateStr = newDateStr;
+      }
+      calSplits[key][segIdx].startMin = clamped;
+    } else {
+      /* Événement entier cross-day */
+      if (newDateStr === origDateStr) {
+        delete calMoved[key];
+      } else {
+        calMoved[key] = newDateStr;
+      }
+      calDraft[key] = clamped;
+    }
   } else {
-    /* Événement normal déplacé */
-    calDraft[key] = clamped;
+    /* ── Déplacement vertical dans le même jour ── */
+    const topPx   = parseFloat(evEl.style.top) || 0;
+    const rawMin  = CAL_START_MIN + topPx / CAL_PX_PER_MIN;
+    const snapped = Math.round(rawMin / CAL_SNAP_MIN) * CAL_SNAP_MIN;
+    const clamped = Math.max(CAL_START_MIN, Math.min(CAL_END_MIN - CAL_SNAP_MIN, snapped));
+
+    if (segIdx >= 0 && calSplits[key] && calSplits[key][segIdx]) {
+      calSplits[key][segIdx].startMin = clamped;
+    } else {
+      calDraft[key] = clamped;
+    }
   }
+
   calDirty = true;
   const actions = document.getElementById('calDirtyActions');
   if (actions) actions.style.display = '';
   _calRender();
+}
+
+/* ── Helpers cross-day drag ───────────────────────────────────────────────── */
+function _calFindColumnAtX(x) {
+  for (const col of document.querySelectorAll('.cal-day-col[data-date]')) {
+    const r = col.getBoundingClientRect();
+    if (x >= r.left && x <= r.right) return col;
+  }
+  return null;
+}
+
+function _calHighlightDropTarget(col) {
+  document.querySelectorAll('.cal-day-col--drop-target')
+    .forEach(el => el.classList.remove('cal-day-col--drop-target'));
+  if (col) col.classList.add('cal-day-col--drop-target');
 }
 
 /* ── Checksums : snapshot des charges actuelles pour tous les événements positionnés */
@@ -583,6 +752,7 @@ function saveCalendar() {
   calChecksums      = _calComputeChecksums();
   _calSplitsBackup  = JSON.parse(JSON.stringify(calSplits));
   _calHiddenBackup  = new Set(calHidden);
+  _calMovedBackup   = {...calMoved};
   const actions     = document.getElementById('calDirtyActions');
   if (actions) actions.style.display = 'none';
   _calWriteLocalStorage();
@@ -597,6 +767,7 @@ function cancelCalendar() {
   calDirty    = false;
   calSplits   = JSON.parse(JSON.stringify(_calSplitsBackup));
   calHidden   = new Set(_calHiddenBackup);
+  calMoved    = {..._calMovedBackup};
   const actions = document.getElementById('calDirtyActions');
   if (actions) actions.style.display = 'none';
   _calRender();
@@ -622,6 +793,7 @@ function _calGetWorkedWeekMondays() {
   for (const k of Object.keys(calDraft))     _addKey(k);
   for (const k of Object.keys(calSplits))    _addKey(k);
   for (const k of calHidden)                 _addKey(k);
+  for (const k of Object.keys(calMoved))     _addKey(k);
   return [...mondayTimes].sort().map(t => new Date(t));
 }
 
@@ -801,18 +973,25 @@ function calReload() {
     }
   });
 
-  /* Supprimer toutes les personnalisations (positions, splits, masquage) */
+  /* Supprimer toutes les personnalisations (positions, splits, masquage, déplacement) */
   keysToReset.forEach(k => {
     delete calPositions[k];
     delete calChecksums[k];
     delete calSplits[k];
     delete calDraft[k];
     calHidden.delete(k);
+    delete calMoved[k];
   });
+  /* Supprimer aussi les déplacements dont la cible est dans la semaine courante */
+  const weekDateStrs = new Set(_calWeekDays().map(_calDateStr));
+  for (const [origKey, targetDate] of Object.entries(calMoved)) {
+    if (weekDateStrs.has(targetDate)) delete calMoved[origKey];
+  }
 
   /* Mettre à jour les backups et sauvegarder immédiatement */
   _calSplitsBackup = JSON.parse(JSON.stringify(calSplits));
   _calHiddenBackup = new Set(calHidden);
+  _calMovedBackup  = {...calMoved};
   calDirty = false;
   const dirtyEl = document.getElementById('calDirtyActions');
   if (dirtyEl) dirtyEl.style.display = 'none';

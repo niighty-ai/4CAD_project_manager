@@ -249,6 +249,15 @@
 
 .cal-day-col.cal-today .cal-day-name { font-weight: 800; }
 
+/* Colonne cible pendant un drag inter-jour */
+.cal-day-col--drop-target {
+  background: color-mix(in srgb, var(--accent) 8%, var(--surface));
+}
+.cal-day-col--drop-target > .cal-day-header {
+  background: color-mix(in srgb, var(--accent) 15%, var(--surface));
+  border-bottom-color: var(--accent);
+}
+
 /* ── En-tête de colonne ──────────────────────────────────────────────────── */
 .cal-day-header {
   display: flex;
