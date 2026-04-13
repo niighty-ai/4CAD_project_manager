@@ -1343,6 +1343,8 @@ function affectChangeCharge(idx, field, val) {
     ? Math.round((r.charge - r.chargePassee) * 10000) / 10000
     : r.charge;
   saveAndRefreshAffect(r);
+  /* Lissage automatique sur modification de la charge prévue */
+  if (field === 'charge') _proposeLissageForAssignment(idx);
 }
 
 function affectChangeDate(idx, field, val) {
@@ -1370,8 +1372,34 @@ function _recalcTaskDates(r) {
 function affectDelRow(idx) {
   const r = rows[affectRowIdx];
   if (!r || !r.assignments) return;
+  const asgn = r.assignments[idx];
+
+  /* ── Supprimer les entrées GHO pour cette ressource+tâche ── */
+  if (asgn && asgn.resourceId && typeof resources !== 'undefined') {
+    const res = resources.find(x => x.id === asgn.resourceId);
+    if (res && res.ghoData && res.ghoData.projects) {
+      res.ghoData.projects.forEach(p => {
+        if (!p.tasks) return;
+        const tIdx = p.tasks.findIndex(t =>
+          (r.externalTaskId && typeof _matchTaskId === 'function' && _matchTaskId(r.externalTaskId, t.taskId)) ||
+          (t.taskName || '') === (r.tache || '')
+        );
+        if (tIdx !== -1) p.tasks.splice(tIdx, 1);
+      });
+      /* Nettoyer les projets devenus vides */
+      res.ghoData.projects = res.ghoData.projects.filter(p => (p.tasks || []).length > 0);
+    }
+  }
+
+  /* ── Effacer les _ganttEdits en attente pour cet assignment ── */
+  if (asgn && asgn.resourceId && typeof _ganttEdits !== 'undefined') {
+    const prefix = `${affectRowIdx}::${asgn.resourceId}::`;
+    Object.keys(_ganttEdits).forEach(k => { if (k.startsWith(prefix)) delete _ganttEdits[k]; });
+    if (typeof _updateSaveBtn === 'function') _updateSaveBtn();
+  }
+
   r.assignments.splice(idx, 1);
-  // Recalcule charge totale = cumul des ressources
+  /* Recalcule charge totale = cumul des ressources */
   if (r.assignments.length > 0) {
     const totalCharge = r.assignments.reduce((s, a) => s + (a.charge || 0), 0);
     const totalPassee = r.assignments.reduce((s, a) => s + (a.chargePassee || 0), 0);
@@ -1381,6 +1409,7 @@ function affectDelRow(idx) {
       ? Math.round((r.charge - r.chargePassee) * 10000) / 10000
       : r.charge;
   }
+  if (typeof saveGhoData === 'function') saveGhoData();
   saveAndRefreshAffect(r);
 }
 
@@ -1415,4 +1444,237 @@ function updateAffectTotals(r) {
     <span class="affect-total-item ch-pass">Pass : <b>${totalPass ? (Math.round(totalPass*100)/100)+'j' : '—'}</b></span>
     <span class="affect-total-item ch-rest">Rest : <b>${totalRest ? (Math.round(totalRest*100)/100)+'j' : '—'}</b></span>
   `;
+}
+
+/* ══════════════════════════════════════════════════════════
+   LISSAGE DE CHARGE — Répartition automatique
+   ══════════════════════════════════════════════════════════ */
+
+function _getLissageConfig() {
+  const proj = (typeof portfolio !== 'undefined' && typeof activeProjectId !== 'undefined')
+    ? portfolio.find(p => p.id === activeProjectId) : null;
+  const cfg = proj?.lissageConfig || {};
+  return {
+    minCharge:     cfg.minCharge     !== undefined ? cfg.minCharge     : 0.125,
+    preferHalfDay: cfg.preferHalfDay !== undefined ? cfg.preferHalfDay : true,
+    avoidDays:     cfg.avoidDays     !== undefined ? cfg.avoidDays     : [5]
+  };
+}
+
+function _dayKeyLocal(d) {
+  return typeof _dayKey === 'function' ? _dayKey(d)
+    : `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`;
+}
+
+function _getWorkDaysRange(debut, fin) {
+  const days = [];
+  const d = new Date(debut); d.setHours(0,0,0,0);
+  const e = new Date(fin);   e.setHours(0,0,0,0);
+  while (d <= e) {
+    const dw = d.getDay();
+    const notWE = dw !== 0 && dw !== 6;
+    const notFerie = !(typeof _isFerie === 'function' && _isFerie(d));
+    if (notWE && notFerie) days.push(new Date(d));
+    d.setDate(d.getDate() + 1);
+  }
+  return days;
+}
+
+/* Capacité disponible d'une ressource pour un jour, en excluant la tâche courante */
+function _availCapForDay(resourceId, d, excludeTaskName, excludeExtId) {
+  if (typeof resources === 'undefined') return 1;
+  const res = resources.find(x => x.id === resourceId);
+  if (!res || !res.ghoData) return 1;
+  const dk = _dayKeyLocal(d);
+  let used = 0;
+  if (res.ghoData.projects) {
+    res.ghoData.projects.forEach(p => {
+      (p.tasks || []).forEach(t => {
+        const isCur =
+          (excludeExtId && typeof _matchTaskId === 'function' && _matchTaskId(excludeExtId, t.taskId)) ||
+          (t.taskName || '') === excludeTaskName;
+        if (!isCur) used += (t.daily[dk] || 0);
+      });
+    });
+  } else {
+    (res.ghoData.activities || []).forEach(a => {
+      if ((a.name || '') !== excludeTaskName) used += (a.daily[dk] || 0);
+    });
+  }
+  return Math.max(0, Math.round((1 - used) * 10000) / 10000);
+}
+
+/* Algorithme de lissage : retourne { daily, remaining } */
+function _computeLissage(charge, debut, fin, resourceId, taskName, extId) {
+  const cfg = _getLissageConfig();
+  const slots = _getWorkDaysRange(debut, fin).map(d => ({
+    d, dk: _dayKeyLocal(d),
+    avail: _availCapForDay(resourceId, d, taskName, extId),
+    avoid: cfg.avoidDays.includes(d.getDay())
+  })).filter(s => s.avail >= cfg.minCharge);
+
+  const preferred = slots.filter(s => !s.avoid);
+  const avoided   = slots.filter(s => s.avoid);
+
+  /* Vérifier si preferHalfDay est faisable avec les slots disponibles */
+  const halfCap = slots.filter(s => s.avail >= 0.5).length * 0.5;
+  const useHalf = cfg.preferHalfDay && halfCap >= charge;
+
+  const result = {};
+  let rem = charge;
+
+  for (const list of [preferred, avoided]) {
+    for (const s of list) {
+      if (rem <= 1e-9) break;
+      const maxSlot = Math.min(s.avail, rem);
+      let assign;
+      if (useHalf && s.avail >= 0.5) {
+        assign = rem >= 0.5 ? 0.5 : Math.floor(rem / cfg.minCharge) * cfg.minCharge;
+      } else {
+        assign = Math.floor(maxSlot / cfg.minCharge) * cfg.minCharge;
+      }
+      assign = Math.round(assign * 10000) / 10000;
+      if (assign >= cfg.minCharge) {
+        result[s.dk] = (result[s.dk] || 0) + assign;
+        rem = Math.round((rem - assign) * 10000) / 10000;
+      }
+    }
+    if (rem <= 1e-9) break;
+  }
+
+  return { daily: result, remaining: Math.max(0, rem) };
+}
+
+/* Propose le lissage via _ganttEdits (cellules bleues) */
+function _proposeLissageForAssignment(idx) {
+  const r = rows[affectRowIdx];
+  if (!r || !r.assignments || !r.assignments[idx]) return;
+  const a = r.assignments[idx];
+  if (!a.resourceId || !a.charge || a.charge <= 0) return;
+
+  const debut = a.debut || r.debut;
+  const fin   = a.fin   || r.fin;
+  if (!debut || !fin) return;
+
+  const { daily, remaining } = _computeLissage(
+    a.charge, debut, fin, a.resourceId, r.tache || '', r.externalTaskId || ''
+  );
+
+  const applyEdits = (finalDaily, newFin) => {
+    const prefix = `${affectRowIdx}::${a.resourceId}::`;
+    /* Effacer les anciens _ganttEdits pour cet assignment */
+    Object.keys(_ganttEdits).forEach(k => { if (k.startsWith(prefix)) delete _ganttEdits[k]; });
+    /* Mettre à 0 les anciennes charges sauvegardées absentes du nouveau lissage */
+    if (a.daily) {
+      Object.keys(a.daily).forEach(dk => {
+        if (!finalDaily[dk]) _ganttEdits[`${prefix}${dk}`] = 0;
+      });
+    }
+    /* Appliquer les nouvelles charges */
+    Object.entries(finalDaily).forEach(([dk, ch]) => {
+      _ganttEdits[`${prefix}${dk}`] = ch;
+    });
+    /* Mettre à jour la date de fin si étendue */
+    if (newFin) {
+      a.fin = new Date(newFin);
+      _recalcTaskDates(r);
+      renderAffectList(r);
+    }
+    if (typeof _updateSaveBtn === 'function') _updateSaveBtn();
+    if (typeof setView === 'function' && typeof view !== 'undefined' && view !== 'jour') setView('jour');
+    if (typeof _renderGanttKeepScroll === 'function') _renderGanttKeepScroll();
+    else if (typeof renderGantt === 'function') renderGantt();
+    /* Message de confirmation dans le panneau */
+    const msg = document.getElementById('affectLissageMsg');
+    if (msg) {
+      if (newFin) {
+        msg.textContent = `Lissage appliqué jusqu'au ${new Date(newFin).toLocaleDateString('fr-FR')} — vérifiez le Gantt et sauvegardez.`;
+        msg.className = 'affect-lissage-msg warn';
+      } else {
+        msg.textContent = 'Lissage proposé en bleu dans le Gantt. Sauvegardez pour valider.';
+        msg.className = 'affect-lissage-msg ok';
+      }
+      msg.style.display = 'block';
+    }
+  };
+
+  if (remaining > 1e-9) {
+    /* Étendre la période pour trouver la nouvelle date de fin */
+    const cfg = _getLissageConfig();
+    let extD = new Date(fin); extD.setHours(0,0,0,0);
+    let extRem = remaining;
+    const extDaily = { ...daily };
+    let iters = 0;
+    while (extRem > 1e-9 && iters++ < 730) {
+      extD.setDate(extD.getDate() + 1);
+      const dw = extD.getDay();
+      if (dw === 0 || dw === 6) continue;
+      if (typeof _isFerie === 'function' && _isFerie(extD)) continue;
+      const avail = _availCapForDay(a.resourceId, extD, r.tache || '', r.externalTaskId || '');
+      if (avail < cfg.minCharge) continue;
+      const dk = _dayKeyLocal(extD);
+      const maxSlot = Math.min(avail, extRem);
+      const assign = (cfg.preferHalfDay && maxSlot >= 0.5)
+        ? (extRem >= 0.5 ? 0.5 : Math.floor(extRem / cfg.minCharge) * cfg.minCharge)
+        : Math.floor(maxSlot / cfg.minCharge) * cfg.minCharge;
+      const a2 = Math.round(assign * 10000) / 10000;
+      if (a2 >= cfg.minCharge) {
+        extDaily[dk] = (extDaily[dk] || 0) + a2;
+        extRem = Math.round((extRem - a2) * 10000) / 10000;
+      }
+    }
+
+    const finFmt = new Date(fin).toLocaleDateString('fr-FR');
+    const extFmt = extD.toLocaleDateString('fr-FR');
+    const accept = confirm(
+      `La charge (${a.charge}j) ne peut pas être entièrement répartie avant le ${finFmt}.\n` +
+      `Reste à placer : ${Math.round(remaining * 1000) / 1000}j\n\n` +
+      `OK → Étendre la date de fin au ${extFmt}\n` +
+      `Annuler → Appliquer la répartition partielle (${Math.round((a.charge - remaining) * 1000) / 1000}j)`
+    );
+    applyEdits(
+      accept && extRem < 1e-9 ? extDaily : daily,
+      accept && extRem < 1e-9 ? extD : null
+    );
+  } else {
+    applyEdits(daily, null);
+  }
+}
+
+/* ══════════════════════════════════════════════════════════
+   CONFIG LISSAGE — Panneau de configuration par projet
+   ══════════════════════════════════════════════════════════ */
+
+function openLissageConfig() {
+  const cfg = _getLissageConfig();
+  const el = document.getElementById('lcfgMinCharge');
+  if (el) el.value = cfg.minCharge;
+  const ph = document.getElementById('lcfgPreferHalf');
+  if (ph) ph.checked = cfg.preferHalfDay;
+  document.querySelectorAll('.lcfg-day').forEach(cb => {
+    cb.checked = cfg.avoidDays.includes(parseInt(cb.dataset.day));
+  });
+  const bd = document.getElementById('lissageCfgBackdrop');
+  if (bd) bd.style.display = 'flex';
+}
+
+function closeLissageConfig() {
+  const bd = document.getElementById('lissageCfgBackdrop');
+  if (bd) bd.style.display = 'none';
+}
+
+function saveLissageConfig() {
+  const minRaw  = parseFloat(document.getElementById('lcfgMinCharge')?.value);
+  const minCharge  = isNaN(minRaw) ? 0.125 : Math.max(0.0625, Math.min(1, minRaw));
+  const preferHalfDay = document.getElementById('lcfgPreferHalf')?.checked ?? true;
+  const avoidDays = [];
+  document.querySelectorAll('.lcfg-day').forEach(cb => {
+    if (cb.checked) avoidDays.push(parseInt(cb.dataset.day));
+  });
+  if (typeof portfolio === 'undefined' || typeof activeProjectId === 'undefined') return;
+  const proj = portfolio.find(p => p.id === activeProjectId);
+  if (!proj) return;
+  proj.lissageConfig = { minCharge, preferHalfDay, avoidDays };
+  if (typeof savePortfolio === 'function') savePortfolio();
+  closeLissageConfig();
 }

@@ -148,7 +148,8 @@ function _serializePortfolio(data){
       date:j.date?j.date.toISOString():null
     };}),
     projectColors: p.projectColors||{},
-    collapsed: p.collapsed||{}
+    collapsed: p.collapsed||{},
+    lissageConfig: p.lissageConfig||null
   }));
 }
 
