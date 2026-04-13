@@ -654,7 +654,11 @@ select.ep-input {
   font-weight:700;
   cursor:pointer;
   font-family:Arial,sans-serif;
-  transition:background .14s
+  transition:background .14s;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  gap:5px
 }
 
 .ep-btn-save:hover {
@@ -671,7 +675,10 @@ select.ep-input {
   font-weight:700;
   cursor:pointer;
   font-family:Arial,sans-serif;
-  transition:all .14s
+  transition:all .14s;
+  display:inline-flex;
+  align-items:center;
+  gap:5px
 }
 
 .ep-btn-delete:hover {
@@ -771,6 +778,9 @@ select.ep-input {
   font-size: 14px;
   padding: 2px 6px;
   border-radius: 3px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 .lissage-cfg-close:hover { color: var(--text); }
 .lissage-cfg-body {

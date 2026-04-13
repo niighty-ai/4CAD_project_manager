@@ -457,7 +457,7 @@ function toggleNav(){
   const sidebar = document.getElementById('navSidebar');
   const toggle = document.getElementById('navToggle');
   sidebar.classList.toggle('collapsed', !navOpen);
-  toggle.innerHTML = navOpen ? '&#8249;' : '&#8250;';
+  /* La rotation de l'icône est gérée par CSS via .nav-sidebar.collapsed .nav-toggle svg */
   toggle.title = navOpen ? 'Réduire' : 'Développer';
 }
 function _buildNiveauOptions(i, currentVal){
