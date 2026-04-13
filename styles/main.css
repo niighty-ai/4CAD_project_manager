@@ -343,3 +343,187 @@ tr.editing-row td {
   background:none
 }
 
+/* ══════════════════════════════════════════════
+   ICÔNES SVG — Tailles et alignement
+   ══════════════════════════════════════════════ */
+
+/* Désactive les événements pointer sur les SVG inline (évite les conflits de clic) */
+svg { pointer-events: none; }
+
+/* Onglets de navigation */
+.nav-tab-icon svg {
+  width: 15px;
+  height: 15px;
+  vertical-align: middle;
+  flex-shrink: 0;
+}
+
+/* Boutons thème et déconnexion */
+.btn-theme {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.btn-theme svg {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+}
+
+/* Boutons de la toolbar Gantt et calendrier */
+.btn-ghost svg,
+.cal-save-btn svg,
+.cal-cancel-btn svg,
+.cal-reload-btn svg,
+.cal-ical-btn svg,
+.cal-sync-resync svg {
+  width: 14px;
+  height: 14px;
+  vertical-align: middle;
+  flex-shrink: 0;
+}
+
+/* Bouton info (help-circle) */
+.cal-ical-info-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.cal-ical-info-btn svg {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+}
+
+/* Icône d'avertissement sync */
+.cal-sync-icon svg {
+  width: 16px;
+  height: 16px;
+  vertical-align: middle;
+}
+
+/* Boutons fermeture des panneaux */
+.edit-panel-close svg,
+.lissage-cfg-close svg,
+.cal-export-modal-close svg,
+.cal-split-close svg,
+.cal-ical-modal-close svg,
+.cb-close svg {
+  width: 16px;
+  height: 16px;
+  vertical-align: middle;
+}
+
+/* Boutons footer des panneaux (save / delete) */
+.ep-btn-save svg,
+.ep-btn-delete svg {
+  width: 14px;
+  height: 14px;
+  vertical-align: middle;
+  flex-shrink: 0;
+}
+
+/* Boutons nav sidebar (user-plus / upload) */
+.nav-icon-btn svg {
+  width: 15px;
+  height: 15px;
+  flex-shrink: 0;
+}
+
+/* Bouton de recherche dans la sidebar */
+.nav-search-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.nav-search-icon-btn svg {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+}
+
+/* Titre de la sidebar (dossier + texte) */
+.nav-header-title {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.nav-header-title svg {
+  width: 13px;
+  height: 13px;
+  flex-shrink: 0;
+}
+
+/* Bouton toggle de la sidebar (chevron rotatif) */
+.nav-toggle svg {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  transition: transform 0.2s ease;
+}
+/* Rotation 180° quand la sidebar est repliée */
+.nav-sidebar.collapsed .nav-toggle svg {
+  transform: rotate(180deg);
+}
+
+/* Titres des modals et panneaux avec icône */
+.cal-export-modal-title svg,
+.cal-ical-modal-title svg,
+.cal-split-title svg,
+.lissage-cfg-header svg,
+.edit-panel-title svg,
+.cb-title svg {
+  width: 15px;
+  height: 15px;
+  vertical-align: middle;
+  flex-shrink: 0;
+}
+
+/* Titres inline flex */
+.cal-export-modal-title,
+.cal-ical-modal-title,
+.cal-split-title,
+.cb-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Boutons split et export modal */
+.cal-split-btn svg,
+.cal-export-toggle-all svg {
+  width: 14px;
+  height: 14px;
+  vertical-align: middle;
+}
+
+/* Navigation calendrier */
+.cal-nav-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.cal-nav-btn svg {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+}
+
+/* Lissage config header */
+.lissage-cfg-header {
+  display: flex;
+  align-items: center;
+}
+.lissage-cfg-header > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Boutons d'action sur événements calendrier (couper / supprimer) */
+.cal-event-action-btn svg {
+  width: 13px;
+  height: 13px;
+  flex-shrink: 0;
+}
+

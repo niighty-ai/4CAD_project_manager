@@ -1379,14 +1379,14 @@ function _calToggleActive(evEl) {
   if (canSplit) {
     const btnSplit = document.createElement('button');
     btnSplit.className = 'cal-event-action-btn cal-action-split';
-    btnSplit.textContent = '✂ Couper en deux';
+    btnSplit.innerHTML = (typeof ICONS!=='undefined' ? ICONS.scissors : '') + ' Couper en deux';
     btnSplit.addEventListener('click', () => { _calDismissActions(); calSplitEvent(key, seg); });
     panel.appendChild(btnSplit);
   }
 
   const btnDel = document.createElement('button');
   btnDel.className = 'cal-event-action-btn cal-action-delete';
-  btnDel.textContent = '✕ Retirer';
+  btnDel.innerHTML = (typeof ICONS!=='undefined' ? ICONS.x : '') + ' Retirer';
   btnDel.addEventListener('click', () => { _calDismissActions(); calDeleteEvent(key); });
   panel.appendChild(btnDel);
 
