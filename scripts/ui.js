@@ -1178,20 +1178,24 @@ function renderAffectList(r) {
   const container = document.getElementById('affectList');
 
   const rows_html = asgns.map((a, i) => {
-    const resOpts = (typeof resources !== 'undefined' ? resources : []).map(res => {
-      const name = res.fullName || [res.prenom, res.nom].filter(Boolean).join(' ') || '?';
-      const sel  = a.resourceId === res.id ? 'selected' : '';
-      return `<option value="${escH(res.id)}" ${sel}>${escH(name)}</option>`;
-    }).join('');
+    const allRes = typeof resources !== 'undefined' ? resources : [];
+    const curRes = allRes.find(r => r.id === a.resourceId);
+    const curName = curRes ? (curRes.fullName || [curRes.prenom, curRes.nom].filter(Boolean).join(' ') || '?') : '';
 
     const aDebut = a.debut instanceof Date ? toInput(a.debut) : (a.debut ? String(a.debut).slice(0,10) : '');
     const aFin   = a.fin   instanceof Date ? toInput(a.fin)   : (a.fin   ? String(a.fin).slice(0,10)   : '');
     return `<div class="affect-row" data-asgn="${i}">
       <div class="affect-row-main">
-        <select class="affect-select" onchange="affectChangeRes(${i},this.value)">
-          <option value="">— Choisir une ressource —</option>
-          ${resOpts}
-        </select>
+        <div class="affect-search-wrap">
+          <input type="text" class="affect-search-input" id="affectSearch_${i}"
+                 placeholder="Rechercher une ressource…"
+                 value="${escH(curName)}"
+                 autocomplete="off"
+                 oninput="_affectSearchInput(${i},this.value)"
+                 onfocus="_affectSearchFocus(${i})"
+                 onblur="_affectSearchBlur(${i})">
+          <div class="affect-search-drop" id="affectDrop_${i}"></div>
+        </div>
         <button class="affect-del-btn" onclick="affectDelRow(${i})" title="Supprimer">✕</button>
       </div>
       <div class="affect-row-dates">
@@ -1236,6 +1240,47 @@ function renderAffectList(r) {
     '<div class="affect-empty">Aucune ressource affectée</div>';
 
   updateAffectTotals(r);
+}
+
+/* ── Recherche de ressource (combobox) ──────────────────────────────────────── */
+function _affectGetResList() {
+  return typeof resources !== 'undefined' ? resources : [];
+}
+function _affectResName(res) {
+  return res.fullName || [res.prenom, res.nom].filter(Boolean).join(' ') || '?';
+}
+function _affectShowDrop(idx, filter) {
+  const drop = document.getElementById('affectDrop_' + idx);
+  if (!drop) return;
+  const q = (filter || '').toLowerCase().trim();
+  const matches = _affectGetResList().filter(r =>
+    !q || _affectResName(r).toLowerCase().includes(q)
+  );
+  if (!matches.length) { drop.innerHTML = '<div class="affect-search-empty">Aucun résultat</div>'; }
+  else {
+    drop.innerHTML = matches.map(r =>
+      `<div class="affect-search-opt" onmousedown="_affectPick(${idx},'${escH(r.id)}')">${escH(_affectResName(r))}</div>`
+    ).join('');
+  }
+  drop.classList.add('open');
+}
+function _affectSearchInput(idx, val) { _affectShowDrop(idx, val); }
+function _affectSearchFocus(idx) {
+  const inp = document.getElementById('affectSearch_' + idx);
+  _affectShowDrop(idx, inp ? inp.value : '');
+}
+function _affectSearchBlur(idx) {
+  /* Délai pour laisser onmousedown se déclencher avant la fermeture */
+  setTimeout(() => {
+    const drop = document.getElementById('affectDrop_' + idx);
+    if (drop) drop.classList.remove('open');
+  }, 180);
+}
+function _affectPick(asgnIdx, resId) {
+  const inp = document.getElementById('affectSearch_' + asgnIdx);
+  const res = _affectGetResList().find(r => r.id === resId);
+  if (inp && res) inp.value = _affectResName(res);
+  affectChangeRes(asgnIdx, resId);
 }
 
 function affectChangeRes(idx, resId) {

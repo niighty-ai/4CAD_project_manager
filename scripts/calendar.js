@@ -418,7 +418,67 @@ function _calGetStartMin(key, idx, events) {
   return cursor;
 }
 
-/* ── Rendu de la grille ────────────────────────────────────────────────────── */
+/* ── Mise en page des événements d'une journée (colonnes Outlook) ──────────── */
+/* Règles :
+ *  1. Tâche sans position → empilement auto 8h-18h, débord → colonne suivante depuis 8h
+ *  2. Tâche positionnée manuellement ou découpée → détection de chevauchement,
+ *     placement dans la première colonne disponible (max 3)
+ *  3. Retourne { ev, idx, durMin, segs, subCol, displayStart } pour chaque événement
+ */
+const _CAL_MAX_SUBCOLS = 3;
+
+function _calComputeDayLayout(events) {
+  // Curseur de fin auto par colonne (pour l'empilement séquentiel)
+  const colCursors = new Array(_CAL_MAX_SUBCOLS).fill(CAL_DEFAULT_START_MIN);
+  // Créneaux occupés par colonne (pour la détection de chevauchement)
+  const colSlots   = Array.from({ length: _CAL_MAX_SUBCOLS }, () => []);
+
+  const _fits = (c, s, e) => !colSlots[c].some(sl => s < sl.e && e > sl.s);
+  const _book = (c, s, e) => { colSlots[c].push({ s, e }); };
+
+  return events.map((ev, idx) => {
+    const durMin = Math.round(ev.charge * CAL_HOURS_PER_DAY * 60);
+    const segs   = ev._displaySegs
+      || (calSplits[ev.key] ? calSplits[ev.key].map((s, si) => ({ ...s, _si: si })) : null);
+
+    /* ── Segments découpés : positions fixes, overlap detection ── */
+    if (segs && segs.length) {
+      const s0 = Math.min(...segs.map(s => s.startMin));
+      const e0 = Math.max(...segs.map(s => s.startMin + s.durMin));
+      let c = 0;
+      for (; c < _CAL_MAX_SUBCOLS; c++) { if (_fits(c, s0, e0)) break; }
+      c = Math.min(c, _CAL_MAX_SUBCOLS - 1);
+      _book(c, s0, e0);
+      if (colCursors[c] < e0) colCursors[c] = e0;
+      return { ev, idx, durMin, segs, subCol: c, displayStart: s0 };
+    }
+
+    /* ── Tâche positionnée manuellement : overlap detection ── */
+    if (calDraft[ev.key] !== undefined || calPositions[ev.key] !== undefined) {
+      const s = calDraft[ev.key] ?? calPositions[ev.key];
+      const e = s + durMin;
+      let c = 0;
+      for (; c < _CAL_MAX_SUBCOLS; c++) { if (_fits(c, s, e)) break; }
+      c = Math.min(c, _CAL_MAX_SUBCOLS - 1);
+      _book(c, s, e);
+      if (colCursors[c] < e) colCursors[c] = e;
+      return { ev, idx, durMin, segs: null, subCol: c, displayStart: s };
+    }
+
+    /* ── Tâche auto-empilée : remplir colonne 0 puis 1 puis 2 depuis 8h ── */
+    let c = 0;
+    for (; c < _CAL_MAX_SUBCOLS - 1; c++) {
+      if (colCursors[c] < CAL_DEFAULT_END_MIN) break;
+    }
+    const s = colCursors[c];
+    const e = s + durMin;
+    colCursors[c] = e;
+    _book(c, s, e);
+    return { ev, idx, durMin, segs: null, subCol: c, displayStart: s };
+  });
+}
+
+
 const _CAL_DAYS = ['Lundi','Mardi','Mercredi','Jeudi','Vendredi'];
 
 function _calRenderGrid() {
@@ -462,33 +522,12 @@ function _calRenderGrid() {
       : '';
 
     const evHTML = (() => {
-      /* ── Étape 1 : calculer la position naturelle de chaque événement ── */
-      const dayCapacity = CAL_DEFAULT_END_MIN - CAL_DEFAULT_START_MIN; // 600 min = 10 h
-      const layouts = events.map((ev, idx) => {
-        const totalDurMin = Math.round(ev.charge * CAL_HOURS_PER_DAY * 60);
-        const segs = ev._displaySegs || (calSplits[ev.key] ? calSplits[ev.key].map((s,si)=>({...s,_si:si})) : null);
-        let naturalStart;
-        if (segs && segs.length) {
-          naturalStart = Math.min(...segs.map(s => s.startMin));
-        } else {
-          naturalStart = _calGetStartMin(ev.key, idx, events);
-        }
-        /* Sous-colonne : 0 si la tâche démarre avant 18h, sinon colonne suivante par tranche de 10h */
-        const subCol = naturalStart < CAL_DEFAULT_END_MIN
-          ? 0
-          : Math.floor((naturalStart - CAL_DEFAULT_START_MIN) / dayCapacity);
-        return { ev, idx, totalDurMin, segs, naturalStart, subCol };
-      });
-
-      /* ── Étape 2 : nombre total de sous-colonnes ── */
-      const N = layouts.length ? Math.max(...layouts.map(l => l.subCol)) + 1 : 1;
-
-      /* ── Étape 3 : générer le HTML ── */
-      /* Pour N > 1 : diviser la largeur utile (après les 40px d'heures) en N parts */
-      const colStyle = (c) => N === 1 ? '' :
+      const layouts  = _calComputeDayLayout(events);
+      const N        = layouts.length ? Math.max(...layouts.map(l => l.subCol)) + 1 : 1;
+      const colStyle = c => N === 1 ? '' :
         `left:calc(40px + ${c}*(100% - 44px)/${N});right:calc(4px + ${N-1-c}*(100% - 44px)/${N});`;
 
-      return layouts.flatMap(({ ev, idx, totalDurMin, segs, naturalStart, subCol }) => {
+      return layouts.flatMap(({ ev, durMin, segs, subCol, displayStart }) => {
         const ek = ev.key.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
         const cs = colStyle(subCol);
 
@@ -512,17 +551,17 @@ function _calRenderGrid() {
         }
 
         /* ── Tâche normale ── */
-        const topPx    = (naturalStart - CAL_START_MIN) * CAL_PX_PER_MIN;
-        const heightPx = Math.max(26, totalDurMin * CAL_PX_PER_MIN);
+        const topPx    = (displayStart - CAL_START_MIN) * CAL_PX_PER_MIN;
+        const heightPx = Math.max(26, durMin * CAL_PX_PER_MIN);
         const isDraft  = calDraft[ev.key] !== undefined;
         return [`
           <div class="cal-event${isDraft?' cal-event-draft':''}"
                style="top:${topPx}px;height:${heightPx}px;${cs}--ev-color:${ev.color};"
                data-key="${ev.key}" data-seg="-1"
                onmousedown="_calDragStart(event,'${ek}',-1)">
-            <div class="cal-event-time">${_calFmtMin(naturalStart)} – ${_calFmtMin(naturalStart+totalDurMin)}</div>
+            <div class="cal-event-time">${_calFmtMin(displayStart)} – ${_calFmtMin(displayStart+durMin)}</div>
             <div class="cal-event-label">${ev.label}</div>
-            <span class="cal-event-charge">${_calFmtMinDur(totalDurMin)}</span>
+            <span class="cal-event-charge">${_calFmtMinDur(durMin)}</span>
           </div>`];
       }).join('');
     })();
@@ -910,45 +949,38 @@ function _calBuildAndDownloadIcs(mondays) {
       const d       = _calAddDays(monday, offset);
       const dateStr = _calDateStr(d);
       const events  = _calGetEventsForDate(dateStr);
-      events.forEach((ev, idx) => {
-        const [dd, mm, yyyy] = dateStr.split('/');
-        const base        = `${yyyy}${mm}${dd}`;
-        const keySlug     = ev.key.replace(/[^a-zA-Z0-9]/g,'x').substring(0,44);
-        const totalDurMin = Math.round(ev.charge * CAL_HOURS_PER_DAY * 60);
-        const _fmtDate    = dt => { if (!dt) return '?'; const d2 = dt instanceof Date ? dt : new Date(dt); return fmtD(d2); };
-        const debutStr    = _fmtDate(ev.taskDebut);
-        const finStr      = _fmtDate(ev.taskFin);
-        const baseDesc    = `Projet : ${ev.projName}\nD\u00e9but t\u00e2che : ${debutStr}\nFin t\u00e2che : ${finStr}\nRessource : ${calSelectedRes}`;
+      const layouts = _calComputeDayLayout(events);
+      const [dd, mm, yyyy] = dateStr.split('/');
+      const base = `${yyyy}${mm}${dd}`;
+      layouts.forEach(({ ev, durMin, segs, displayStart }) => {
+        const keySlug  = ev.key.replace(/[^a-zA-Z0-9]/g,'x').substring(0,44);
+        const _fmtDate = dt => { if (!dt) return '?'; const d2 = dt instanceof Date ? dt : new Date(dt); return fmtD(d2); };
+        const baseDesc = `Projet : ${ev.projName}\nD\u00e9but t\u00e2che : ${_fmtDate(ev.taskDebut)}\nFin t\u00e2che : ${_fmtDate(ev.taskFin)}\nRessource : ${calSelectedRes}`;
 
-        const segs = calSplits[ev.key];
         if (segs && segs.length) {
-          /* Tâche découpée : un VEVENT par segment avec suffixe (n/total) */
-          segs.forEach((seg, si) => {
-            const n       = `${si + 1}/${segs.length}`;
-            const summary = _calIcalEsc(`${ev.rawLabel} (${n})`);
+          /* Tâche découpée : un VEVENT par segment */
+          const allSegs = calSplits[ev.key] || segs;
+          allSegs.forEach((seg, si) => {
+            const n       = `${si + 1}/${allSegs.length}`;
             const horaire = `${_calFmtMin(seg.startMin)}\u2013${_calFmtMin(seg.startMin + seg.durMin)}`;
-            const desc    = _calIcalEsc(`${baseDesc}\nCharge : ${_calFmtMinDur(seg.durMin)} (${n})\nHoraire : ${horaire}`);
             lines.push('BEGIN:VEVENT');
             lines.push(`UID:${keySlug}s${si}@4cad`);
             lines.push(`DTSTART:${base}T${_calFmtIso(seg.startMin)}00`);
             lines.push(`DTEND:${base}T${_calFmtIso(seg.startMin + seg.durMin)}00`);
-            lines.push(`SUMMARY:${summary}`);
-            lines.push(`DESCRIPTION:${desc}`);
+            lines.push(`SUMMARY:${_calIcalEsc(`${ev.rawLabel} (${n})`)}`);
+            lines.push(`DESCRIPTION:${_calIcalEsc(`${baseDesc}\nCharge : ${_calFmtMinDur(seg.durMin)} (${n})\nHoraire : ${horaire}`)}`);
             lines.push('END:VEVENT');
           });
         } else {
-          /* Tâche normale : un seul VEVENT */
-          const startMin = _calGetStartMin(ev.key, idx, events);
-          const endMin   = startMin + totalDurMin;
-          const horaire  = `${_calFmtMin(startMin)}\u2013${_calFmtMin(endMin)}`;
-          const summary  = _calIcalEsc(ev.rawLabel);
-          const desc     = _calIcalEsc(`${baseDesc}\nCharge : ${_calFmtMinDur(totalDurMin)} (${_calFmt(ev.charge)} j)\nHoraire : ${horaire}`);
+          /* Tâche normale */
+          const endMin  = displayStart + durMin;
+          const horaire = `${_calFmtMin(displayStart)}\u2013${_calFmtMin(endMin)}`;
           lines.push('BEGIN:VEVENT');
           lines.push(`UID:${keySlug}@4cad`);
-          lines.push(`DTSTART:${base}T${_calFmtIso(startMin)}00`);
+          lines.push(`DTSTART:${base}T${_calFmtIso(displayStart)}00`);
           lines.push(`DTEND:${base}T${_calFmtIso(endMin)}00`);
-          lines.push(`SUMMARY:${summary}`);
-          lines.push(`DESCRIPTION:${desc}`);
+          lines.push(`SUMMARY:${_calIcalEsc(ev.rawLabel)}`);
+          lines.push(`DESCRIPTION:${_calIcalEsc(`${baseDesc}\nCharge : ${_calFmtMinDur(durMin)} (${_calFmt(ev.charge)} j)\nHoraire : ${horaire}`)}`);
           lines.push('END:VEVENT');
         }
       });
