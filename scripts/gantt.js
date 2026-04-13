@@ -1035,6 +1035,22 @@ function cancelGanttEdits(){
   _ganttEdits={};
   _updateSaveBtn();
   _renderGanttKeepScroll();
+  /* Point 6 : remet la charge prévue = somme des daily sauvegardés, re-render panneau */
+  if(typeof affectRowIdx!=='undefined'&&affectRowIdx!==null){
+    const r=rows[affectRowIdx];
+    if(r&&r.assignments){
+      r.assignments.forEach(a=>{
+        if(a.daily&&Object.keys(a.daily).length>0){
+          a.charge=Math.round(Object.values(a.daily).reduce((s,v)=>s+(v>0?v:0),0)*10000)/10000||null;
+          a.chargeRestante=(a.charge!=null&&a.chargePassee!=null)
+            ?Math.round((a.charge-a.chargePassee)*10000)/10000:a.charge;
+        }
+      });
+      r.charge=Math.round(r.assignments.reduce((s,a)=>s+(a.charge||0),0)*10000)/10000||null;
+      if(typeof saveCurrentProject==='function')saveCurrentProject();
+      if(typeof renderAffectList==='function')renderAffectList(r);
+    }
+  }
 }
 
 function saveGanttEdits(){
