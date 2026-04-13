@@ -1117,9 +1117,11 @@
 /* Fond selon charge totale de la ressource sur le jour */
 .gantt-daily-cell.c-load-green            { background: rgba(46,125,50,.15); }
 .gantt-daily-cell.c-load-orange           { background: rgba(230,126,34,.20); color: #b45309; }
+.gantt-daily-cell.c-load-max              { background: rgba(230,126,34,.20); color: #c0392b; font-weight:700; } /* = 1j : fond orange, texte rouge */
 .gantt-daily-cell.c-load-red              { background: rgba(220,53,69,.18); color: #c0392b; }
-/* Édition en cours : surcharge le fond avec bleu + contour rouge si dépassement */
+/* Édition en cours : surcharge le fond avec bleu + contour si dépassement */
 .gantt-daily-cell.c-edited                { background: rgba(59,130,246,.22) !important; color: #1d4ed8; }
+.gantt-daily-cell.c-edited.c-load-max,
 .gantt-daily-cell.c-edited.c-load-red     { background: rgba(59,130,246,.22) !important; color: #1d4ed8; outline: 2px solid rgba(220,53,69,.6); outline-offset: -2px; }
 /* Surbrillance au survol des cellules sélectionnables */
 .gantt-daily-cell.c-selectable            { cursor: pointer; }
@@ -1127,6 +1129,7 @@
 /* Dark mode */
 [data-theme="dark"] .gantt-daily-cell.c-load-green   { background: rgba(46,125,50,.25); }
 [data-theme="dark"] .gantt-daily-cell.c-load-orange  { background: rgba(230,126,34,.28); color: #fbbf24; }
+[data-theme="dark"] .gantt-daily-cell.c-load-max     { background: rgba(230,126,34,.28); color: #e74c3c; font-weight:700; }
 [data-theme="dark"] .gantt-daily-cell.c-load-red     { background: rgba(220,53,69,.28); color: #e74c3c; }
 [data-theme="dark"] .gantt-daily-cell.c-edited       { background: rgba(59,130,246,.30) !important; color: #93c5fd; }
 

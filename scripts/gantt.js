@@ -650,7 +650,7 @@ function renderChart(layout,legend,visible,minD0,maxD0,today,leftHTML,mode,hasTr
               if(val>0||inPer){
                 const isEdited=_ganttEdits[ek]!==undefined;
                 const totalLoad=_pendingTotalForResourceDay(a.resourceId,k);
-                const loadCls=totalLoad>=1?'c-load-red':totalLoad>0.75?'c-load-orange':'c-load-green';
+                const loadCls=totalLoad>1?'c-load-red':Math.abs(totalLoad-1)<1e-9?'c-load-max':totalLoad>0.75?'c-load-orange':'c-load-green';
                 const editedCls=isEdited?'c-edited':'';
                 const selectCls=inPer?'c-selectable':'';
                 const cls=[loadCls,editedCls,selectCls].filter(Boolean).join(' ');
@@ -674,7 +674,7 @@ function renderChart(layout,legend,visible,minD0,maxD0,today,leftHTML,mode,hasTr
                 const txt=val%1===0?val.toFixed(0):parseFloat(val.toFixed(2)).toString();
                 const isEdited=_ganttEdits[ek]!==undefined;
                 const totalLoad=_pendingTotalForResourceDay(a.resourceId,k);
-                const loadCls=totalLoad>=1?'c-load-red':totalLoad>0.75?'c-load-orange':'c-load-green';
+                const loadCls=totalLoad>1?'c-load-red':Math.abs(totalLoad-1)<1e-9?'c-load-max':totalLoad>0.75?'c-load-orange':'c-load-green';
                 const cls=isEdited?`${loadCls} c-edited`:loadCls;
                 dayCells+=`<div class="gantt-daily-cell ${cls}" style="left:${cx}px;width:${dayWidth}px;pointer-events:none" onmouseenter="showResChargeTip(event,${escH(JSON.stringify(a.resourceId))},${escH(JSON.stringify(k))},${escH(JSON.stringify(a.resourceNom||a.resourceId||''))})" onmouseleave="_hideResChargeTipDelay()">${txt}</div>`;
               }
