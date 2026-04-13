@@ -322,10 +322,10 @@ function _filteredResources() {
   }
   /* Filtre texte (nom complet, ID) */
   if (_resFilter) {
-    const f = _resFilter.toLowerCase();
+    const f = normalizeStr(_resFilter);
     list = list.filter(r =>
-      (r.fullName || '').toLowerCase().includes(f) ||
-      (r.externalId || '').toLowerCase().includes(f)
+      normalizeStr(r.fullName).includes(f) ||
+      normalizeStr(r.externalId).includes(f)
     );
   }
   return list;

@@ -58,6 +58,8 @@ function roundCharge(v){if(v==null)return null;const n=parseFloat(v);return isNa
 function fmtCharge(v){if(v==null)return'—';const n=parseFloat(v);return isNaN(n)?'—':(Math.round(n*100)/100).toString();}
 function diff(a,b){return Math.round((b-a)/86400000);}
 function escH(s){return String(s||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+/* Normalise une chaîne pour la recherche : minuscules + sans accents */
+function normalizeStr(s){return(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();}
 function getColor(p){
   if(!projectColors[p]){const used=Object.values(projectColors);projectColors[p]=PALETTE.find(c=>!used.includes(c))||PALETTE[0];}
   return projectColors[p];

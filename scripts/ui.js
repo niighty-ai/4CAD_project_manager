@@ -154,6 +154,15 @@ function startRename(id, e){
       if(proj.projectColors?.[oldName]){ proj.projectColors[val]=proj.projectColors[oldName]; delete proj.projectColors[oldName]; }
       /* Mettre à jour les rows en mémoire si ce projet est actif */
       rows = rows.map(r=>r.projet===oldName ? {...r, projet:val} : r);
+      /* Mettre à jour les noms de projet dans ghoData des ressources */
+      if(typeof resources!=='undefined'){
+        resources.forEach(res=>{
+          if(res.ghoData&&res.ghoData.projects){
+            res.ghoData.projects.forEach(gp=>{ if(gp.name===oldName) gp.name=val; });
+          }
+        });
+        if(typeof saveGhoData==='function') saveGhoData();
+      }
     }
     savePortfolio();
     input.remove();
@@ -249,10 +258,10 @@ function renderNavList(){
 function searchClients(query) {
   const results = document.getElementById('walletSearchResults');
   if (!results) return;
-  const q = (query || '').trim().toLowerCase();
+  const q = normalizeStr(query);
   if (!q) { results.style.display = 'none'; return; }
   const allClients = [...new Set(portfolio.map(p => p.client||'').filter(Boolean))].sort();
-  const filtered = allClients.filter(c => c.toLowerCase().includes(q) && !userWalletClients.has(c));
+  const filtered = allClients.filter(c => normalizeStr(c).includes(q) && !userWalletClients.has(c));
   if (!filtered.length) {
     results.innerHTML = '<div class="nav-search-empty">Aucun client trouvé</div>';
   } else {
@@ -286,9 +295,9 @@ function closeClientModal(e) {
 function filterClientModal(query) {
   const list = document.getElementById('cbList');
   if (!list) return;
-  const q = (query || '').trim().toLowerCase();
+  const q = normalizeStr(query);
   const allClients = [...new Set(portfolio.map(p => p.client||'').filter(Boolean))].sort();
-  const filtered = q ? allClients.filter(c => c.toLowerCase().includes(q)) : allClients;
+  const filtered = q ? allClients.filter(c => normalizeStr(c).includes(q)) : allClients;
 
   if (!filtered.length) {
     list.innerHTML = '<div class="cb-empty">Aucun client dans la base de données.</div>';
@@ -966,7 +975,27 @@ function startRenameLhTitle(){
   input.focus(); input.select();
   const commit = ()=>{
     const val = input.value.trim() || proj.name;
+    const oldName = proj.name;
     proj.name = val;
+    if(val !== oldName){
+      /* Mettre à jour r.projet dans proj.rows et jalons */
+      (proj.rows||[]).forEach(r=>{ if(r.projet===oldName) r.projet=val; });
+      (proj.jalons||[]).forEach(j=>{ if(j.projet===oldName) j.projet=val; });
+      /* Mettre à jour les couleurs */
+      if(projectColors[oldName]){ projectColors[val]=projectColors[oldName]; delete projectColors[oldName]; }
+      if(proj.projectColors?.[oldName]){ proj.projectColors[val]=proj.projectColors[oldName]; delete proj.projectColors[oldName]; }
+      /* Mettre à jour les rows en mémoire */
+      rows = rows.map(r=>r.projet===oldName ? {...r, projet:val} : r);
+      /* Mettre à jour les noms de projet dans ghoData des ressources */
+      if(typeof resources!=='undefined'){
+        resources.forEach(res=>{
+          if(res.ghoData&&res.ghoData.projects){
+            res.ghoData.projects.forEach(gp=>{ if(gp.name===oldName) gp.name=val; });
+          }
+        });
+        if(typeof saveGhoData==='function') saveGhoData();
+      }
+    }
     savePortfolio();
     input.remove();
     titleEl.style.visibility = '';
@@ -1252,9 +1281,9 @@ function _affectResName(res) {
 function _affectShowDrop(idx, filter) {
   const drop = document.getElementById('affectDrop_' + idx);
   if (!drop) return;
-  const q = (filter || '').toLowerCase().trim();
+  const q = normalizeStr(filter);
   const matches = _affectGetResList().filter(r =>
-    !q || _affectResName(r).toLowerCase().includes(q)
+    !q || normalizeStr(_affectResName(r)).includes(q)
   );
   if (!matches.length) { drop.innerHTML = '<div class="affect-search-empty">Aucun résultat</div>'; }
   else {
