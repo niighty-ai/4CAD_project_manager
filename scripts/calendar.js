@@ -452,18 +452,28 @@ function _calComputeDayLayout(events) {
       || (calSplits[ev.key] ? calSplits[ev.key].map((s, si) => ({ ...s, _si: si })) : null);
     const forcedCol = calParallelCol[ev.key];
 
-    /* ── Sous-colonne forcée manuellement (drag horizontal intra-jour) ── */
+    /* ── Sous-colonne préférée (drag intra-jour) — avec anti-overlap ── */
     if (forcedCol !== undefined) {
-      const c = Math.min(forcedCol, _CAL_MAX_SUBCOLS - 1);
+      const preferred = Math.min(forcedCol, _CAL_MAX_SUBCOLS - 1);
+      /* Helper : première colonne libre à partir de `preferred` */
+      const _pickCol = (s, e) => {
+        for (let i = 0; i < _CAL_MAX_SUBCOLS; i++) {
+          const ci = (preferred + i) % _CAL_MAX_SUBCOLS;
+          if (_fits(ci, s, e)) return ci;
+        }
+        return preferred; // toutes occupées → colonne préférée en dernier recours
+      };
       if (segs && segs.length) {
         const s0 = Math.min(...segs.map(s => s.startMin));
         const e0 = Math.max(...segs.map(s => s.startMin + s.durMin));
+        const c  = _pickCol(s0, e0);
         _book(c, s0, e0);
         if (colCursors[c] < e0) colCursors[c] = e0;
         return { ev, idx, durMin, segs, subCol: c, displayStart: s0 };
       }
-      const s = (calDraft[ev.key] ?? calPositions[ev.key]) ?? colCursors[c];
+      const s = (calDraft[ev.key] ?? calPositions[ev.key]) ?? colCursors[preferred];
       const e = s + durMin;
+      const c = _pickCol(s, e);
       colCursors[c] = Math.max(colCursors[c], e);
       _book(c, s, e);
       return { ev, idx, durMin, segs: null, subCol: c, displayStart: s };
