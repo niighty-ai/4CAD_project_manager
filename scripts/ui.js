@@ -162,6 +162,7 @@ function startRename(id, e){
           }
         });
         if(typeof saveGhoData==='function') saveGhoData();
+        if(typeof _refreshTbody==='function') _refreshTbody();
       }
     }
     savePortfolio();
@@ -994,6 +995,7 @@ function startRenameLhTitle(){
           }
         });
         if(typeof saveGhoData==='function') saveGhoData();
+        if(typeof _refreshTbody==='function') _refreshTbody();
       }
     }
     savePortfolio();

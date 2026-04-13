@@ -615,12 +615,12 @@ function _calDragStart(e, key, segIdx = -1) {
   e.preventDefault();
   const evEl    = e.currentTarget;
   const parts   = key.split('|');
-  /* currentDateStr = jour où l'événement est actuellement affiché (peut différer si déjà déplacé) */
   const currentDateStr = (segIdx >= 0 && calSplits[key]?.[segIdx]?.dateStr)
     ? calSplits[key][segIdx].dateStr
     : (calMoved[key] || parts[3] || '');
   _calDragState = {
     key, segIdx, evEl,
+    srcCol:      evEl.closest('.cal-day-col'),   // colonne source pour détection croisement
     startMouseY: e.clientY, startMouseX: e.clientX,
     startTop:    parseFloat(evEl.style.top) || 0,
     origDateStr: currentDateStr,
@@ -633,9 +633,9 @@ function _calDragStart(e, key, segIdx = -1) {
 
 function _calDragMove(e) {
   if (!_calDragState) return;
-  const { evEl, startMouseY, startMouseX, startTop } = _calDragState;
+  const { evEl, startMouseY, startTop, srcCol } = _calDragState;
   const deltaY = e.clientY - startMouseY;
-  const deltaX = e.clientX - startMouseX;
+  const deltaX = e.clientX - _calDragState.startMouseX;
 
   if (!_calDragState.moved && (Math.abs(deltaY) > 5 || Math.abs(deltaX) > 5)) {
     _calDragState.moved = true;
@@ -644,21 +644,27 @@ function _calDragMove(e) {
   }
   if (!_calDragState.moved) return;
 
-  if (!_calDragState.crossDay && Math.abs(deltaX) > 24) {
-    /* Passage en mode cross-day : ancrer l'élément en position fixe */
-    _calDragState.crossDay = true;
-    const rect = evEl.getBoundingClientRect();
-    _calDragState._fixedTop  = rect.top;
-    _calDragState._fixedLeft = rect.left;
-    Object.assign(evEl.style, {
-      position:      'fixed',
-      width:         rect.width  + 'px',
-      height:        rect.height + 'px',
-      zIndex:        '9998',
-      pointerEvents: 'none',
-      margin:        '0'
-    });
-    document.body.appendChild(evEl);
+  /* Détection croisement de colonne : le curseur sort des bords de la colonne source */
+  if (!_calDragState.crossDay && srcCol) {
+    const sr = srcCol.getBoundingClientRect();
+    if (e.clientX < sr.left - 6 || e.clientX > sr.right + 6) {
+      _calDragState.crossDay = true;
+      const rect = evEl.getBoundingClientRect();
+      _calDragState._fixedTop  = rect.top;
+      _calDragState._fixedLeft = rect.left;
+      Object.assign(evEl.style, {
+        position:      'fixed',
+        width:         rect.width  + 'px',
+        height:        rect.height + 'px',
+        zIndex:        '9998',
+        pointerEvents: 'none',
+        margin:        '0',
+        left:          rect.left + 'px',
+        right:         ''
+      });
+      document.body.appendChild(evEl);
+      _calHideDropIndicator();
+    }
   }
 
   if (_calDragState.crossDay) {
@@ -666,48 +672,58 @@ function _calDragMove(e) {
     evEl.style.left = (_calDragState._fixedLeft + deltaX) + 'px';
     _calHighlightDropTarget(_calFindColumnAtX(e.clientX));
   } else {
-    const maxTop = (CAL_END_MIN - CAL_START_MIN) * CAL_PX_PER_MIN - 26;
-    evEl.style.top = `${Math.max(0, Math.min(maxTop, startTop + deltaY))}px`;
+    /* ── Drag intra-colonne : aimantation au snap-grid + indicateur ── */
+    const maxTop  = (CAL_END_MIN - CAL_START_MIN) * CAL_PX_PER_MIN - 26;
+    const rawTop  = Math.max(0, Math.min(maxTop, startTop + deltaY));
+    const rawMin  = CAL_START_MIN + rawTop / CAL_PX_PER_MIN;
+    const snapped = Math.round(rawMin / CAL_SNAP_MIN) * CAL_SNAP_MIN;
+    const clamped = Math.max(CAL_START_MIN, Math.min(CAL_END_MIN - CAL_SNAP_MIN, snapped));
+    /* Positionner l'événement sur le snap (effet magnétique) */
+    evEl.style.top = `${(clamped - CAL_START_MIN) * CAL_PX_PER_MIN}px`;
+    /* Afficher la ligne indicatrice avec l'heure aimantée */
+    _calShowDropIndicator(evEl, clamped);
+    /* Prévisualiser la sous-colonne selon la position X du curseur */
+    _calPreviewSubcol(evEl, e.clientX, clamped);
   }
 }
 
 function _calDragEnd(e) {
   if (!_calDragState) return;
-  const { key, segIdx, evEl, moved, crossDay, origDateStr } = _calDragState;
+  const { key, segIdx, evEl, moved, crossDay, origDateStr, srcCol } = _calDragState;
   _calDragState = null;
   document.removeEventListener('mousemove', _calDragMove);
   document.removeEventListener('mouseup',   _calDragEnd);
+  _calHideDropIndicator();
 
-  /* Nettoyer l'élément flottant cross-day */
   if (crossDay) {
     _calHighlightDropTarget(null);
     if (evEl.parentNode === document.body) document.body.removeChild(evEl);
   } else {
     evEl.classList.remove('cal-dragging');
+    /* Réinitialiser les styles inline left/right (le re-render les recalculera) */
+    evEl.style.left  = '';
+    evEl.style.right = '';
   }
 
   if (!moved) {
-    /* Clic simple → afficher/masquer les boutons d'action */
     _calToggleActive(evEl);
     return;
   }
 
   if (crossDay) {
-    /* ── Déplacement inter-colonne ── */
+    /* ── Déplacement vers une autre colonne (autre jour) ── */
     const targetCol = _calFindColumnAtX(e.clientX);
     if (!targetCol) { _calRender(); return; }
 
     const newDateStr = targetCol.dataset.date;
     if (!newDateStr) { _calRender(); return; }
 
-    /* Vérifier que c'est la même semaine */
     const [od, om, oy] = origDateStr.split('/');
     const [nd, nm, ny] = newDateStr.split('/');
     const origMonday = _calMonday(new Date(+oy, +om-1, +od)).getTime();
     const newMonday  = _calMonday(new Date(+ny, +nm-1, +nd)).getTime();
     if (origMonday !== newMonday) { _calRender(); return; }
 
-    /* Calculer startMin dans la colonne cible via position Y du drop */
     const bodyEl    = targetCol.querySelector('.cal-day-body');
     const scrollEl  = targetCol.querySelector('.cal-day-scroll');
     const bodyRect  = bodyEl ? bodyEl.getBoundingClientRect() : { top: 0 };
@@ -717,42 +733,27 @@ function _calDragEnd(e) {
     const snapped   = Math.round(rawMin / CAL_SNAP_MIN) * CAL_SNAP_MIN;
     const clamped   = Math.max(CAL_START_MIN, Math.min(CAL_END_MIN - CAL_SNAP_MIN, snapped));
 
-    if (newDateStr === origDateStr) {
-      /* ── Drag intra-jour : forcer une sous-colonne selon la position X ── */
-      const colRect     = targetCol.getBoundingClientRect();
-      const colW        = colRect.width;
-      /* Zone utile : après le label (≈40px) jusqu'à la bordure droite (−4px) */
-      const usableLeft  = 40;
-      const usableW     = Math.max(1, colW - 44);
-      const relX        = e.clientX - colRect.left - usableLeft;
-      const targetSubCol = Math.min(_CAL_MAX_SUBCOLS - 1, Math.max(0,
-        Math.floor(relX / usableW * _CAL_MAX_SUBCOLS)
-      ));
-      calParallelCol[key] = targetSubCol;
+    /* Sous-colonne dans la colonne cible (fonctionne aussi pour le même jour) */
+    _calCommitSubcol(key, clamped, newDateStr, targetCol, e.clientX);
 
-      /* Mettre à jour la position Y aussi */
-      if (segIdx >= 0 && calSplits[key] && calSplits[key][segIdx]) {
-        calSplits[key][segIdx].startMin = clamped;
-      } else {
-        calDraft[key] = clamped;
-      }
-    } else if (segIdx >= 0 && calSplits[key] && calSplits[key][segIdx]) {
-      /* Segment individuel déplacé vers un autre jour */
+    if (segIdx >= 0 && calSplits[key]?.[segIdx]) {
       calSplits[key][segIdx].dateStr  = newDateStr;
       calSplits[key][segIdx].startMin = clamped;
     } else {
-      /* Événement entier déplacé vers un autre jour */
-      calMoved[key]  = newDateStr;
-      calDraft[key]  = clamped;
+      calMoved[key] = newDateStr;
+      calDraft[key] = clamped;
     }
   } else {
-    /* ── Déplacement vertical dans le même jour ── */
+    /* ── Déplacement intra-colonne ── */
     const topPx   = parseFloat(evEl.style.top) || 0;
     const rawMin  = CAL_START_MIN + topPx / CAL_PX_PER_MIN;
     const snapped = Math.round(rawMin / CAL_SNAP_MIN) * CAL_SNAP_MIN;
     const clamped = Math.max(CAL_START_MIN, Math.min(CAL_END_MIN - CAL_SNAP_MIN, snapped));
 
-    if (segIdx >= 0 && calSplits[key] && calSplits[key][segIdx]) {
+    /* Sous-colonne déduite de la position X du drop + vérification chevauchement */
+    _calCommitSubcol(key, clamped, origDateStr, srcCol, e.clientX);
+
+    if (segIdx >= 0 && calSplits[key]?.[segIdx]) {
       calSplits[key][segIdx].startMin = clamped;
     } else {
       calDraft[key] = clamped;
@@ -763,6 +764,105 @@ function _calDragEnd(e) {
   const actions = document.getElementById('calDirtyActions');
   if (actions) actions.style.display = '';
   _calRender();
+}
+
+/* ── Indicateur de drop (ligne horizontale aimantée) ──────────────────────── */
+function _calShowDropIndicator(evEl, snapMin) {
+  const body = evEl.closest('.cal-day-body');
+  if (!body) return;
+  let ind = body.querySelector('.cal-drop-indicator');
+  if (!ind) {
+    ind = document.createElement('div');
+    ind.className = 'cal-drop-indicator';
+    ind.innerHTML = '<span class="cal-drop-ind-time"></span>';
+    body.appendChild(ind);
+  }
+  ind.style.top = `${(snapMin - CAL_START_MIN) * CAL_PX_PER_MIN}px`;
+  ind.querySelector('.cal-drop-ind-time').textContent = _calFmtMin(snapMin);
+}
+
+function _calHideDropIndicator() {
+  document.querySelectorAll('.cal-drop-indicator').forEach(el => el.remove());
+}
+
+/* ── Prévisualisation de la sous-colonne pendant le drag ─────────────────── */
+function _calPreviewSubcol(evEl, clientX, snapMin) {
+  if (!_calDragState) return;
+  const col = _calDragState.srcCol;
+  if (!col) return;
+  const key     = _calDragState.key;
+  const dateStr = col.dataset.date;
+  if (!dateStr) return;
+
+  /* Durée de la tâche draguée */
+  if (!_calDragState._durMin) {
+    const parts = key.split('|');
+    const proj  = portfolio.find(p => p.id === parts[0]);
+    const row   = proj && (proj.rows||[])[parseInt(parts[1])];
+    const asgn  = row?.assignments?.find(a => (a.resourceId||a.resourceNom) === parts[2]);
+    _calDragState._durMin = Math.round((asgn?.charge || 0) * CAL_HOURS_PER_DAY * 60);
+  }
+  const durMin = _calDragState._durMin;
+  const myEnd  = snapMin + durMin;
+
+  /* Événements concurrents (hors tâche draguée) dans ce même jour */
+  const others = _calGetEventsForDate(dateStr).filter(ev => {
+    if (ev.key === key) return false;
+    const s = calDraft[ev.key] ?? calPositions[ev.key] ?? CAL_DEFAULT_START_MIN;
+    const d = Math.round(ev.charge * CAL_HOURS_PER_DAY * 60);
+    return snapMin < s + d && myEnd > s;
+  });
+
+  const colRect = col.getBoundingClientRect();
+  const usableW = Math.max(1, colRect.width - 44);
+
+  if (!others.length) {
+    /* Pas de chevauchement : pleine largeur */
+    evEl.style.left  = '40px';
+    evEl.style.right = '4px';
+  } else {
+    /* Chevauchement : montrer la largeur en sous-colonne */
+    const N      = Math.min(_CAL_MAX_SUBCOLS, others.length + 1);
+    const relX   = clientX - colRect.left - 40;
+    const subCol = Math.min(N - 1, Math.max(0, Math.floor(relX / usableW * N)));
+    const w      = usableW / N;
+    evEl.style.left  = `${40 + subCol * w}px`;
+    evEl.style.right = `${4  + (N - 1 - subCol) * w}px`;
+  }
+}
+
+/* ── Commit de la sous-colonne au drop ────────────────────────────────────── */
+function _calCommitSubcol(key, snapMin, dateStr, col, clientX) {
+  if (!col) return;
+  const colRect = col.getBoundingClientRect();
+  const usableW = Math.max(1, colRect.width - 44);
+  const relX    = clientX - colRect.left - 40;
+
+  /* Durée de la tâche */
+  const parts = key.split('|');
+  const proj  = portfolio.find(p => p.id === parts[0]);
+  const row   = proj && (proj.rows||[])[parseInt(parts[1])];
+  const asgn  = row?.assignments?.find(a => (a.resourceId||a.resourceNom) === parts[2]);
+  const durMin = Math.round((asgn?.charge || 0) * CAL_HOURS_PER_DAY * 60);
+  const myEnd  = snapMin + durMin;
+
+  /* Chevauchement avec d'autres événements à la position cible ? */
+  const others = _calGetEventsForDate(dateStr).filter(ev => {
+    if (ev.key === key) return false;
+    const s = calDraft[ev.key] ?? calPositions[ev.key] ?? CAL_DEFAULT_START_MIN;
+    const d = Math.round(ev.charge * CAL_HOURS_PER_DAY * 60);
+    return snapMin < s + d && myEnd > s;
+  });
+
+  if (others.length) {
+    const targetSubCol = Math.min(_CAL_MAX_SUBCOLS - 1, Math.max(0,
+      Math.floor(relX / usableW * _CAL_MAX_SUBCOLS)
+    ));
+    calParallelCol[key] = targetSubCol;
+  } else {
+    /* Aucun chevauchement : réinitialiser la sous-colonne forcée */
+    delete calParallelCol[key];
+  }
 }
 
 /* ── Helpers cross-day drag ───────────────────────────────────────────────── */

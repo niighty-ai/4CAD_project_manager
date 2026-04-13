@@ -141,6 +141,9 @@ function saveGhoData() {
   const payload = _buildGhoPayload();
   try { localStorage.setItem(GHO_KEY, JSON.stringify(payload)); } catch(e) {}
   _fbGhoCache = payload;
+  /* Marquer le timestamp dès maintenant pour protéger contre les échos Firebase
+     pendant le délai du debounce (1,5 s avant l'envoi réel) */
+  _fbGhoLastSaveTs = Date.now();
   scheduleFirebaseSaveGho();
 }
 
