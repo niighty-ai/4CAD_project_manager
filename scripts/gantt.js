@@ -1016,7 +1016,7 @@ function gcpClose(){
 }
 
 function _updateSaveBtn(){
-  const has=Object.keys(_ganttEdits).length>0;
+  const has=Object.keys(_ganttEdits).length>0 || (typeof _tasksDirty!=='undefined' && _tasksDirty);
   const btnSave=document.getElementById('btnSaveEdits');
   if(btnSave){
     btnSave.disabled=!has;
@@ -1031,25 +1031,41 @@ function _updateSaveBtn(){
 }
 
 function cancelGanttEdits(){
-  if(!Object.keys(_ganttEdits).length)return;
-  _ganttEdits={};
+  const hasEdits=Object.keys(_ganttEdits).length>0;
+  const hasDirty=typeof _tasksDirty!=='undefined'&&_tasksDirty;
+  if(!hasEdits&&!hasDirty)return;
+
+  /* Annuler les edits daily (cellules bleues) */
+  if(hasEdits){
+    _ganttEdits={};
+    /* Remet la charge prévue = somme des daily sauvegardés, re-render panneau */
+    if(typeof affectRowIdx!=='undefined'&&affectRowIdx!==null){
+      const r=rows[affectRowIdx];
+      if(r&&r.assignments){
+        r.assignments.forEach(a=>{
+          if(a.daily&&Object.keys(a.daily).length>0){
+            a.charge=Math.round(Object.values(a.daily).reduce((s,v)=>s+(v>0?v:0),0)*10000)/10000||null;
+            a.chargeRestante=(a.charge!=null&&a.chargePassee!=null)
+              ?Math.round((a.charge-a.chargePassee)*10000)/10000:a.charge;
+          }
+        });
+        r.charge=Math.round(r.assignments.reduce((s,a)=>s+(a.charge||0),0)*10000)/10000||null;
+      }
+    }
+  }
+
+  /* Annuler les modifs de tâches (renommage, suppression, réordre…) */
+  if(hasDirty&&typeof revertTaskChanges==='function'){
+    revertTaskChanges();
+    return; /* revertTaskChanges appelle déjà renderAll + _updateSaveBtn */
+  }
+
+  if(typeof _saveCurrentProjectLocal==='function') _saveCurrentProjectLocal();
   _updateSaveBtn();
   _renderGanttKeepScroll();
-  /* Point 6 : remet la charge prévue = somme des daily sauvegardés, re-render panneau */
   if(typeof affectRowIdx!=='undefined'&&affectRowIdx!==null){
     const r=rows[affectRowIdx];
-    if(r&&r.assignments){
-      r.assignments.forEach(a=>{
-        if(a.daily&&Object.keys(a.daily).length>0){
-          a.charge=Math.round(Object.values(a.daily).reduce((s,v)=>s+(v>0?v:0),0)*10000)/10000||null;
-          a.chargeRestante=(a.charge!=null&&a.chargePassee!=null)
-            ?Math.round((a.charge-a.chargePassee)*10000)/10000:a.charge;
-        }
-      });
-      r.charge=Math.round(r.assignments.reduce((s,a)=>s+(a.charge||0),0)*10000)/10000||null;
-      if(typeof saveCurrentProject==='function')saveCurrentProject();
-      if(typeof renderAffectList==='function')renderAffectList(r);
-    }
+    if(r&&typeof renderAffectList==='function') renderAffectList(r);
   }
 }
 
@@ -1118,10 +1134,22 @@ function saveGanttEdits(){
 
   _ganttEdits={};
   _updateSaveBtn();
-  saveCurrentProject();
+  if(typeof _saveCurrentProjectLocal==='function') _saveCurrentProjectLocal();
+  else saveCurrentProject();
   if(typeof saveGhoData==='function')saveGhoData();
   _renderGanttKeepScroll();
   if(typeof _refreshTbody==='function')_refreshTbody();
+}
+
+/* Sauvegarde globale : daily edits + modifs de tâches → Firebase */
+function saveAllEdits(){
+  /* 1. Commiter les daily edits (GHO + portfolio local) */
+  if(Object.keys(_ganttEdits).length>0) saveGanttEdits();
+  /* 2. Forcer la synchro Firebase pour les modifs de tâches */
+  if(typeof _tasksDirty!=='undefined'&&_tasksDirty){
+    if(typeof _forcePortfolioFirebaseSave==='function') _forcePortfolioFirebaseSave();
+  }
+  _updateSaveBtn();
 }
 
 function showTipJalon(e,nom,date){
@@ -1451,4 +1479,10 @@ function toggleDataSection(){
   }
 }
 const _ganttRenderAll = renderAll;
-renderAll = function(){ _ganttRenderAll(); saveCurrentProject(); };
+/* Lors du rendu, on synchronise rows → portfolio sans marquer dirty ni déclencher Firebase.
+   Seules les modifications explicites (rename, delete, reorder…) appellent saveCurrentProject(). */
+renderAll = function(){
+  _ganttRenderAll();
+  if(typeof _saveCurrentProjectLocal==='function') _saveCurrentProjectLocal();
+  else saveCurrentProject();
+};

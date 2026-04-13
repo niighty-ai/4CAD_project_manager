@@ -161,8 +161,10 @@ function savePortfolio(){
   } catch(e){
     console.warn('localStorage save failed:', e);
   }
-  /* ── 2. Sauvegarde différée sur Firebase ── */
-  scheduleFirebaseSave(_serializePortfolio(portfolio));
+  /* ── 2. Sauvegarde différée sur Firebase (sauf si explicitement supprimée) ── */
+  if(!_suppressFirebaseSave){
+    scheduleFirebaseSave(_serializePortfolio(portfolio));
+  }
 }
 
 function loadPortfolio(){
@@ -646,7 +648,47 @@ function duplicateProject(id, e){
 }
 
 function saveCurrentProject(){
+  /* Prend un snapshot avant la première modif pour pouvoir annuler */
+  if(!_tasksDirty){
+    _tasksSnapshot = JSON.stringify(_serializePortfolio(portfolio));
+    _tasksDirty = true;
+  }
+  _suppressFirebaseSave = true;
   _saveBackToPortfolio();
+  _suppressFirebaseSave = false;
+  if(typeof _updateSaveBtn==='function') _updateSaveBtn();
+}
+
+/* Sauvegarde locale sans marquer dirty (utilisé par saveGanttEdits pour les daily) */
+function _saveCurrentProjectLocal(){
+  _suppressFirebaseSave = true;
+  _saveBackToPortfolio();
+  _suppressFirebaseSave = false;
+}
+
+/* Commit définitif vers Firebase après validation 💾 */
+function _forcePortfolioFirebaseSave(){
+  _tasksDirty = false;
+  _tasksSnapshot = null;
+  scheduleFirebaseSave(_serializePortfolio(portfolio));
+}
+
+/* Annule toutes les modifs de tâches et restaure le snapshot */
+function revertTaskChanges(){
+  if(!_tasksDirty) return;
+  if(_tasksSnapshot){
+    portfolio = _deserializePortfolio(JSON.parse(_tasksSnapshot));
+    /* Recharger les rows[] depuis le portfolio restauré */
+    if(typeof _loadSelectedProjects==='function') _loadSelectedProjects();
+    else if(typeof switchToProject==='function' && activeProjectId) switchToProject(activeProjectId);
+    if(typeof sortRows==='function') sortRows();
+    if(typeof renderAll==='function') renderAll();
+  }
+  _tasksDirty = false;
+  _tasksSnapshot = null;
+  /* Persister le portfolio annulé en localStorage (sans Firebase) */
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(_serializePortfolio(portfolio))); } catch(e){}
+  if(typeof _updateSaveBtn==='function') _updateSaveBtn();
 }
 
 function importToNewProject(parsedRows, fileName){
