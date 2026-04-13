@@ -1478,9 +1478,12 @@ function _getLissageConfig() {
     ? portfolio.find(p => p.id === activeProjectId) : null;
   const cfg = proj?.lissageConfig || {};
   return {
-    minCharge:    cfg.minCharge    !== undefined ? cfg.minCharge    : 0.125,
-    preferCharge: cfg.preferCharge !== undefined ? cfg.preferCharge : 0.5,   // 0 = désactivé
-    avoidDays:    cfg.avoidDays    !== undefined ? cfg.avoidDays    : [5]
+    minCharge:     cfg.minCharge     !== undefined ? cfg.minCharge     : 0.125,
+    strictMin:     cfg.strictMin     !== undefined ? cfg.strictMin     : true,   // strict par défaut
+    preferCharge:  cfg.preferCharge  !== undefined ? cfg.preferCharge  : 0.5,
+    strictPrefer:  cfg.strictPrefer  !== undefined ? cfg.strictPrefer  : false,
+    avoidDays:     cfg.avoidDays     !== undefined ? cfg.avoidDays     : [5],
+    strictAvoid:   cfg.strictAvoid   !== undefined ? cfg.strictAvoid   : false
   };
 }
 
@@ -1553,19 +1556,23 @@ function _availCapForDay(resourceId, d, excludeTaskName, excludeExtId) {
 /* Algorithme de lissage : retourne { daily, remaining } */
 function _computeLissage(charge, debut, fin, resourceId, taskName, extId) {
   const cfg = _getLissageConfig();
-  const slots = _getWorkDaysRange(debut, fin).map(d => ({
+  const pc  = cfg.preferCharge || 0;
+
+  /* Filtre des slots selon la règle strictMin */
+  const allSlots = _getWorkDaysRange(debut, fin).map(d => ({
     d, dk: _dayKeyLocal(d),
     avail: _availCapForDay(resourceId, d, taskName, extId),
     avoid: cfg.avoidDays.includes(d.getDay())
-  })).filter(s => s.avail >= cfg.minCharge);
+  })).filter(s => cfg.strictMin ? s.avail >= cfg.minCharge : s.avail > 0);
 
-  const preferred = slots.filter(s => !s.avoid);
-  const avoided   = slots.filter(s => s.avoid);
+  /* strictAvoid : si strict, les jours évités sont exclus ; sinon utilisés en fallback */
+  const preferred = allSlots.filter(s => !s.avoid);
+  const avoided   = cfg.strictAvoid ? [] : allSlots.filter(s => s.avoid);
 
-  /* preferCharge : si 0 ou non configuré → désactivé */
-  const pc = cfg.preferCharge || 0;
-  const prefCap = pc > 0 ? slots.filter(s => s.avail >= pc).length * pc : 0;
-  const usePref = pc > 0 && prefCap >= charge;
+  /* preferCharge : vérifier si faisable en tranches de pc */
+  const prefSlots = allSlots.filter(s => s.avail >= pc);
+  const prefCap   = pc > 0 ? prefSlots.length * pc : 0;
+  const usePref   = pc > 0 && prefCap >= charge;
 
   const result = {};
   let rem = charge;
@@ -1573,15 +1580,23 @@ function _computeLissage(charge, debut, fin, resourceId, taskName, extId) {
   for (const list of [preferred, avoided]) {
     for (const s of list) {
       if (rem <= 1e-9) break;
+
+      /* strictPrefer : n'utiliser ce slot que s'il peut absorber exactement pc */
+      if (cfg.strictPrefer && pc > 0 && s.avail < pc) continue;
+
       const maxSlot = Math.min(s.avail, rem);
+      const floorMin = (v) => Math.floor(v / cfg.minCharge) * cfg.minCharge;
       let assign;
       if (usePref && s.avail >= pc) {
-        assign = rem >= pc ? pc : Math.floor(rem / cfg.minCharge) * cfg.minCharge;
+        assign = rem >= pc ? pc : floorMin(rem);
+      } else if (!cfg.strictPrefer) {
+        assign = floorMin(maxSlot);
       } else {
-        assign = Math.floor(maxSlot / cfg.minCharge) * cfg.minCharge;
+        continue; // strict prefer mais slot insuffisant → déjà géré par le continue ci-dessus
       }
       assign = Math.round(assign * 10000) / 10000;
-      if (assign >= cfg.minCharge) {
+      const minThresh = cfg.strictMin ? cfg.minCharge : 1e-9;
+      if (assign >= minThresh) {
         result[s.dk] = (result[s.dk] || 0) + assign;
         rem = Math.round((rem - assign) * 10000) / 10000;
       }
@@ -1691,10 +1706,13 @@ function _proposeLissageForAssignment(idx) {
 
 function openLissageConfig() {
   const cfg = _getLissageConfig();
-  const el = document.getElementById('lcfgMinCharge');
-  if (el) el.value = cfg.minCharge;
-  const pc = document.getElementById('lcfgPreferCharge');
-  if (pc) pc.value = cfg.preferCharge;
+  const _v = (id, val) => { const el = document.getElementById(id); if (el) el.value   = val; };
+  const _c = (id, val) => { const el = document.getElementById(id); if (el) el.checked = val; };
+  _v('lcfgMinCharge',    cfg.minCharge);
+  _c('lcfgStrictMin',    cfg.strictMin);
+  _v('lcfgPreferCharge', cfg.preferCharge);
+  _c('lcfgStrictPrefer', cfg.strictPrefer);
+  _c('lcfgStrictAvoid',  cfg.strictAvoid);
   document.querySelectorAll('.lcfg-day').forEach(cb => {
     cb.checked = cfg.avoidDays.includes(parseInt(cb.dataset.day));
   });
@@ -1708,10 +1726,12 @@ function closeLissageConfig() {
 }
 
 function saveLissageConfig() {
-  const minRaw = parseFloat(document.getElementById('lcfgMinCharge')?.value);
-  const minCharge = isNaN(minRaw) ? 0.125 : Math.max(0.0625, Math.min(1, minRaw));
-  const prefRaw = parseFloat(document.getElementById('lcfgPreferCharge')?.value);
-  const preferCharge = isNaN(prefRaw) ? 0 : Math.max(0, Math.min(1, prefRaw));
+  const _fv = id => parseFloat(document.getElementById(id)?.value);
+  const _cb = id => document.getElementById(id)?.checked ?? false;
+  const minRaw  = _fv('lcfgMinCharge');
+  const prefRaw = _fv('lcfgPreferCharge');
+  const minCharge    = isNaN(minRaw)  ? 0.125 : Math.max(0.0625, Math.min(1, minRaw));
+  const preferCharge = isNaN(prefRaw) ? 0     : Math.max(0,       Math.min(1, prefRaw));
   const avoidDays = [];
   document.querySelectorAll('.lcfg-day').forEach(cb => {
     if (cb.checked) avoidDays.push(parseInt(cb.dataset.day));
@@ -1719,7 +1739,11 @@ function saveLissageConfig() {
   if (typeof portfolio === 'undefined' || typeof activeProjectId === 'undefined') return;
   const proj = portfolio.find(p => p.id === activeProjectId);
   if (!proj) return;
-  proj.lissageConfig = { minCharge, preferCharge, avoidDays };
+  proj.lissageConfig = {
+    minCharge,    strictMin:    _cb('lcfgStrictMin'),
+    preferCharge, strictPrefer: _cb('lcfgStrictPrefer'),
+    avoidDays,    strictAvoid:  _cb('lcfgStrictAvoid')
+  };
   if (typeof savePortfolio === 'function') savePortfolio();
   closeLissageConfig();
 }

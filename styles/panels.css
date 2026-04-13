@@ -784,6 +784,30 @@ select.ep-input {
   flex-direction: column;
   gap: 5px;
 }
+.lissage-cfg-row-inline {
+  flex-direction: row;
+  align-items: flex-end;
+  gap: 10px;
+}
+.lissage-cfg-col {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  flex: 1;
+}
+.lissage-strict-label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+  white-space: nowrap;
+  padding-bottom: 7px;
+  cursor: pointer;
+  user-select: none;
+}
+.lissage-strict-label input { accent-color: var(--accent); }
 .lissage-cfg-row.lissage-cfg-check {
   flex-direction: row;
   align-items: center;
