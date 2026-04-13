@@ -1422,7 +1422,6 @@ function affectAddRow() {
 }
 
 function saveAndRefreshAffect(r) {
-  if (typeof _recalcTaskDates === 'function') _recalcTaskDates(r);
   sortRows();
   saveCurrentProject();
   renderAffectList(r);
@@ -1574,10 +1573,9 @@ function _proposeLissageForAssignment(idx) {
     Object.entries(finalDaily).forEach(([dk, ch]) => {
       _ganttEdits[`${prefix}${dk}`] = ch;
     });
-    /* Mettre à jour la date de fin si étendue */
+    /* Mettre à jour uniquement la date de fin de l'assignment (pas de la tâche) */
     if (newFin) {
       a.fin = new Date(newFin);
-      _recalcTaskDates(r);
       renderAffectList(r);
     }
     if (typeof _updateSaveBtn === 'function') _updateSaveBtn();
