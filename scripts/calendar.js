@@ -24,10 +24,12 @@ let calChecksums   = {};   // { eventKey: charge }        — snapshot des charg
 let calDraft       = {};   // { eventKey: startMinutes }  — modifications non encore sauvegardées
 let calSplits      = {};   // { eventKey: [{startMin, durMin, dateStr?}] } — segments d'une tâche découpée
 let calHidden      = new Set(); // eventKeys retirés du calendrier (sans supprimer de la BDD)
-let calMoved       = {};   // { origKey: newDateStr } — tâches/segments déplacés sur un autre jour de la semaine
-let _calSplitsBackup  = {};
-let _calHiddenBackup  = new Set();
-let _calMovedBackup   = {};
+let calMoved       = {};   // { origKey: newDateStr } — tâches déplacées sur un autre jour de la semaine
+let calParallelCol = {};   // { eventKey: 0|1|2 } — sous-colonne forcée manuellement
+let _calSplitsBackup     = {};
+let _calHiddenBackup     = new Set();
+let _calMovedBackup      = {};
+let _calParallelColBackup = {};
 let calDirty       = false;
 let _calDragState  = null;
 let _calClickSetup = false;
@@ -41,11 +43,12 @@ function _calStorageKey() {
 function _calWriteLocalStorage() {
   try {
     localStorage.setItem(_calStorageKey(), JSON.stringify({
-      positions: calPositions,
-      checksums: calChecksums,
-      splits:    calSplits,
-      hidden:    [...calHidden],
-      moved:     calMoved
+      positions:   calPositions,
+      checksums:   calChecksums,
+      splits:      calSplits,
+      hidden:      [...calHidden],
+      moved:       calMoved,
+      parallelCol: calParallelCol
     }));
   } catch(e) {}
 }
@@ -55,42 +58,47 @@ function _calReadLocalStorage() {
     const raw = localStorage.getItem(_calStorageKey());
     if (raw) {
       const d = JSON.parse(raw);
-      calPositions = d.positions || {};
-      calChecksums = d.checksums || {};
-      calSplits    = d.splits    || {};
-      calHidden    = new Set(d.hidden || []);
-      calMoved     = d.moved     || {};
+      calPositions   = d.positions   || {};
+      calChecksums   = d.checksums   || {};
+      calSplits      = d.splits      || {};
+      calHidden      = new Set(d.hidden || []);
+      calMoved       = d.moved       || {};
+      calParallelCol = d.parallelCol || {};
     } else {
-      calPositions = {};
-      calChecksums = {};
-      calSplits    = {};
-      calHidden    = new Set();
-      calMoved     = {};
+      calPositions   = {};
+      calChecksums   = {};
+      calSplits      = {};
+      calHidden      = new Set();
+      calMoved       = {};
+      calParallelCol = {};
     }
   } catch(e) {
-    calPositions = {};
-    calChecksums = {};
-    calSplits    = {};
-    calHidden    = new Set();
-    calMoved     = {};
+    calPositions   = {};
+    calChecksums   = {};
+    calSplits      = {};
+    calHidden      = new Set();
+    calMoved       = {};
+    calParallelCol = {};
   }
-  calDraft          = {};
-  calDirty          = false;
-  _calSplitsBackup  = JSON.parse(JSON.stringify(calSplits));
-  _calHiddenBackup  = new Set(calHidden);
-  _calMovedBackup   = {...calMoved};
+  calDraft              = {};
+  calDirty              = false;
+  _calSplitsBackup      = JSON.parse(JSON.stringify(calSplits));
+  _calHiddenBackup      = new Set(calHidden);
+  _calMovedBackup       = {...calMoved};
+  _calParallelColBackup = {...calParallelCol};
 }
 
 /* ── Sauvegarde vers Firebase ──────────────────────────────────────────────── */
 function _calSaveToFirebase() {
   if (typeof window._fbSetCalPositions !== 'function' || !currentUserId) return;
   window._fbSetCalPositions(currentUserId, {
-    positions: calPositions,
-    checksums: calChecksums,
-    splits:    calSplits,
-    hidden:    [...calHidden],
-    moved:     calMoved,
-    savedAt:   new Date().toISOString()
+    positions:   calPositions,
+    checksums:   calChecksums,
+    splits:      calSplits,
+    hidden:      [...calHidden],
+    moved:       calMoved,
+    parallelCol: calParallelCol,
+    savedAt:     new Date().toISOString()
   });
 }
 
@@ -99,16 +107,18 @@ function _calLoadFromFirebase() {
   if (typeof window._fbGetCalPositions !== 'function' || !currentUserId) return;
   window._fbGetCalPositions(currentUserId, (data) => {
     if (data && typeof data.positions === 'object') {
-      calPositions      = data.positions || {};
-      calChecksums      = data.checksums || {};
-      calSplits         = data.splits    || {};
-      calHidden         = new Set(data.hidden || []);
-      calMoved          = data.moved     || {};
-      calDraft          = {};
-      calDirty          = false;
-      _calSplitsBackup  = JSON.parse(JSON.stringify(calSplits));
-      _calHiddenBackup  = new Set(calHidden);
-      _calMovedBackup   = {...calMoved};
+      calPositions          = data.positions   || {};
+      calChecksums          = data.checksums   || {};
+      calSplits             = data.splits      || {};
+      calHidden             = new Set(data.hidden || []);
+      calMoved              = data.moved       || {};
+      calParallelCol        = data.parallelCol || {};
+      calDraft              = {};
+      calDirty              = false;
+      _calSplitsBackup      = JSON.parse(JSON.stringify(calSplits));
+      _calHiddenBackup      = new Set(calHidden);
+      _calMovedBackup       = {...calMoved};
+      _calParallelColBackup = {...calParallelCol};
       /* Synchroniser localStorage avec Firebase */
       _calWriteLocalStorage();
     }
@@ -437,9 +447,27 @@ function _calComputeDayLayout(events) {
   const _book = (c, s, e) => { colSlots[c].push({ s, e }); };
 
   return events.map((ev, idx) => {
-    const durMin = Math.round(ev.charge * CAL_HOURS_PER_DAY * 60);
-    const segs   = ev._displaySegs
+    const durMin    = Math.round(ev.charge * CAL_HOURS_PER_DAY * 60);
+    const segs      = ev._displaySegs
       || (calSplits[ev.key] ? calSplits[ev.key].map((s, si) => ({ ...s, _si: si })) : null);
+    const forcedCol = calParallelCol[ev.key];
+
+    /* ── Sous-colonne forcée manuellement (drag horizontal intra-jour) ── */
+    if (forcedCol !== undefined) {
+      const c = Math.min(forcedCol, _CAL_MAX_SUBCOLS - 1);
+      if (segs && segs.length) {
+        const s0 = Math.min(...segs.map(s => s.startMin));
+        const e0 = Math.max(...segs.map(s => s.startMin + s.durMin));
+        _book(c, s0, e0);
+        if (colCursors[c] < e0) colCursors[c] = e0;
+        return { ev, idx, durMin, segs, subCol: c, displayStart: s0 };
+      }
+      const s = (calDraft[ev.key] ?? calPositions[ev.key]) ?? colCursors[c];
+      const e = s + durMin;
+      colCursors[c] = Math.max(colCursors[c], e);
+      _book(c, s, e);
+      return { ev, idx, durMin, segs: null, subCol: c, displayStart: s };
+    }
 
     /* ── Segments découpés : positions fixes, overlap detection ── */
     if (segs && segs.length) {
@@ -521,12 +549,12 @@ function _calRenderGrid() {
       ? `<div class="cal-now-line" style="top:${(nowMin-CAL_START_MIN)*CAL_PX_PER_MIN}px"></div>`
       : '';
 
-    const evHTML = (() => {
-      const layouts  = _calComputeDayLayout(events);
-      const N        = layouts.length ? Math.max(...layouts.map(l => l.subCol)) + 1 : 1;
-      const colStyle = c => N === 1 ? '' :
-        `left:calc(40px + ${c}*(100% - 44px)/${N});right:calc(4px + ${N-1-c}*(100% - 44px)/${N});`;
+    const layouts  = _calComputeDayLayout(events);
+    const N        = layouts.length ? Math.max(...layouts.map(l => l.subCol)) + 1 : 1;
+    const colStyle = c => N === 1 ? '' :
+      `left:calc(40px + ${c}*(100% - 44px)/${N});right:calc(4px + ${N-1-c}*(100% - 44px)/${N});`;
 
+    const evHTML = (() => {
       return layouts.flatMap(({ ev, durMin, segs, subCol, displayStart }) => {
         const ek = ev.key.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
         const cs = colStyle(subCol);
@@ -567,7 +595,7 @@ function _calRenderGrid() {
     })();
 
     return `
-      <div class="cal-day-col${isToday?' cal-today':''}" data-date="${dateStr}">
+      <div class="cal-day-col${isToday?' cal-today':''}" data-date="${dateStr}" data-ncols="${N}">
         <div class="cal-day-header">
           <span class="cal-day-name">${_CAL_DAYS[i]}</span>
           <span class="cal-day-date">${dayShort}</span>
@@ -689,22 +717,33 @@ function _calDragEnd(e) {
     const snapped   = Math.round(rawMin / CAL_SNAP_MIN) * CAL_SNAP_MIN;
     const clamped   = Math.max(CAL_START_MIN, Math.min(CAL_END_MIN - CAL_SNAP_MIN, snapped));
 
-    if (segIdx >= 0 && calSplits[key] && calSplits[key][segIdx]) {
-      /* Segment individuel cross-day */
-      if (newDateStr === origDateStr) {
-        delete calSplits[key][segIdx].dateStr;
+    if (newDateStr === origDateStr) {
+      /* ── Drag intra-jour : forcer une sous-colonne selon la position X ── */
+      const colRect     = targetCol.getBoundingClientRect();
+      const colW        = colRect.width;
+      /* Zone utile : après le label (≈40px) jusqu'à la bordure droite (−4px) */
+      const usableLeft  = 40;
+      const usableW     = Math.max(1, colW - 44);
+      const relX        = e.clientX - colRect.left - usableLeft;
+      const targetSubCol = Math.min(_CAL_MAX_SUBCOLS - 1, Math.max(0,
+        Math.floor(relX / usableW * _CAL_MAX_SUBCOLS)
+      ));
+      calParallelCol[key] = targetSubCol;
+
+      /* Mettre à jour la position Y aussi */
+      if (segIdx >= 0 && calSplits[key] && calSplits[key][segIdx]) {
+        calSplits[key][segIdx].startMin = clamped;
       } else {
-        calSplits[key][segIdx].dateStr = newDateStr;
+        calDraft[key] = clamped;
       }
+    } else if (segIdx >= 0 && calSplits[key] && calSplits[key][segIdx]) {
+      /* Segment individuel déplacé vers un autre jour */
+      calSplits[key][segIdx].dateStr  = newDateStr;
       calSplits[key][segIdx].startMin = clamped;
     } else {
-      /* Événement entier cross-day */
-      if (newDateStr === origDateStr) {
-        delete calMoved[key];
-      } else {
-        calMoved[key] = newDateStr;
-      }
-      calDraft[key] = clamped;
+      /* Événement entier déplacé vers un autre jour */
+      calMoved[key]  = newDateStr;
+      calDraft[key]  = clamped;
     }
   } else {
     /* ── Déplacement vertical dans le même jour ── */
@@ -817,12 +856,13 @@ function calDismissWarning() {
 /* ── Sauvegarde ────────────────────────────────────────────────────────────── */
 function saveCalendar() {
   Object.assign(calPositions, calDraft);
-  calDraft          = {};
-  calDirty          = false;
-  calChecksums      = _calComputeChecksums();
-  _calSplitsBackup  = JSON.parse(JSON.stringify(calSplits));
-  _calHiddenBackup  = new Set(calHidden);
-  _calMovedBackup   = {...calMoved};
+  calDraft              = {};
+  calDirty              = false;
+  calChecksums          = _calComputeChecksums();
+  _calSplitsBackup      = JSON.parse(JSON.stringify(calSplits));
+  _calHiddenBackup      = new Set(calHidden);
+  _calMovedBackup       = {...calMoved};
+  _calParallelColBackup = {...calParallelCol};
   const actions     = document.getElementById('calDirtyActions');
   if (actions) actions.style.display = 'none';
   _calWriteLocalStorage();
@@ -833,11 +873,12 @@ function saveCalendar() {
 
 /* ── Annulation ────────────────────────────────────────────────────────────── */
 function cancelCalendar() {
-  calDraft    = {};
-  calDirty    = false;
-  calSplits   = JSON.parse(JSON.stringify(_calSplitsBackup));
-  calHidden   = new Set(_calHiddenBackup);
-  calMoved    = {..._calMovedBackup};
+  calDraft       = {};
+  calDirty       = false;
+  calSplits      = JSON.parse(JSON.stringify(_calSplitsBackup));
+  calHidden      = new Set(_calHiddenBackup);
+  calMoved       = {..._calMovedBackup};
+  calParallelCol = {..._calParallelColBackup};
   const actions = document.getElementById('calDirtyActions');
   if (actions) actions.style.display = 'none';
   _calRender();
@@ -859,11 +900,12 @@ function _calGetWorkedWeekMondays() {
     const [d, m, y] = dateStr.split('/');
     mondayTimes.add(_calMonday(new Date(+y, +m-1, +d)).getTime());
   };
-  for (const k of Object.keys(calPositions)) _addKey(k);
-  for (const k of Object.keys(calDraft))     _addKey(k);
-  for (const k of Object.keys(calSplits))    _addKey(k);
-  for (const k of calHidden)                 _addKey(k);
-  for (const k of Object.keys(calMoved))     _addKey(k);
+  for (const k of Object.keys(calPositions))   _addKey(k);
+  for (const k of Object.keys(calDraft))        _addKey(k);
+  for (const k of Object.keys(calSplits))       _addKey(k);
+  for (const k of calHidden)                    _addKey(k);
+  for (const k of Object.keys(calMoved))        _addKey(k);
+  for (const k of Object.keys(calParallelCol))  _addKey(k);
   return [...mondayTimes].sort().map(t => new Date(t));
 }
 
@@ -1041,7 +1083,7 @@ function calReload() {
     }
   });
 
-  /* Supprimer toutes les personnalisations (positions, splits, masquage, déplacement) */
+  /* Supprimer toutes les personnalisations (positions, splits, masquage, déplacement, sous-colonne) */
   keysToReset.forEach(k => {
     delete calPositions[k];
     delete calChecksums[k];
@@ -1049,6 +1091,7 @@ function calReload() {
     delete calDraft[k];
     calHidden.delete(k);
     delete calMoved[k];
+    delete calParallelCol[k];
   });
   /* Supprimer aussi les déplacements dont la cible est dans la semaine courante */
   const weekDateStrs = new Set(_calWeekDays().map(_calDateStr));
@@ -1057,9 +1100,10 @@ function calReload() {
   }
 
   /* Mettre à jour les backups et sauvegarder immédiatement */
-  _calSplitsBackup = JSON.parse(JSON.stringify(calSplits));
-  _calHiddenBackup = new Set(calHidden);
-  _calMovedBackup  = {...calMoved};
+  _calSplitsBackup      = JSON.parse(JSON.stringify(calSplits));
+  _calHiddenBackup      = new Set(calHidden);
+  _calMovedBackup       = {...calMoved};
+  _calParallelColBackup = {...calParallelCol};
   calDirty = false;
   const dirtyEl = document.getElementById('calDirtyActions');
   if (dirtyEl) dirtyEl.style.display = 'none';
