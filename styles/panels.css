@@ -782,7 +782,7 @@ select.ep-input {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 8px;
-  width: 320px;
+  width: 480px;
   max-width: 96vw;
   box-shadow: 0 8px 32px rgba(0,0,0,.22);
   display: flex;
@@ -868,8 +868,8 @@ select.ep-input {
 .lissage-cfg-input:focus { outline: none; border-color: var(--accent); }
 .lissage-cfg-days {
   display: flex;
-  flex-wrap: wrap;
-  gap: 8px 14px;
+  flex-wrap: nowrap;
+  gap: 8px 10px;
   font-size: 12px;
 }
 .lissage-cfg-days label {
