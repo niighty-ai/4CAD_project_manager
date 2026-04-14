@@ -1297,7 +1297,7 @@ function renderAffectList(r) {
       <div class="affect-row-charges">
         <div class="affect-charge-group">
           <label class="affect-ch-label ch-prev-lbl">Prévue (j)</label>
-          <input type="number" class="affect-ch-input" step="0.25" min="0"
+          <input type="number" class="affect-ch-input" step="0.125" min="0"
             value="${dispCharge != null ? dispCharge : ''}"
             placeholder="—"
             onchange="affectChangeCharge(${i},'charge',this.value)">
@@ -1512,12 +1512,13 @@ function _getLissageConfig() {
     ? portfolio.find(p => p.id === activeProjectId) : null;
   const cfg = proj?.lissageConfig || {};
   return {
-    minCharge:     cfg.minCharge     !== undefined ? cfg.minCharge     : 0.125,
-    strictMin:     cfg.strictMin     !== undefined ? cfg.strictMin     : true,   // strict par défaut
-    preferCharge:  cfg.preferCharge  !== undefined ? cfg.preferCharge  : 0.5,
-    strictPrefer:  cfg.strictPrefer  !== undefined ? cfg.strictPrefer  : false,
-    avoidDays:     cfg.avoidDays     !== undefined ? cfg.avoidDays     : [5],
-    strictAvoid:   cfg.strictAvoid   !== undefined ? cfg.strictAvoid   : false
+    minCharge:          cfg.minCharge          !== undefined ? cfg.minCharge          : 0.125,
+    strictMin:          cfg.strictMin          !== undefined ? cfg.strictMin          : true,
+    preferCharge:       cfg.preferCharge       !== undefined ? cfg.preferCharge       : 0.5,
+    strictPrefer:       cfg.strictPrefer       !== undefined ? cfg.strictPrefer       : false,
+    avoidDays:          cfg.avoidDays          !== undefined ? cfg.avoidDays          : [5],
+    strictAvoid:        cfg.strictAvoid        !== undefined ? cfg.strictAvoid        : false,
+    usePlannedInLissage: cfg.usePlannedInLissage !== undefined ? cfg.usePlannedInLissage : false
   };
 }
 
@@ -1546,6 +1547,7 @@ function _availCapForDay(resourceId, d, excludeTaskName, excludeExtId) {
   if (typeof resources === 'undefined') return 1;
   const res = resources.find(x => x.id === resourceId);
   const dk = _dayKeyLocal(d);
+  const cfg = _getLissageConfig();
   let used = 0;
 
   /* Base : charges GHO sauvegardées, hors tâche courante */
@@ -1581,6 +1583,37 @@ function _availCapForDay(resourceId, d, excludeTaskName, excludeExtId) {
       const asgn = (row.assignments || []).find(a => a.resourceId === resourceId);
       const saved = (asgn?.daily && asgn.daily[dk]) || 0;
       used += (pendingCharge - saved);
+    });
+  }
+
+  /* Option : delta planifié — ajoute la différence (assignment - GHO) pour toutes les tâches
+     du portfolio ayant une affectation sur cette ressource + ce jour (hors tâche courante) */
+  if (cfg.usePlannedInLissage && typeof portfolio !== 'undefined' && res) {
+    portfolio.forEach(proj => {
+      (proj.rows || []).forEach(row => {
+        if (row._type !== 'tache') return;
+        const isCur =
+          (excludeExtId && row.externalTaskId &&
+            (typeof _matchTaskId === 'function'
+              ? _matchTaskId(excludeExtId, row.externalTaskId)
+              : excludeExtId === row.externalTaskId)) ||
+          (!excludeExtId && (row.tache || '') === excludeTaskName);
+        if (isCur) return;
+        const asgn = (row.assignments || []).find(a => a.resourceId === resourceId);
+        if (!asgn) return;
+        let ghoTask = 0;
+        if (res.ghoData && res.ghoData.projects) {
+          const gp = res.ghoData.projects.find(p => p.name === row.projet);
+          if (gp) {
+            const gt = (gp.tasks || []).find(t =>
+              (row.externalTaskId && t.taskId === row.externalTaskId) ||
+              t.taskName === (row.tache || ''));
+            ghoTask = (gt && gt.daily && gt.daily[dk]) || 0;
+          }
+        }
+        const assigned = (asgn.daily && asgn.daily[dk]) || 0;
+        used += assigned - ghoTask; /* delta planifié : s'ajoute à la base GHO */
+      });
     });
   }
 
@@ -1747,6 +1780,7 @@ function openLissageConfig() {
   _v('lcfgPreferCharge', cfg.preferCharge);
   _c('lcfgStrictPrefer', cfg.strictPrefer);
   _c('lcfgStrictAvoid',  cfg.strictAvoid);
+  _c('lcfgUsePlanned',   cfg.usePlannedInLissage);
   document.querySelectorAll('.lcfg-day').forEach(cb => {
     cb.checked = cfg.avoidDays.includes(parseInt(cb.dataset.day));
   });
@@ -1774,9 +1808,10 @@ function saveLissageConfig() {
   const proj = portfolio.find(p => p.id === activeProjectId);
   if (!proj) return;
   proj.lissageConfig = {
-    minCharge,    strictMin:    _cb('lcfgStrictMin'),
-    preferCharge, strictPrefer: _cb('lcfgStrictPrefer'),
-    avoidDays,    strictAvoid:  _cb('lcfgStrictAvoid')
+    minCharge,    strictMin:          _cb('lcfgStrictMin'),
+    preferCharge, strictPrefer:       _cb('lcfgStrictPrefer'),
+    avoidDays,    strictAvoid:        _cb('lcfgStrictAvoid'),
+    usePlannedInLissage: _cb('lcfgUsePlanned')
   };
   if (typeof savePortfolio === 'function') savePortfolio();
   closeLissageConfig();
