@@ -892,7 +892,7 @@ function _showMissingResPopup(missingNames, updatedCount) {
    le portfolio de travail via mergeFirmIntoWorking().
    Retourne { projectsCreated, tasksImported }
    ─────────────────────────────────────────────────────────────────────────────── */
-function _upsertPortfolioFromGHO(taskData, taskAssignmentMap = {}) {
+function _upsertPortfolioFromGHO(taskData, taskAssignmentMap = {}, resetPlanned = false) {
   if (typeof _saveBackToPortfolio === 'function') _saveBackToPortfolio();
 
   let walletChanged   = false;
@@ -960,6 +960,9 @@ function _upsertPortfolioFromGHO(taskData, taskAssignmentMap = {}) {
 
   /* ── Fusionner dans le portfolio de travail ── */
   if (typeof mergeFirmIntoWorking === 'function') mergeFirmIntoWorking(newFirmData);
+
+  /* ── Réinitialiser la base planifiée si demandé ── */
+  if (resetPlanned && typeof _resetPlannedForFirmProjects === 'function') _resetPlannedForFirmProjects(newFirmData);
 
   /* ── Sauvegarder et rafraîchir ── */
   if (walletChanged && typeof saveUserWallet === 'function') saveUserWallet();
@@ -1164,12 +1167,6 @@ function parseGHOExcel(buffer) {
       });
     });
 
-    /* ── Mise à jour du portfolio si colonnes portfolio présentes ── */
-    let portfolioStats = null;
-    if (doPortfolioImport && Object.keys(taskData).length > 0) {
-      portfolioStats = _upsertPortfolioFromGHO(taskData, taskAssignmentMap);
-    }
-
     /* ── Mise à jour ghoData des ressources ── */
     const now        = new Date();
     const importDate = `${String(now.getDate()).padStart(2,'0')}/${String(now.getMonth()+1).padStart(2,'0')}/${now.getFullYear()}`;
@@ -1206,13 +1203,39 @@ function parseGHOExcel(buffer) {
     saveGhoData();   // charges/projets/tâches → gantt_gho
     _refreshResView();
 
-    if (missing.length > 0) {
-      _showMissingResPopup(missing, updated);
+    /* ── Mise à jour du portfolio : modal d'options si données disponibles ── */
+    if (doPortfolioImport && Object.keys(taskData).length > 0 && typeof showImportModal === 'function') {
+      const projCount = new Set(Object.values(taskData).map(t => `${t.clientName}|${t.projName}`)).size;
+      const taskCount = Object.keys(taskData).length;
+      const resMsg = missing.length > 0
+        ? `${updated} ressource(s) mise(s) à jour, ${missing.length} introuvable(s).`
+        : `${updated} ressource(s) mise(s) à jour.`;
+      showImportModal(
+        `${resMsg}\n${projCount} projet(s), ${taskCount} tâche(s) à importer dans le portfolio.`,
+        (resetPlanned) => {
+          const portfolioStats = _upsertPortfolioFromGHO(taskData, taskAssignmentMap, resetPlanned);
+          if (missing.length > 0) {
+            _showMissingResPopup(missing, updated);
+          } else {
+            const pMsg = `\n• ${portfolioStats.projectsCreated} projet(s) créé(s), ${portfolioStats.tasksImported} tâche(s) importées`;
+            alert(`Import GHO ✓\n• ${updated} ressource(s) mise(s) à jour${pMsg}`);
+          }
+        }
+      );
     } else {
-      const pMsg = portfolioStats
-        ? `\n• ${portfolioStats.projectsCreated} projet(s) créé(s), ${portfolioStats.tasksImported} tâche(s) importées`
-        : '';
-      alert(`Import GHO ✓\n• ${updated} ressource(s) mise(s) à jour${pMsg}`);
+      /* Pas de données portfolio (ou modal indisponible) → comportement direct */
+      let portfolioStats = null;
+      if (doPortfolioImport && Object.keys(taskData).length > 0) {
+        portfolioStats = _upsertPortfolioFromGHO(taskData, taskAssignmentMap, false);
+      }
+      if (missing.length > 0) {
+        _showMissingResPopup(missing, updated);
+      } else {
+        const pMsg = portfolioStats
+          ? `\n• ${portfolioStats.projectsCreated} projet(s) créé(s), ${portfolioStats.tasksImported} tâche(s) importées`
+          : '';
+        alert(`Import GHO ✓\n• ${updated} ressource(s) mise(s) à jour${pMsg}`);
+      }
     }
   } catch(err) {
     console.error('GHO import error:', err);

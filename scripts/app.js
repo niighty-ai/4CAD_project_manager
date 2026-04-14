@@ -266,16 +266,33 @@ document.getElementById('fileInput').addEventListener('change',e=>{
         };
       });
 
-      if(typeof saveFirmPortfolio === 'function') saveFirmPortfolio(newFirmData);
-      if(typeof _notifyFirmConflicts === 'function') _notifyFirmConflicts(newFirmData);
-      if(typeof mergeFirmIntoWorking === 'function') mergeFirmIntoWorking(newFirmData);
-      savePortfolio();
-
-      /* ── Mettre à jour la vue ── */
-      rows=[];
-      parsedRows.forEach(r => rows.push(r));
-      parsedJalons.forEach(j => rows.push(j));
-      projectColors={};collapsed={};sortRows();renderAll();
+      /* ── Afficher la modal d'options avant de committer ── */
+      const _projCount = Object.keys(firmByProj).length;
+      const _taskCount = parsedRows.length;
+      const _jalCount  = parsedJalons.length;
+      const _summary   = `${_projCount} projet(s), ${_taskCount} tâche(s)${_jalCount > 0 ? `, ${_jalCount} jalon(s)` : ''} détectés.`;
+      if(typeof showImportModal === 'function'){
+        showImportModal(_summary, (resetPlanned) => {
+          if(typeof saveFirmPortfolio === 'function') saveFirmPortfolio(newFirmData);
+          if(typeof _notifyFirmConflicts === 'function') _notifyFirmConflicts(newFirmData);
+          if(typeof mergeFirmIntoWorking === 'function') mergeFirmIntoWorking(newFirmData);
+          if(resetPlanned && typeof _resetPlannedForFirmProjects === 'function') _resetPlannedForFirmProjects(newFirmData);
+          savePortfolio();
+          rows=[];
+          parsedRows.forEach(r => rows.push(r));
+          parsedJalons.forEach(j => rows.push(j));
+          projectColors={};collapsed={};sortRows();renderAll();
+        });
+      } else {
+        if(typeof saveFirmPortfolio === 'function') saveFirmPortfolio(newFirmData);
+        if(typeof _notifyFirmConflicts === 'function') _notifyFirmConflicts(newFirmData);
+        if(typeof mergeFirmIntoWorking === 'function') mergeFirmIntoWorking(newFirmData);
+        savePortfolio();
+        rows=[];
+        parsedRows.forEach(r => rows.push(r));
+        parsedJalons.forEach(j => rows.push(j));
+        projectColors={};collapsed={};sortRows();renderAll();
+      }
     }catch(err){alert('Erreur : '+err.message);}
   };
   reader.readAsArrayBuffer(file);e.target.value='';

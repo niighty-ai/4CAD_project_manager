@@ -342,12 +342,19 @@ function resetProjectToFirm(projectId, e) {
   const proj = portfolio.find(p => p.id === projectId);
   if (!confirm(`Réinitialiser "${proj?.name || firmProj.name}" à la base ferme ?\n\nToutes les modifications planifiées seront perdues.`)) return;
   _resetProjectToFirmSilent(projectId);
-  savePortfolio();
+  /* Effacer l'état d'édition en cours */
+  if (typeof _ganttEdits !== 'undefined') _ganttEdits = {};
+  if (typeof _tasksDirty !== 'undefined') _tasksDirty = false;
+  if (typeof _tasksSnapshot !== 'undefined') _tasksSnapshot = null;
+  if (typeof _updateSaveBtn === 'function') _updateSaveBtn();
+  /* Sauvegarde immédiate (pas de bouton "Enregistrer" requis) */
+  if (typeof _forcePortfolioFirebaseSave === 'function') _forcePortfolioFirebaseSave();
   if (activeProjectId === projectId || (typeof selectedProjectIds !== 'undefined' && selectedProjectIds.has(projectId))) {
     if (typeof _loadSelectedProjects === 'function') _loadSelectedProjects();
     if (typeof renderAll === 'function') renderAll();
   }
   if (typeof renderNavList === 'function') renderNavList();
+  _updateTogglePlannedBtn();
 }
 
 /* Bascule le mode planifié d'un projet (affecte lissage + affichage) */
@@ -359,6 +366,60 @@ function toggleProjectPlanned(projectId, e) {
   savePortfolio();
   if (typeof renderNavList === 'function') renderNavList();
   if (typeof renderAll === 'function') renderAll();
+  _updateTogglePlannedBtn();
+}
+
+/* Met à jour l'état visuel du bouton toggle planifié dans la toolbar */
+function _updateTogglePlannedBtn() {
+  const btn = document.getElementById('btnTogglePlanned');
+  if (!btn) return;
+  const proj = portfolio.find(p => p.id === activeProjectId);
+  const usePlanned = proj?.usePlanned || false;
+  btn.classList.toggle('planned-active', usePlanned);
+  btn.title = usePlanned
+    ? 'Désactiver le mode planifié (lissage + affichage)'
+    : 'Activer le mode planifié (lissage + affichage)';
+}
+
+/* ── Modal import — options avant commit ── */
+let _pendingImportCallback = null;
+
+function showImportModal(summaryText, onConfirm) {
+  _pendingImportCallback = onConfirm;
+  const el = document.getElementById('importSummaryText');
+  if (el) el.textContent = summaryText;
+  const cb = document.getElementById('importResetPlanned');
+  if (cb) cb.checked = false;
+  const modal = document.getElementById('importOptionsModal');
+  if (modal) modal.style.display = 'flex';
+}
+
+function confirmImport() {
+  const cb = document.getElementById('importResetPlanned');
+  const resetPlanned = cb ? cb.checked : false;
+  const modal = document.getElementById('importOptionsModal');
+  if (modal) modal.style.display = 'none';
+  if (_pendingImportCallback) {
+    const fn = _pendingImportCallback;
+    _pendingImportCallback = null;
+    fn(resetPlanned);
+  }
+}
+
+function cancelImport() {
+  _pendingImportCallback = null;
+  const modal = document.getElementById('importOptionsModal');
+  if (modal) modal.style.display = 'none';
+}
+
+/* Supprime les marqueurs planifiés sur tous les projets présents dans firmData */
+function _resetPlannedForFirmProjects(firmData) {
+  firmData.forEach(fp => {
+    const wp = portfolio.find(p => p.id === fp.id);
+    if (!wp) return;
+    wp.usePlanned = false;
+    (wp.rows || []).forEach(r => { delete r._source; });
+  });
 }
 
 function createNewProjectPrompt(){
@@ -586,6 +647,7 @@ function switchToProject(id){
   _loadSelectedProjects();
   renderNavList();
   renderAll();
+  _updateTogglePlannedBtn();
 }
 
 /* ── Sauvegarde les rows[] vers le(s) projet(s) source dans portfolio ──
