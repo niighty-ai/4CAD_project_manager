@@ -149,7 +149,9 @@ function _serializePortfolio(data){
     };}),
     projectColors: p.projectColors||{},
     collapsed: p.collapsed||{},
-    lissageConfig: p.lissageConfig||null
+    lissageConfig: p.lissageConfig||null,
+    usePlanned:  p.usePlanned  || false,
+    _appCreated: p._appCreated || false
   }));
 }
 
@@ -205,6 +207,160 @@ function _deserializePortfolio(data){
   }));
 }
 
+/* ══════════════════════════════════════════════
+   BASE FERME — couche import-only
+   ══════════════════════════════════════════════ */
+
+/* Clé stable par tâche (pour comparer ferme vs planifié) */
+function _taskKey(row) {
+  if (row.externalTaskId) return 'ext:' + row.externalTaskId;
+  return (row.niveaux || []).join('\x1F') + '\x1F' + (row.tache || '');
+}
+
+/* Sauvegarde la base ferme (localStorage + Firebase) */
+function saveFirmPortfolio(firmData) {
+  portfolioFirm = firmData;
+  try {
+    localStorage.setItem(FIRM_STORAGE_KEY, JSON.stringify(_serializePortfolio(firmData)));
+  } catch(e) { console.warn('Firm localStorage save failed:', e); }
+  scheduleFirebaseSaveFirm(_serializePortfolio(firmData));
+}
+
+/* Chargement de la base ferme depuis localStorage */
+function loadFirmPortfolio() {
+  try {
+    const raw = localStorage.getItem(FIRM_STORAGE_KEY);
+    if (!raw) return false;
+    portfolioFirm = _deserializePortfolio(JSON.parse(raw));
+    return true;
+  } catch(e) { return false; }
+}
+
+function scheduleFirebaseSaveFirm(data) {
+  if (typeof window._fbSetFirm !== 'function') return;
+  clearTimeout(_fbFirmSaveTimer);
+  _fbFirmSaveTimer = setTimeout(() => doFirebaseSaveFirm(data), 1500);
+}
+
+async function doFirebaseSaveFirm(data) {
+  if (_fbFirmSaving) return;
+  if (typeof window._fbSetFirm !== 'function') return;
+  _fbFirmSaving = true;
+  try {
+    await window._fbSetFirm(cleanForFirebase(data));
+  } catch(e) {
+    console.error('Firebase firm save error:', e);
+  } finally { _fbFirmSaving = false; }
+}
+
+/* Fusionne un projet ferme dans sa version de travail
+   (les tâches _source:'planned' de l'utilisateur sont préservées) */
+function _mergeFirmProject(workProj, firmProj) {
+  const firmTaskKeys = new Set((firmProj.rows || []).map(_taskKey));
+  const newRows = [];
+  (firmProj.rows || []).forEach(ft => {
+    const key = _taskKey(ft);
+    const workTask = (workProj.rows || []).find(wt => _taskKey(wt) === key);
+    if (workTask && workTask._source === 'planned') {
+      newRows.push(workTask);   // version planifiée par l'utilisateur prime
+    } else {
+      newRows.push({ ...ft });  // version ferme (sans _source)
+    }
+  });
+  // Tâches créées par l'utilisateur sans contrepartie ferme
+  (workProj.rows || [])
+    .filter(wt => wt._source === 'planned' && !firmTaskKeys.has(_taskKey(wt)))
+    .forEach(wt => newRows.push(wt));
+  return { ...workProj, rows: newRows, name: firmProj.name, client: firmProj.client };
+}
+
+/* Fusionne toute la nouvelle base ferme dans le portfolio de travail */
+function mergeFirmIntoWorking(newFirmData) {
+  const firmIds = new Set(newFirmData.map(p => p.id));
+  newFirmData.forEach(firmProj => {
+    const workIdx = portfolio.findIndex(p => p.id === firmProj.id);
+    if (workIdx === -1) {
+      portfolio.push({ ...firmProj, rows: (firmProj.rows || []).map(r => ({ ...r })) });
+    } else {
+      portfolio[workIdx] = _mergeFirmProject(portfolio[workIdx], firmProj);
+    }
+  });
+  // Projets retirés de la base ferme (et non créés dans l'appli)
+  const removedFromFirm = portfolio.filter(p => !p._appCreated && !firmIds.has(p.id));
+  if (removedFromFirm.length > 0) {
+    const msg = `La base ferme a été mise à jour.\n\nLes projets suivants ne sont plus dans l'import :\n${removedFromFirm.map(p => `• ${p.name} (${p.client || 'sans client'})`).join('\n')}\n\nVoulez-vous les conserver dans la planification ?`;
+    if (!confirm(msg)) {
+      removedFromFirm.forEach(p => {
+        const idx = portfolio.indexOf(p);
+        if (idx !== -1) portfolio.splice(idx, 1);
+        selectedProjectIds.delete(p.id);
+      });
+    } else {
+      removedFromFirm.forEach(p => { p._appCreated = true; });
+    }
+  }
+}
+
+/* Notifie l'utilisateur si des tâches planifiées existent sur des projets mis à jour */
+function _notifyFirmConflicts(newFirmData) {
+  const conflictProjs = newFirmData
+    .map(fp => portfolio.find(wp => wp.id === fp.id))
+    .filter(wp => wp && (wp.rows || []).some(r => r._source === 'planned'));
+  if (conflictProjs.length === 0) return;
+  const msg = `⚠ La base ferme a été mise à jour.\n\nDes modifications planifiées existent sur :\n${conflictProjs.map(p => `• ${p.name}`).join('\n')}\n\nVoulez-vous réinitialiser ces projets à la nouvelle base ferme ?\n(Les modifications planifiées seront perdues)`;
+  if (confirm(msg)) {
+    conflictProjs.forEach(p => _resetProjectToFirmSilent(p.id, newFirmData));
+  }
+}
+
+/* Réinitialise un projet à la base ferme sans confirmation */
+function _resetProjectToFirmSilent(projectId, firmDataSrc) {
+  const src = firmDataSrc || portfolioFirm;
+  const firmProj = src.find(p => p.id === projectId);
+  if (!firmProj) return;
+  const idx = portfolio.findIndex(p => p.id === projectId);
+  if (idx === -1) return;
+  const cur = portfolio[idx];
+  const deser = _deserializePortfolio([JSON.parse(JSON.stringify(_serializePortfolio([firmProj])[0]))])[0];
+  portfolio[idx] = {
+    ...deser,
+    collapsed:     cur.collapsed     || {},
+    projectColors: cur.projectColors || firmProj.projectColors || {},
+    jalons:        cur.jalons        || firmProj.jalons        || [],
+    usePlanned:    false
+  };
+}
+
+/* Réinitialise un projet à la base ferme (public, avec confirmation) */
+function resetProjectToFirm(projectId, e) {
+  if (e) e.stopPropagation();
+  const firmProj = portfolioFirm.find(p => p.id === projectId);
+  if (!firmProj) {
+    alert('Ce projet n\'a pas de base ferme.\nIl a été créé directement dans l\'application.');
+    return;
+  }
+  const proj = portfolio.find(p => p.id === projectId);
+  if (!confirm(`Réinitialiser "${proj?.name || firmProj.name}" à la base ferme ?\n\nToutes les modifications planifiées seront perdues.`)) return;
+  _resetProjectToFirmSilent(projectId);
+  savePortfolio();
+  if (activeProjectId === projectId || (typeof selectedProjectIds !== 'undefined' && selectedProjectIds.has(projectId))) {
+    if (typeof _loadSelectedProjects === 'function') _loadSelectedProjects();
+    if (typeof renderAll === 'function') renderAll();
+  }
+  if (typeof renderNavList === 'function') renderNavList();
+}
+
+/* Bascule le mode planifié d'un projet (affecte lissage + affichage) */
+function toggleProjectPlanned(projectId, e) {
+  if (e) e.stopPropagation();
+  const proj = portfolio.find(p => p.id === projectId);
+  if (!proj) return;
+  proj.usePlanned = !proj.usePlanned;
+  savePortfolio();
+  if (typeof renderNavList === 'function') renderNavList();
+  if (typeof renderAll === 'function') renderAll();
+}
+
 function createNewProjectPrompt(){
   const clients = [...new Set(portfolio.map(p=>p.client||'').filter(Boolean))];
   let clientName = '';
@@ -229,7 +385,8 @@ function createNewProject(name, initialRows, initialColors, client, folder){
     folder: folder || '',
     rows: initialRows || [],
     projectColors: initialColors || {},
-    collapsed: {}
+    collapsed: {},
+    _appCreated: true  // créé dans l'appli, pas issu d'un import ferme
   };
   portfolio.push(proj);
   /* Ajouter automatiquement le client au portefeuille de l'utilisateur */

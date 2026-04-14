@@ -886,20 +886,13 @@ function _showMissingResPopup(missingNames, updatedCount) {
   document.body.appendChild(el);
 }
 
-/* ── Reconstruction des projets dans le portfolio depuis les données GHO ──
-   Stratégie :
-   • Projet présent dans l'import ET dans le portfolio → tâches remplacées entièrement.
-     Les jalons (issus de l'XML) et les métadonnées projet (couleurs, collapsed) sont conservés.
-   • Projet présent dans le portfolio mais ABSENT de l'import → intouché.
-   • Projet présent dans l'import mais absent du portfolio → créé.
-
-   taskData : map 'client|projet|tKey' → {clientName, projName, niveaux, tache,
-              taskId, debut, fin}
-   chargePassee / chargeRestante : NON lues depuis taskData — calculées dynamiquement au rendu.
+/* ── Reconstruction de la BASE FERME depuis les données GHO (import total) ──
+   L'import GHO remplace INTÉGRALEMENT la base ferme.
+   Les modifications planifiées (tâches _source:'planned') sont préservées dans
+   le portfolio de travail via mergeFirmIntoWorking().
    Retourne { projectsCreated, tasksImported }
    ─────────────────────────────────────────────────────────────────────────────── */
 function _upsertPortfolioFromGHO(taskData, taskAssignmentMap = {}) {
-  /* Sauvegarder l'état courant de l'affichage dans le portfolio avant toute modification */
   if (typeof _saveBackToPortfolio === 'function') _saveBackToPortfolio();
 
   let walletChanged   = false;
@@ -916,74 +909,63 @@ function _upsertPortfolioFromGHO(taskData, taskAssignmentMap = {}) {
     byProject[pKey].tasks.push(task);
   });
 
-  /* ── Traiter chaque projet présent dans l'import ── */
+  /* ── Construire les données de la base ferme ── */
+  const newFirmData = [];
+
   Object.values(byProject).forEach(({ clientName, projName, tasks }) => {
+    /* Réutiliser l'ID existant (work ou firm) ou en créer un nouveau */
+    _idSeq++;
+    const existWork = portfolio.find(p => p.name === projName && (p.client || '') === clientName);
+    const existFirm = portfolioFirm.find(p => p.name === projName && (p.client || '') === clientName);
+    const projId = existWork?.id || existFirm?.id ||
+      `p_${Date.now()}_${_idSeq}_${Math.random().toString(36).slice(2, 6)}`;
 
-    /* Trouver ou créer le projet */
-    let proj = portfolio.find(p => p.name === projName && (p.client || '') === clientName);
-    if (!proj) {
-      _idSeq++;
-      proj = {
-        id: `p_${Date.now()}_${_idSeq}_${Math.random().toString(36).slice(2, 6)}`,
-        name: projName,
-        client: clientName,
-        folder: '',
-        rows: [],
-        jalons: [],
-        projectColors: {},
-        collapsed: {}
-      };
-      portfolio.push(proj);
-      projectsCreated++;
-      if (clientName && !userWalletClients.has(clientName)) {
-        userWalletClients.add(clientName);
-        walletChanged = true;
-      }
+    if (!existWork) projectsCreated++;
+    if (clientName && !userWalletClients.has(clientName)) {
+      userWalletClients.add(clientName);
+      walletChanged = true;
     }
-    if (!proj.rows)   proj.rows   = [];
-    if (!proj.jalons) proj.jalons = [];
 
-    /* Remplacer TOUTES les tâches du projet par celles de l'import.
-       Les jalons (XML) sont conservés dans proj.jalons — non touchés. */
-    proj.rows = [];
-
+    const firmRows = [];
     tasks.forEach(task => {
       const { niveaux, tache, taskId, tKey, debut, fin } = task;
       if (!debut || !fin || isNaN(debut) || isNaN(fin)) return;
-
-      /* Récupérer les assignments GHO pour cette tâche */
       const asgnKey     = `${projName}|${tKey || taskId || tache}`;
       const assignments = (taskAssignmentMap[asgnKey] || []).map(a => ({ ...a }));
-
-      /* charge (temps prévu) = somme des charges journalières GHO par ressource */
       const totalCharge = assignments.reduce((s, a) => s + (a.charge || 0), 0);
       const charge      = totalCharge > 0 ? Math.round(totalCharge * 10000) / 10000 : null;
-
-      /* chargePassee et chargeRestante sont calculées dynamiquement au rendu
-         depuis les données daily — elles ne sont plus stockées. */
-      proj.rows.push({
-        _type:          'tache',
-        projet:         projName,
-        niveaux,
-        tache,
-        debut,
-        fin,
-        charge,
-        chargePassee:   null,
-        chargeRestante: null,
-        externalTaskId:  taskId || null,
-        assignments
+      firmRows.push({
+        _type: 'tache', projet: projName, niveaux, tache, debut, fin, charge,
+        chargePassee: null, chargeRestante: null,
+        externalTaskId: taskId || null, assignments
       });
       tasksImported++;
     });
+
+    newFirmData.push({
+      id: projId, name: projName, client: clientName,
+      folder:        existWork?.folder        || existFirm?.folder        || '',
+      jalons:        existWork?.jalons        || existFirm?.jalons        || [],
+      projectColors: existWork?.projectColors || existFirm?.projectColors || {},
+      collapsed:     existWork?.collapsed     || existFirm?.collapsed     || {},
+      rows: firmRows
+    });
   });
+
+  /* ── Sauvegarder la base ferme (remplacement total) ── */
+  if (typeof saveFirmPortfolio === 'function') saveFirmPortfolio(newFirmData);
+
+  /* ── Notifier les conflits avec les modifications planifiées ── */
+  if (typeof _notifyFirmConflicts === 'function') _notifyFirmConflicts(newFirmData);
+
+  /* ── Fusionner dans le portfolio de travail ── */
+  if (typeof mergeFirmIntoWorking === 'function') mergeFirmIntoWorking(newFirmData);
 
   /* ── Sauvegarder et rafraîchir ── */
   if (walletChanged && typeof saveUserWallet === 'function') saveUserWallet();
   savePortfolio();
   if (typeof renderNavList === 'function') renderNavList();
 
-  /* Recharger la vue Gantt si un projet affiché a été modifié */
   if (selectedProjectIds.size > 0 && typeof _loadSelectedProjects === 'function') {
     _loadSelectedProjects();
     if (typeof renderAll === 'function') renderAll();
@@ -1562,37 +1544,88 @@ function syncGanttFromResources(silent = false) {
 
 /* Legacy aliases used elsewhere */
 function renderResourceCalendarView() { _refreshResView(); }
+/* Charge GHO (ferme) pour les projets dont usePlanned = false,
+   + charge planifiée (assignments) pour les projets dont usePlanned = true */
 function getChargeForResourceDay(resourceId, date) {
-  const r = resources.find(x => x.id === resourceId);
-  if (!r || !r.ghoData) return 0;
+  const r   = resources.find(x => x.id === resourceId);
   const key = _dayKey(date);
-  /* Nouveau format : Projets → Tâches */
-  if (r.ghoData.projects) {
-    return r.ghoData.projects.reduce((s, p) =>
-      s + (p.tasks || []).reduce((ts, t) => ts + (t.daily[key] || 0), 0), 0);
+  let total = 0;
+
+  if (r && r.ghoData) {
+    if (r.ghoData.projects) {
+      r.ghoData.projects.forEach(ghoProj => {
+        /* N'utiliser le GHO que si le projet ne bascule pas en planifié */
+        const portProj = (typeof portfolio !== 'undefined' ? portfolio : [])
+          .find(p => p.name === ghoProj.name);
+        if (!portProj || !portProj.usePlanned) {
+          total += (ghoProj.tasks || []).reduce((s, t) => s + ((t.daily && t.daily[key]) || 0), 0);
+        }
+      });
+    } else {
+      total += (r.ghoData.activities || []).reduce((s, a) => s + (a.daily[key] || 0), 0);
+    }
   }
-  /* Ancien format : Activités */
-  return (r.ghoData.activities || []).reduce((s, a) => s + (a.daily[key] || 0), 0);
+
+  /* Ajouter les charges planifiées pour les projets avec usePlanned = true */
+  total += _getPlannedChargeForResourceDay(resourceId, key);
+  return total;
+}
+
+/* Charge issue des assignments de travail pour les projets en mode planifié */
+function _getPlannedChargeForResourceDay(resourceId, dayKey) {
+  if (typeof portfolio === 'undefined') return 0;
+  let total = 0;
+  portfolio.filter(p => p.usePlanned).forEach(p => {
+    (p.rows || []).forEach(r => {
+      if (r._type !== 'tache') return;
+      (r.assignments || []).forEach(a => {
+        if (a.resourceId !== resourceId) return;
+        total += (a.daily && a.daily[dayKey]) || 0;
+      });
+    });
+  });
+  return total;
 }
 
 function getTasksForResourceDay(resourceId, dateKey) {
-  /* Retourne { total, tasks:[{projet,tache,charge}] } pour une ressource à une date (clé DD/MM/YYYY) */
+  /* Retourne { total, tasks:[{projet,tache,charge,isPlanned?}] } */
   const r = resources.find(x => x.id === resourceId);
-  if (!r || !r.ghoData) return { total: 0, tasks: [] };
   const items = [];
-  if (r.ghoData.projects) {
-    r.ghoData.projects.forEach(p => {
-      (p.tasks || []).forEach(t => {
-        const c = t.daily[dateKey] || 0;
-        if (c > 0) items.push({ projet: p.name || '—', tache: t.taskName || t.taskId || '—', charge: c });
+
+  if (r && r.ghoData) {
+    if (r.ghoData.projects) {
+      r.ghoData.projects.forEach(p => {
+        const portProj = (typeof portfolio !== 'undefined' ? portfolio : [])
+          .find(pp => pp.name === p.name);
+        if (!portProj || !portProj.usePlanned) {
+          (p.tasks || []).forEach(t => {
+            const c = (t.daily && t.daily[dateKey]) || 0;
+            if (c > 0) items.push({ projet: p.name || '—', tache: t.taskName || t.taskId || '—', charge: c });
+          });
+        }
+      });
+    } else if (r.ghoData.activities) {
+      r.ghoData.activities.forEach(a => {
+        const c = a.daily[dateKey] || 0;
+        if (c > 0) items.push({ projet: '—', tache: a.name || '—', charge: c });
+      });
+    }
+  }
+
+  /* Tâches planifiées pour les projets en mode planifié */
+  if (typeof portfolio !== 'undefined') {
+    portfolio.filter(p => p.usePlanned).forEach(p => {
+      (p.rows || []).forEach(row => {
+        if (row._type !== 'tache') return;
+        (row.assignments || []).forEach(a => {
+          if (a.resourceId !== resourceId) return;
+          const c = (a.daily && a.daily[dateKey]) || 0;
+          if (c > 0) items.push({ projet: row.projet, tache: row.tache || '—', charge: c, isPlanned: true });
+        });
       });
     });
-  } else if (r.ghoData.activities) {
-    r.ghoData.activities.forEach(a => {
-      const c = a.daily[dateKey] || 0;
-      if (c > 0) items.push({ projet: '—', tache: a.name || '—', charge: c });
-    });
   }
+
   const total = Math.round(items.reduce((s, x) => s + x.charge, 0) * 1000) / 1000;
   return { total, tasks: items };
 }

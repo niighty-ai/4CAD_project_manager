@@ -229,15 +229,20 @@ function renderGantt(){
 
   /* ── Colonnes charge sur une ligne (tâche, groupe, projet) ── */
   function chargeCols(r) {
-    const charge  = _effCharge(r);
-    const passee  = _effPassee(r);
+    const charge   = _effCharge(r);
+    const passee   = _effPassee(r);
     const restante = _effRestante(charge, passee);
+    const planned  = r._source === 'planned';
+    const ps = planned ? ' style="color:#22c55e;font-style:italic"' : '';
     if (!hasTracking) {
-      return charge != null ? `<span class="ch-col ch-prev">${fmtCharge(charge)}j</span>` : `<span class="ch-col ch-prev ch-empty">—</span>`;
+      return charge != null
+        ? `<span class="ch-col ch-prev"${ps}>${fmtCharge(charge)}j</span>`
+        : `<span class="ch-col ch-prev ch-empty">—</span>`;
     }
-    return chCell(charge, 'ch-prev') +
-           chCell(passee, 'ch-pass') +
-           chCell(restante, 'ch-rest');
+    const prevCell = charge != null
+      ? `<span class="ch-col ch-prev"${ps}>${fmtCharge(charge)}j</span>`
+      : `<span class="ch-col ch-prev ch-empty">—</span>`;
+    return prevCell + chCell(passee, 'ch-pass') + chCell(restante, 'ch-rest');
   }
 
   /* ── Colonnes charge sur une ligne ressource ── */
@@ -523,7 +528,7 @@ function renderChart(layout,legend,visible,minD0,maxD0,today,leftHTML,mode,hasTr
       width=Math.max(dayWidth,diff(r.debut,r.fin)*dayWidth+dayWidth);
     }
     const tl=todayOk?`<div class="today-line" style="left:${todayX}px"></div>`:'';
-    const tipArgs=`${JSON.stringify(r.projet)},${JSON.stringify(r.groupe||'')},${JSON.stringify(r.tache||'')},${JSON.stringify(fmtD(r.debut))},${JSON.stringify(fmtD(r.fin))},${r.charge}`;
+    const tipArgs=`${JSON.stringify(r.projet)},${JSON.stringify(r.groupe||'')},${JSON.stringify(r.tache||'')},${JSON.stringify(fmtD(r.debut))},${JSON.stringify(fmtD(r.fin))},${r.charge},${r._source==='planned'}`;
     let barHtml;
     if(isProj){
       const col=c;
@@ -728,14 +733,17 @@ function renderChart(layout,legend,visible,minD0,maxD0,today,leftHTML,mode,hasTr
   }
 }
 const tip=document.getElementById('tooltip');
-function showTip(e,projet,groupe,tache,debut,fin,charge){
+function showTip(e,projet,groupe,tache,debut,fin,charge,isPlanned){
   const c=getColor(projet);
+  const chargeStyle = isPlanned ? ' style="color:#22c55e;font-style:italic"' : '';
+  const chargeLabel = isPlanned ? `${charge}j ✎` : `${charge}j`;
   tip.innerHTML=`<strong style="color:${c}">${escH(projet)}</strong>
     ${groupe?`<div style="color:${lighten(c,20)};font-size:10px;margin-bottom:2px">◆ ${escH(groupe)}</div>`:''}
     ${tache?`<div style="margin-bottom:3px;font-size:11px">${escH(tache)}</div>`:''}
     <div class="tip-row"><span>Début</span><span class="tip-val">${debut}</span></div>
     <div class="tip-row"><span>Fin</span><span class="tip-val">${fin}</span></div>
-    ${charge!==null&&charge!=='null'?`<div class="tip-row"><span>Charge</span><span class="tip-val">${charge}j</span></div>`:''}`;
+    ${charge!==null&&charge!=='null'?`<div class="tip-row"><span>Charge</span><span class="tip-val"${chargeStyle}>${chargeLabel}</span></div>`:''}
+    ${isPlanned?'<div style="font-size:9px;color:#22c55e;margin-top:3px">✎ Planifié</div>':''}`;
   tip.style.display='block';moveTip(e);
 }
 function moveTip(e){tip.style.left=(e.clientX+12)+'px';tip.style.top=(e.clientY-9)+'px';}
@@ -810,7 +818,8 @@ function showResChargeTip(e,resourceId,dateKey,resourceNom){
   const libre_val=libre;
   const [dd,mm,yyyy]=dateKey.split('/');
 
-  const rowsHtml=merged.map(t=>`<tr${t.edited?' class="rcp-pending"':''}>
+  const hasPlannedItems = merged.some(t => t.isPlanned);
+  const rowsHtml=merged.map(t=>`<tr${t.edited?' class="rcp-pending"':t.isPlanned?' class="rcp-planned"':''}>
     <td class="rcp-proj" title="${escH(t.projet)}">${escH(t.projet)}</td>
     <td class="rcp-task" title="${escH(t.tache)}">${escH(t.tache)}</td>
     <td class="rcp-charge">${fv(t.charge)}&thinsp;<span class="rcp-h">${fh(t.charge)}</span></td>
@@ -824,6 +833,7 @@ function showResChargeTip(e,resourceId,dateKey,resourceNom){
       <span class="rcp-libre">Libre&nbsp;<strong>${fv(libre_val)}</strong>&thinsp;<span class="rcp-h">${fh(libre_val)}</span></span>
     </div>
     ${hasPending?'<div class="rcp-pending-hint">✎ Modifications non sauvegardées</div>':''}
+    ${hasPlannedItems?'<div class="rcp-planned-hint">✎ Charges planifiées</div>':''}
     ${merged.length?`<div class="rcp-scroll"><table class="rcp-table">
       <thead><tr><th>Projet</th><th>Tâche</th><th>Charge</th></tr></thead>
       <tbody>${rowsHtml}</tbody>

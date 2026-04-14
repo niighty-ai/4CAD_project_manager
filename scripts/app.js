@@ -77,7 +77,7 @@ function _startFirebaseLoad() {
   /* Initialisation des ressources */
   if (typeof initResources === 'function') initResources();
 
-  /* Chargement du portfolio */
+  /* Chargement du portfolio de travail */
   let attempts = 0;
   const iv = setInterval(() => {
     attempts++;
@@ -99,6 +99,24 @@ function _startFirebaseLoad() {
     } else if (attempts > 60) {
       clearInterval(iv);
       setFbStatus('⚠ Firebase indisponible', '#e17055');
+    }
+  }, 100);
+
+  /* Chargement de la base ferme (lecture seule, sync temps-réel) */
+  loadFirmPortfolio(); // localStorage d'abord
+  let firmAttempts = 0;
+  const firmIv = setInterval(() => {
+    firmAttempts++;
+    if (typeof window._fbOnValueFirm === 'function') {
+      clearInterval(firmIv);
+      window._fbOnValueFirm(function(val) {
+        if (val && Array.isArray(val) && val.length) {
+          portfolioFirm = migrateFirebaseData(val);
+          try { localStorage.setItem(FIRM_STORAGE_KEY, JSON.stringify(_serializePortfolio(portfolioFirm))); } catch(e) {}
+        }
+      });
+    } else if (firmAttempts > 60) {
+      clearInterval(firmIv);
     }
   }, 100);
 }
@@ -191,7 +209,9 @@ document.getElementById('fileInput').addEventListener('change',e=>{
           (n===1 && (h.includes('groupe')||h.includes('group')))
         ))
       };
-      rows=[];
+      /* ── Parser les lignes ── */
+      const parsedRows = [];
+      const parsedJalons = [];
       for(let i=hr+1;i<data.length;i++){
         const r=data[i];if(!r||!r[ci.projet])continue;
         const typeVal = ci.type>=0&&r[ci.type] ? String(r[ci.type]).toLowerCase().trim() : '';
@@ -200,7 +220,7 @@ document.getElementById('fileInput').addEventListener('change',e=>{
         if(isJalon){
           const d=ci.debut>=0?parseDate(r[ci.debut]):null;
           if(!d||isNaN(d)) continue;
-          rows.push({_type:'jalon',projet:String(r[ci.projet]).trim(),nom:nomVal||'',date:d});
+          parsedJalons.push({_type:'jalon',projet:String(r[ci.projet]).trim(),nom:nomVal||'',date:d});
           continue;
         }
         const d=ci.debut>=0?parseDate(r[ci.debut]):null;
@@ -213,8 +233,48 @@ document.getElementById('fileInput').addEventListener('change',e=>{
           if(idx>=0&&r[idx]&&String(r[idx]).trim()) niveaux.push(String(r[idx]).trim());
           else break;
         }
-        rows.push({_type:'tache',projet:String(r[ci.projet]).trim(),niveaux,tache:nomVal,debut:d,fin:f,charge:ch});
+        parsedRows.push({_type:'tache',projet:String(r[ci.projet]).trim(),niveaux,tache:nomVal,debut:d,fin:f,charge:ch});
       }
+
+      /* ── Construire la base ferme depuis le fichier (remplacement total) ── */
+      const firmByProj = {};
+      parsedRows.forEach(r => {
+        if(!firmByProj[r.projet]) firmByProj[r.projet] = [];
+        firmByProj[r.projet].push(r);
+      });
+      parsedJalons.forEach(j => {
+        if(!firmByProj[j.projet]) firmByProj[j.projet] = [];
+      });
+
+      let _seq = 0;
+      const newFirmData = Object.entries(firmByProj).map(([projName, projRows]) => {
+        _seq++;
+        const existWork = portfolio.find(p => p.name === projName);
+        const existFirm = portfolioFirm.find(p => p.name === projName);
+        const projId = existWork?.id || existFirm?.id ||
+          `p_${Date.now()}_${_seq}_${Math.random().toString(36).slice(2,6)}`;
+        const firmRows = projRows.filter(r => r._type === 'tache');
+        const firmJalons = parsedJalons.filter(j => j.projet === projName);
+        return {
+          id: projId, name: projName,
+          client:        existWork?.client        || existFirm?.client        || '',
+          folder:        existWork?.folder        || existFirm?.folder        || '',
+          projectColors: existWork?.projectColors || existFirm?.projectColors || {},
+          collapsed:     existWork?.collapsed     || existFirm?.collapsed     || {},
+          jalons: firmJalons.length ? firmJalons : (existWork?.jalons || existFirm?.jalons || []),
+          rows: firmRows
+        };
+      });
+
+      if(typeof saveFirmPortfolio === 'function') saveFirmPortfolio(newFirmData);
+      if(typeof _notifyFirmConflicts === 'function') _notifyFirmConflicts(newFirmData);
+      if(typeof mergeFirmIntoWorking === 'function') mergeFirmIntoWorking(newFirmData);
+      savePortfolio();
+
+      /* ── Mettre à jour la vue ── */
+      rows=[];
+      parsedRows.forEach(r => rows.push(r));
+      parsedJalons.forEach(j => rows.push(j));
       projectColors={};collapsed={};sortRows();renderAll();
     }catch(err){alert('Erreur : '+err.message);}
   };

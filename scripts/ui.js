@@ -114,7 +114,8 @@ function saveInlineEdit(ri){
   const f=document.getElementById('ei-fin')?.value;
   const c=document.getElementById('ei-charge')?.value;
   if(!p||!d||!f){alert('Projet, Début et Fin requis.');return;}
-  rows[ri]={_type:'tache',projet:p,groupe:g||null,tache:t||null,debut:parseDate(d),fin:parseDate(f),charge:c!==''?roundCharge(parseFloat(c)):null};
+  const _prevRow = rows[ri] || {};
+  rows[ri]={..._prevRow,_type:'tache',projet:p,groupe:g||null,tache:t||null,debut:parseDate(d),fin:parseDate(f),charge:c!==''?roundCharge(parseFloat(c)):null,_source:'planned'};
   editingIdx=null;sortRows();renderAll();
 }
 function cancelInlineEdit(){
@@ -330,22 +331,31 @@ function addClientToWalletModal(clientName) {
 
 /* ── Rendu d'un item projet dans la nav ── */
 function _renderNavProject(p){
-  const isActive = p.id===activeProjectId;
-  const isChecked = selectedProjectIds.has(p.id);
-  const taskCount = (p.rows||[]).filter(r=>r._type==='tache').length;
-  return `<div class="nav-item${isActive?' active':''}${isChecked?' checked':''}" id="navItem_${p.id}"
+  const isActive   = p.id===activeProjectId;
+  const isChecked  = selectedProjectIds.has(p.id);
+  const taskCount  = (p.rows||[]).filter(r=>r._type==='tache').length;
+  const hasPlanned = (p.rows||[]).some(r=>r._source==='planned');
+  const usePlanned = p.usePlanned || false;
+  const hasFirm    = typeof portfolioFirm !== 'undefined' && portfolioFirm.some(f=>f.id===p.id);
+  /* Badge planifié : affiché si des tâches planifiées existent ou si le toggle est actif */
+  const plannedBadge = (hasPlanned || usePlanned)
+    ? `<span class="nav-planned-badge${usePlanned?' active':''}" title="${usePlanned?'Mode planifié actif':'Tâches planifiées'}">P</span>`
+    : '';
+  return `<div class="nav-item${isActive?' active':''}${isChecked?' checked':''}${usePlanned?' nav-item-planned':''}" id="navItem_${p.id}"
       draggable="true"
       ondragstart="navDragStart(event,'${p.id}')"
       ondragend="navDragEnd(event)"
       onclick="switchToProject('${p.id}')">
     <input type="checkbox" class="nav-item-check" ${isChecked?'checked':''} onclick="toggleProjectSelection('${p.id}',event)" title="Inclure dans la vue">
     <div style="flex:1;min-width:0;overflow:hidden">
-      <div class="nav-item-name" title="${escH(p.name)}">${escH(p.name)}</div>
+      <div class="nav-item-name" title="${escH(p.name)}">${escH(p.name)}${plannedBadge}</div>
       <div class="nav-item-meta">${taskCount} tâche${taskCount!==1?'s':''}</div>
     </div>
     <div class="nav-item-actions">
       <button class="nav-action-btn" onclick="startRename('${p.id}',event)" title="Renommer">&#9998;</button>
       <button class="nav-action-btn" onclick="duplicateProject('${p.id}',event)" title="Dupliquer">&#10063;</button>
+      ${hasFirm?`<button class="nav-action-btn${usePlanned?' nav-planned-active':''}" onclick="toggleProjectPlanned('${p.id}',event)" title="${usePlanned?'Désactiver le mode planifié (lissage + affichage)':'Activer le mode planifié (lissage + affichage)'}">&#9783;</button>`:''}
+      ${hasFirm?`<button class="nav-action-btn" onclick="resetProjectToFirm('${p.id}',event)" title="Réinitialiser à la base ferme">&#8635;</button>`:''}
       <button class="nav-action-btn danger" onclick="deleteProject('${p.id}',event)" title="Supprimer">&#128465;</button>
     </div>
   </div>`;
@@ -935,7 +945,8 @@ function saveEditPanel(){
       chargePassee:   _chargePassee,
       chargeRestante: _chargeRestante,
       assignments:    _assignments,
-      _srcPid: activeProjectId
+      _srcPid: activeProjectId,
+      _source: 'planned'
     };
   }
   if(epMode==='edit'&&epEditingIdx!==null) rows[epEditingIdx]=newRow;

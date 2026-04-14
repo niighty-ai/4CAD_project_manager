@@ -2,8 +2,10 @@
    utils.js — Constantes, état global, utilitaires
    ═══════════════════════════════════════════ */
 
-const STORAGE_KEY = 'gantt4cad_portfolio';
-let portfolio = [];
+const STORAGE_KEY      = 'gantt4cad_portfolio';
+const FIRM_STORAGE_KEY = 'gantt4cad_portfolio_firm';
+let portfolio     = [];
+let portfolioFirm = [];   // base ferme (import-only)
 let activeProjectId = null;
 let rows=[];
 let view='semaine';
@@ -119,8 +121,10 @@ const _origRenderAll = typeof renderAll !== 'undefined' ? renderAll : null;
 let epEditingIdx = null;
 let epMode = 'new';
 const MAX_NIVEAUX = 5;
-let _fbSaveTimer  = null;
-let _fbSaving     = false;
+let _fbSaveTimer      = null;
+let _fbSaving         = false;
+let _fbFirmSaveTimer  = null;
+let _fbFirmSaving     = false;
 let _fbInitLoaded = false;
 let _lastSaveTs = 0;
 let _tasksDirty = false;         // true si des modifs de tâches non sauvegardées sur Firebase
