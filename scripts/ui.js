@@ -362,21 +362,17 @@ function _renderNavProject(p){
   const isActive   = p.id===activeProjectId;
   const isChecked  = selectedProjectIds.has(p.id);
   const taskCount  = (p.rows||[]).filter(r=>r._type==='tache').length;
-  const hasPlanned = (p.rows||[]).some(r=>r._source==='planned');
-  const usePlanned = p.usePlanned || false;
+  /* Projet "planifié" = créé dans l'appli OU contient au moins une tâche avec écart (_source:'planned') */
+  const hasPlanned = p._appCreated || (p.rows||[]).some(r=>r._source==='planned');
   const hasFirm    = typeof portfolioFirm !== 'undefined' && portfolioFirm.some(f=>f.id===p.id);
-  /* Badge planifié : affiché si des tâches planifiées existent ou si le toggle est actif */
-  const plannedBadge = (hasPlanned || usePlanned)
-    ? `<span class="nav-planned-badge${usePlanned?' active':''}" title="${usePlanned?'Mode planifié actif':'Tâches planifiées'}">P</span>`
-    : '';
-  return `<div class="nav-item${isActive?' active':''}${isChecked?' checked':''}${usePlanned?' nav-item-planned':''}" id="navItem_${p.id}"
+  return `<div class="nav-item${isActive?' active':''}${isChecked?' checked':''}${hasPlanned?' nav-item-planned':''}" id="navItem_${p.id}"
       draggable="true"
       ondragstart="navDragStart(event,'${p.id}')"
       ondragend="navDragEnd(event)"
       onclick="switchToProject('${p.id}')">
     <input type="checkbox" class="nav-item-check" ${isChecked?'checked':''} onclick="toggleProjectSelection('${p.id}',event)" title="Inclure dans la vue">
     <div style="flex:1;min-width:0;overflow:hidden">
-      <div class="nav-item-name" title="${escH(p.name)}">${plannedBadge}${escH(p.name)}</div>
+      <div class="nav-item-name" title="${escH(p.name)}">${escH(p.name)}</div>
       <div class="nav-item-meta">${taskCount} tâche${taskCount!==1?'s':''}</div>
     </div>
     <div class="nav-item-actions">

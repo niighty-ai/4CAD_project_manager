@@ -1586,24 +1586,18 @@ function getChargeForResourceDay(resourceId, date) {
   return total;
 }
 
-/* Charge totale pour une ressource+jour en tenant compte du mode planifié du projet ACTIF :
-   - projet actif avec usePlanned=true  → remplace sa part GHO par ses assignments planifiés
-   - tous les autres projets            → GHO uniquement */
+/* Charge totale pour une ressource+jour avec prise en compte du mode planifié.
+   Approche delta : GHO_tous + Σ(assignment - GHO_tâche) pour les projets sélectionnés usePlanned=true.
+   Les tâches sans assignment gardent leur contribution GHO intacte (Q5 = a). */
 function getPlannedLoadForResourceDay(rsid, dk) {
   /* dk = "DD/MM/YYYY" string */
-  const activeId = (typeof activeProjectId !== 'undefined') ? activeProjectId : null;
-  const activePlannedProj = (activeId && typeof portfolio !== 'undefined')
-    ? portfolio.find(p => p.id === activeId && p.usePlanned) : null;
-  const activePlannedName = activePlannedProj ? activePlannedProj.name : null;
-
   const r = resources.find(x => x.id === rsid);
   let total = 0;
 
-  /* GHO pour tous les projets sauf le projet actif en mode planifié */
+  /* 1. Base : GHO complet pour tous les projets */
   if (r && r.ghoData) {
     if (r.ghoData.projects) {
       r.ghoData.projects.forEach(ghoProj => {
-        if (activePlannedName && ghoProj.name === activePlannedName) return;
         total += (ghoProj.tasks || []).reduce((s, t) => s + ((t.daily && t.daily[dk]) || 0), 0);
       });
     } else if (r.ghoData.activities) {
@@ -1611,16 +1605,35 @@ function getPlannedLoadForResourceDay(rsid, dk) {
     }
   }
 
-  /* Assignments planifiés uniquement pour le projet actif si usePlanned=true */
-  if (activePlannedProj) {
-    (activePlannedProj.rows || []).forEach(row => {
+  /* 2. Delta pour tous les projets sélectionnés en mode planifié */
+  const plannedProjs = (typeof selectedProjectIds !== 'undefined' && typeof portfolio !== 'undefined')
+    ? [...selectedProjectIds].map(id => portfolio.find(p => p.id === id && p.usePlanned)).filter(Boolean)
+    : [];
+
+  if (!plannedProjs.length) return total;
+
+  plannedProjs.forEach(proj => {
+    (proj.rows || []).forEach(row => {
       if (row._type !== 'tache') return;
-      (row.assignments || []).forEach(a => {
-        if (a.resourceId !== rsid) return;
-        total += (a.daily && a.daily[dk]) || 0;
-      });
+      const asgn = (row.assignments || []).find(a => a.resourceId === rsid);
+      if (!asgn) return; /* pas d'assignment → contribution GHO inchangée */
+
+      /* Valeur GHO de référence pour cette tâche spécifique */
+      let ghoForTask = 0;
+      if (r && r.ghoData && r.ghoData.projects) {
+        const ghoProj = r.ghoData.projects.find(p => p.name === row.projet);
+        if (ghoProj) {
+          const ghoTask = (ghoProj.tasks || []).find(t =>
+            (row.externalTaskId && t.taskId === row.externalTaskId) ||
+            t.taskName === (row.tache || ''));
+          ghoForTask = (ghoTask && ghoTask.daily && ghoTask.daily[dk]) || 0;
+        }
+      }
+
+      const assignedValue = (asgn.daily && asgn.daily[dk]) || 0;
+      total += assignedValue - ghoForTask; /* delta : remplace la part GHO de cette tâche */
     });
-  }
+  });
 
   return total;
 }

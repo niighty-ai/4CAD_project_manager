@@ -357,24 +357,34 @@ function resetProjectToFirm(projectId, e) {
   _updateTogglePlannedBtn();
 }
 
-/* Bascule le mode planifié d'un projet (affecte lissage + affichage) */
+/* Bascule le mode planifié pour TOUS les projets sélectionnés (Q4=b).
+   Si au moins un est OFF → passe tous à ON ; si tous sont ON → passe tous à OFF. */
 function toggleProjectPlanned(projectId, e) {
   if (e) e.stopPropagation();
-  const proj = portfolio.find(p => p.id === projectId);
-  if (!proj) return;
-  proj.usePlanned = !proj.usePlanned;
+  const ids = (typeof selectedProjectIds !== 'undefined' && selectedProjectIds.size > 0)
+    ? [...selectedProjectIds]
+    : (activeProjectId ? [activeProjectId] : []);
+  if (!ids.length) return;
+  const allOn = ids.every(id => portfolio.find(p => p.id === id)?.usePlanned);
+  ids.forEach(id => {
+    const proj = portfolio.find(p => p.id === id);
+    if (proj) proj.usePlanned = !allOn;
+  });
   savePortfolio();
   if (typeof renderNavList === 'function') renderNavList();
   if (typeof renderAll === 'function') renderAll();
   _updateTogglePlannedBtn();
 }
 
-/* Met à jour l'état visuel du bouton toggle planifié dans la toolbar */
+/* Met à jour l'état visuel du bouton toggle planifié :
+   actif si AU MOINS UN des projets sélectionnés a usePlanned=true */
 function _updateTogglePlannedBtn() {
   const btn = document.getElementById('btnTogglePlanned');
   if (!btn) return;
-  const proj = portfolio.find(p => p.id === activeProjectId);
-  const usePlanned = proj?.usePlanned || false;
+  const ids = (typeof selectedProjectIds !== 'undefined' && selectedProjectIds.size > 0)
+    ? [...selectedProjectIds]
+    : (activeProjectId ? [activeProjectId] : []);
+  const usePlanned = ids.some(id => portfolio.find(p => p.id === id)?.usePlanned);
   btn.classList.toggle('planned-active', usePlanned);
   btn.title = usePlanned
     ? 'Désactiver le mode planifié (lissage + affichage)'
