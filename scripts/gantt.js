@@ -1106,47 +1106,14 @@ function saveGanttEdits(){
       asgn.fin=new Date(Math.max(...dates));
     }
 
-    /* Mise à jour des données GHO en mémoire
-       Fonctionne pour toutes les tâches : avec ou sans externalTaskId.
-       Cherche la tâche dans GHO par : 1) externalTaskId, 2) nom de tâche.
-       Crée un projet/tâche GHO si inexistant (tâches créées manuellement). */
-    if(typeof resources!=='undefined'){
-      const res=resources.find(r=>r.id===rsid);
-      if(res){
-        if(!res.ghoData)res.ghoData={};
-        if(!res.ghoData.projects)res.ghoData.projects=[];
-        /* Trouver ou créer le projet GHO */
-        let ghoProj=res.ghoData.projects.find(p=>p.name===row.projet);
-        if(!ghoProj){ghoProj={name:row.projet,tasks:[]};res.ghoData.projects.push(ghoProj);}
-        if(!ghoProj.tasks)ghoProj.tasks=[];
-        /* Trouver la tâche GHO : d'abord par externalTaskId, ensuite par nom */
-        let ghoTask=null;
-        if(row.externalTaskId&&typeof _matchTaskId==='function'){
-          ghoTask=ghoProj.tasks.find(t=>_matchTaskId(row.externalTaskId,t.taskId));
-          if(!ghoTask){
-            for(const p of res.ghoData.projects){
-              const found=(p.tasks||[]).find(t=>_matchTaskId(row.externalTaskId,t.taskId));
-              if(found){ghoTask=found;break;}
-            }
-          }
-        }
-        if(!ghoTask) ghoTask=ghoProj.tasks.find(t=>(t.taskName||'')===(row.tache||''));
-        /* Créer l'entrée si non trouvée */
-        if(!ghoTask){
-          ghoTask={taskId:row.externalTaskId||(row.tache||'tache'),taskName:row.tache||'',daily:{}};
-          ghoProj.tasks.push(ghoTask);
-        }
-        if(!ghoTask.daily)ghoTask.daily={};
-        if(charge>0)ghoTask.daily[dk]=charge; else delete ghoTask.daily[dk];
-      }
-    }
+    /* Mise à jour de l'assignment dans rows[ri] uniquement (couche planifiée) —
+       Les données GHO (base ferme) ne sont JAMAIS modifiées par des éditions manuelles. */
   });
 
   _ganttEdits={};
   _updateSaveBtn();
   if(typeof _saveCurrentProjectLocal==='function') _saveCurrentProjectLocal();
   else saveCurrentProject();
-  if(typeof saveGhoData==='function')saveGhoData();
   _renderGanttKeepScroll();
   if(typeof _refreshTbody==='function')_refreshTbody();
 }

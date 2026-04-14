@@ -1567,8 +1567,7 @@ function syncGanttFromResources(silent = false) {
 
 /* Legacy aliases used elsewhere */
 function renderResourceCalendarView() { _refreshResView(); }
-/* Charge GHO (ferme) pour les projets dont usePlanned = false,
-   + charge planifiée (assignments) pour les projets dont usePlanned = true */
+/* Charge GHO (base ferme) — toujours la source de vérité dans la vue ressources */
 function getChargeForResourceDay(resourceId, date) {
   const r   = resources.find(x => x.id === resourceId);
   const key = _dayKey(date);
@@ -1577,55 +1576,28 @@ function getChargeForResourceDay(resourceId, date) {
   if (r && r.ghoData) {
     if (r.ghoData.projects) {
       r.ghoData.projects.forEach(ghoProj => {
-        /* N'utiliser le GHO que si le projet ne bascule pas en planifié */
-        const portProj = (typeof portfolio !== 'undefined' ? portfolio : [])
-          .find(p => p.name === ghoProj.name);
-        if (!portProj || !portProj.usePlanned) {
-          total += (ghoProj.tasks || []).reduce((s, t) => s + ((t.daily && t.daily[key]) || 0), 0);
-        }
+        total += (ghoProj.tasks || []).reduce((s, t) => s + ((t.daily && t.daily[key]) || 0), 0);
       });
     } else {
       total += (r.ghoData.activities || []).reduce((s, a) => s + (a.daily[key] || 0), 0);
     }
   }
 
-  /* Ajouter les charges planifiées pour les projets avec usePlanned = true */
-  total += _getPlannedChargeForResourceDay(resourceId, key);
-  return total;
-}
-
-/* Charge issue des assignments de travail pour les projets en mode planifié */
-function _getPlannedChargeForResourceDay(resourceId, dayKey) {
-  if (typeof portfolio === 'undefined') return 0;
-  let total = 0;
-  portfolio.filter(p => p.usePlanned).forEach(p => {
-    (p.rows || []).forEach(r => {
-      if (r._type !== 'tache') return;
-      (r.assignments || []).forEach(a => {
-        if (a.resourceId !== resourceId) return;
-        total += (a.daily && a.daily[dayKey]) || 0;
-      });
-    });
-  });
   return total;
 }
 
 function getTasksForResourceDay(resourceId, dateKey) {
-  /* Retourne { total, tasks:[{projet,tache,charge,isPlanned?}] } */
+  /* Retourne { total, tasks:[{projet,tache,charge}] } — source GHO uniquement (base ferme) */
   const r = resources.find(x => x.id === resourceId);
   const items = [];
 
   if (r && r.ghoData) {
     if (r.ghoData.projects) {
       r.ghoData.projects.forEach(p => {
-        const portProj = (typeof portfolio !== 'undefined' ? portfolio : [])
-          .find(pp => pp.name === p.name);
-        if (!portProj || !portProj.usePlanned) {
-          (p.tasks || []).forEach(t => {
-            const c = (t.daily && t.daily[dateKey]) || 0;
-            if (c > 0) items.push({ projet: p.name || '—', tache: t.taskName || t.taskId || '—', charge: c });
-          });
-        }
+        (p.tasks || []).forEach(t => {
+          const c = (t.daily && t.daily[dateKey]) || 0;
+          if (c > 0) items.push({ projet: p.name || '—', tache: t.taskName || t.taskId || '—', charge: c });
+        });
       });
     } else if (r.ghoData.activities) {
       r.ghoData.activities.forEach(a => {
@@ -1633,20 +1605,6 @@ function getTasksForResourceDay(resourceId, dateKey) {
         if (c > 0) items.push({ projet: '—', tache: a.name || '—', charge: c });
       });
     }
-  }
-
-  /* Tâches planifiées pour les projets en mode planifié */
-  if (typeof portfolio !== 'undefined') {
-    portfolio.filter(p => p.usePlanned).forEach(p => {
-      (p.rows || []).forEach(row => {
-        if (row._type !== 'tache') return;
-        (row.assignments || []).forEach(a => {
-          if (a.resourceId !== resourceId) return;
-          const c = (a.daily && a.daily[dateKey]) || 0;
-          if (c > 0) items.push({ projet: row.projet, tache: row.tache || '—', charge: c, isPlanned: true });
-        });
-      });
-    });
   }
 
   const total = Math.round(items.reduce((s, x) => s + x.charge, 0) * 1000) / 1000;

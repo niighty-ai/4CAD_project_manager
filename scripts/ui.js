@@ -116,7 +116,7 @@ function saveInlineEdit(ri){
   if(!p||!d||!f){alert('Projet, Début et Fin requis.');return;}
   const _prevRow = rows[ri] || {};
   rows[ri]={..._prevRow,_type:'tache',projet:p,groupe:g||null,tache:t||null,debut:parseDate(d),fin:parseDate(f),charge:c!==''?roundCharge(parseFloat(c)):null,_source:'planned'};
-  editingIdx=null;sortRows();renderAll();
+  editingIdx=null;sortRows();renderAll();saveCurrentProject();
 }
 function cancelInlineEdit(){
   const prev=editingIdx;editingIdx=null;
