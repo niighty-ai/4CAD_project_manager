@@ -113,7 +113,6 @@
   flex-shrink:0;
   width:240px;
   background:var(--surface);
-  border-right:2px solid var(--border);
   display:flex;
   flex-direction:column;
   transition:width .2s ease;
@@ -123,6 +122,34 @@
 
 .nav-sidebar.collapsed {
   width:42px
+}
+
+.nav-resize-handle {
+  flex-shrink:0;
+  width:6px;
+  cursor:col-resize;
+  background:transparent;
+  position:relative;
+  z-index:51;
+  transition:background .15s
+}
+
+.nav-resize-handle::after {
+  content:'';
+  position:absolute;
+  top:50%;
+  left:50%;
+  transform:translate(-50%,-50%);
+  width:3px;
+  height:32px;
+  border-radius:2px;
+  background:var(--border);
+  transition:background .15s
+}
+
+.nav-resize-handle:hover::after,
+.nav-resize-handle.dragging::after {
+  background:var(--accent)
 }
 
 .nav-header {

@@ -412,7 +412,8 @@ function cancelImport() {
   if (modal) modal.style.display = 'none';
 }
 
-/* Supprime les marqueurs planifiés sur tous les projets présents dans firmData */
+/* Supprime les marqueurs planifiés sur tous les projets présents dans firmData
+   et supprime aussi les projets créés manuellement (_appCreated:true) */
 function _resetPlannedForFirmProjects(firmData) {
   firmData.forEach(fp => {
     const wp = portfolio.find(p => p.id === fp.id);
@@ -420,6 +421,15 @@ function _resetPlannedForFirmProjects(firmData) {
     wp.usePlanned = false;
     (wp.rows || []).forEach(r => { delete r._source; });
   });
+  /* Supprimer les projets créés manuellement */
+  const appCreatedIds = portfolio.filter(p => p._appCreated).map(p => p.id);
+  if (appCreatedIds.length) {
+    portfolio = portfolio.filter(p => !p._appCreated);
+    appCreatedIds.forEach(id => {
+      selectedProjectIds.delete(id);
+      if (activeProjectId === id) activeProjectId = null;
+    });
+  }
 }
 
 function createNewProjectPrompt(){

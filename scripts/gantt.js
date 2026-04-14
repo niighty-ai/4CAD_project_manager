@@ -63,11 +63,14 @@ let _gcpCtx       = null;        // contexte de l'éditeur popup
 let _ganttChartMinD = null;      // date de début du chart (pour calcul survol)
 let _ganttDragging  = false;     // true pendant le drag du calendrier
 
-/* Calcule le total de charge pour une ressource+jour en incluant les _ganttEdits en attente */
+/* Calcule le total de charge pour une ressource+jour en incluant les _ganttEdits en attente.
+   Utilise getPlannedLoadForResourceDay pour respecter le mode planifié de chaque projet. */
 function _pendingTotalForResourceDay(rsid, dk){
-  // Base GHO sauvegardée
-  const ghoTotal=(typeof getChargeForResourceDay==='function'&&rsid)
-    ?getChargeForResourceDay(rsid,_dkToDate(dk)):0;
+  // Base : GHO ou planifié selon le mode de chaque projet
+  const baseTotal=(typeof getPlannedLoadForResourceDay==='function'&&rsid)
+    ?getPlannedLoadForResourceDay(rsid,dk)
+    :((typeof getChargeForResourceDay==='function'&&rsid)
+      ?getChargeForResourceDay(rsid,_dkToDate(dk)):0);
   // Delta : pour chaque edit de cette ressource+jour, remplacer la charge sauvegardée par la valeur en attente
   let delta=0;
   Object.entries(_ganttEdits).forEach(([ek,pendingCharge])=>{
@@ -79,7 +82,7 @@ function _pendingTotalForResourceDay(rsid, dk){
     const saved=(asgn?.daily&&asgn.daily[dk])||0;
     delta+=(pendingCharge-saved);
   });
-  return ghoTotal+delta;
+  return baseTotal+delta;
 }
 function _dkToDate(dk){ const[d,m,y]=dk.split('/'); const dt=new Date(+y,+m-1,+d); dt.setHours(0,0,0,0); return dt; }
 
@@ -232,7 +235,9 @@ function renderGantt(){
     const charge   = _effCharge(r);
     const passee   = _effPassee(r);
     const restante = _effRestante(charge, passee);
-    const planned  = r._source === 'planned';
+    const projUsePlanned = (typeof portfolio !== 'undefined') &&
+      portfolio.some(p => (p.name === r.projet) && p.usePlanned);
+    const planned  = r._source === 'planned' || projUsePlanned;
     const ps = planned ? ' style="color:#22c55e;font-style:italic"' : '';
     if (!hasTracking) {
       return charge != null
@@ -420,6 +425,7 @@ function renderGantt(){
   const projects=[...new Set(rows.map(r=>r.projet))];
   legend.innerHTML=projects.map(p=>`<div class="legend-item" onclick="openColorPicker(event,'${escH(p)}')"><div class="legend-dot" style="background:${getColor(p)}"></div>${escH(p)}</div>`).join('');
   initResize();
+  if(typeof initNavResize==='function') initNavResize();
 }
 
 function renderChart(layout,legend,visible,minD0,maxD0,today,leftHTML,mode,hasTracking){
@@ -528,7 +534,9 @@ function renderChart(layout,legend,visible,minD0,maxD0,today,leftHTML,mode,hasTr
       width=Math.max(dayWidth,diff(r.debut,r.fin)*dayWidth+dayWidth);
     }
     const tl=todayOk?`<div class="today-line" style="left:${todayX}px"></div>`:'';
-    const tipArgs=`${JSON.stringify(r.projet)},${JSON.stringify(r.groupe||'')},${JSON.stringify(r.tache||'')},${JSON.stringify(fmtD(r.debut))},${JSON.stringify(fmtD(r.fin))},${r.charge},${r._source==='planned'}`;
+    const _tipProjPlanned = (typeof portfolio !== 'undefined') &&
+      portfolio.some(p => (p.name === r.projet) && p.usePlanned);
+    const tipArgs=`${JSON.stringify(r.projet)},${JSON.stringify(r.groupe||'')},${JSON.stringify(r.tache||'')},${JSON.stringify(fmtD(r.debut))},${JSON.stringify(fmtD(r.fin))},${r.charge},${r._source==='planned'||_tipProjPlanned}`;
     let barHtml;
     if(isProj){
       const col=c;

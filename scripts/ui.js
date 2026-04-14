@@ -26,6 +26,34 @@ function initResize(){
     document.addEventListener('mouseup',onUp);
   });
 }
+function initNavResize(){
+  const handle=document.getElementById('navResizeHandle');
+  if(!handle)return;
+  if(handle._navResizeInit) return;
+  handle._navResizeInit=true;
+  let startX,startW;
+  handle.addEventListener('mousedown',e=>{
+    e.preventDefault();
+    const sidebar=document.getElementById('navSidebar');
+    if(!sidebar||sidebar.classList.contains('collapsed'))return;
+    startX=e.clientX;startW=sidebar.offsetWidth;
+    handle.classList.add('dragging');
+    const onMove=ev=>{
+      const newW=Math.max(180,Math.min(500,startW+(ev.clientX-startX)));
+      sidebar.style.width=newW+'px';
+      sidebar.style.transition='none';
+    };
+    const onUp=()=>{
+      handle.classList.remove('dragging');
+      const sidebar=document.getElementById('navSidebar');
+      if(sidebar)sidebar.style.transition='';
+      document.removeEventListener('mousemove',onMove);
+      document.removeEventListener('mouseup',onUp);
+    };
+    document.addEventListener('mousemove',onMove);
+    document.addEventListener('mouseup',onUp);
+  });
+}
 function openColorPicker(e,p){
   e.stopPropagation();cpTarget=p;
   const cur=getColor(p);
@@ -354,7 +382,6 @@ function _renderNavProject(p){
     <div class="nav-item-actions">
       <button class="nav-action-btn" onclick="startRename('${p.id}',event)" title="Renommer">&#9998;</button>
       <button class="nav-action-btn" onclick="duplicateProject('${p.id}',event)" title="Dupliquer">&#10063;</button>
-      ${hasFirm?`<button class="nav-action-btn${usePlanned?' nav-planned-active':''}" onclick="toggleProjectPlanned('${p.id}',event)" title="${usePlanned?'Désactiver le mode planifié (lissage + affichage)':'Activer le mode planifié (lissage + affichage)'}">&#9783;</button>`:''}
       ${hasFirm?`<button class="nav-action-btn" onclick="resetProjectToFirm('${p.id}',event)" title="Réinitialiser à la base ferme">&#8635;</button>`:''}
       <button class="nav-action-btn danger" onclick="deleteProject('${p.id}',event)" title="Supprimer">&#128465;</button>
     </div>

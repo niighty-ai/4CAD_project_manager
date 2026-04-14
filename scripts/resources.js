@@ -1586,6 +1586,46 @@ function getChargeForResourceDay(resourceId, date) {
   return total;
 }
 
+/* Charge totale pour une ressource+jour en tenant compte du mode planifié :
+   - pour les projets avec usePlanned=false → GHO (base ferme)
+   - pour les projets avec usePlanned=true  → assignments planifiés */
+function getPlannedLoadForResourceDay(rsid, dk) {
+  /* dk = "DD/MM/YYYY" string */
+  const r = resources.find(x => x.id === rsid);
+  let total = 0;
+
+  /* GHO pour les projets non-planifiés */
+  if (r && r.ghoData) {
+    if (r.ghoData.projects) {
+      r.ghoData.projects.forEach(ghoProj => {
+        const portProj = (typeof portfolio !== 'undefined' ? portfolio : [])
+          .find(p => p.name === ghoProj.name);
+        if (!portProj || !portProj.usePlanned) {
+          total += (ghoProj.tasks || []).reduce((s, t) => s + ((t.daily && t.daily[dk]) || 0), 0);
+        }
+      });
+    } else if (r.ghoData.activities) {
+      /* Ancien format sans projets — toujours inclus */
+      total += r.ghoData.activities.reduce((s, a) => s + ((a.daily && a.daily[dk]) || 0), 0);
+    }
+  }
+
+  /* Assignments planifiés pour les projets avec usePlanned=true */
+  if (typeof portfolio !== 'undefined') {
+    portfolio.filter(p => p.usePlanned).forEach(p => {
+      (p.rows || []).forEach(row => {
+        if (row._type !== 'tache') return;
+        (row.assignments || []).forEach(a => {
+          if (a.resourceId !== rsid) return;
+          total += (a.daily && a.daily[dk]) || 0;
+        });
+      });
+    });
+  }
+
+  return total;
+}
+
 function getTasksForResourceDay(resourceId, dateKey) {
   /* Retourne { total, tasks:[{projet,tache,charge}] } — source GHO uniquement (base ferme) */
   const r = resources.find(x => x.id === resourceId);
