@@ -1605,10 +1605,9 @@ function getPlannedLoadForResourceDay(rsid, dk) {
     }
   }
 
-  /* 2. Delta pour TOUS les projets du portfolio en mode planifié (pas seulement les sélectionnés) */
-  const plannedProjs = (typeof portfolio !== 'undefined')
-    ? portfolio.filter(p => p.usePlanned)
-    : [];
+  /* 2. Delta pour TOUS les projets du portfolio si le mode planifié global est actif */
+  if (typeof usePlanned === 'undefined' || !usePlanned) return total;
+  const plannedProjs = (typeof portfolio !== 'undefined') ? portfolio : [];
 
   if (!plannedProjs.length) return total;
 

@@ -74,6 +74,10 @@ function _startFirebaseLoad() {
   if (_fbLoadStarted) return; /* Ne lancer qu'une seule fois */
   _fbLoadStarted = true;
 
+  /* Restaurer l'état du mode planifié global depuis localStorage */
+  try { usePlanned = localStorage.getItem('4cap_useplanned') === '1'; } catch(_) {}
+  if (typeof _updateTogglePlannedBtn === 'function') _updateTogglePlannedBtn();
+
   /* Initialisation des ressources */
   if (typeof initResources === 'function') initResources();
 

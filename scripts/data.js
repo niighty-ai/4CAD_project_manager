@@ -150,7 +150,6 @@ function _serializePortfolio(data){
     projectColors: p.projectColors||{},
     collapsed: p.collapsed||{},
     lissageConfig: p.lissageConfig||null,
-    usePlanned:  p.usePlanned  || false,
     _appCreated: p._appCreated || false
   }));
 }
@@ -326,8 +325,7 @@ function _resetProjectToFirmSilent(projectId, firmDataSrc) {
     ...deser,
     collapsed:     cur.collapsed     || {},
     projectColors: cur.projectColors || firmProj.projectColors || {},
-    jalons:        cur.jalons        || firmProj.jalons        || [],
-    usePlanned:    false
+    jalons:        cur.jalons        || firmProj.jalons        || []
   };
 }
 
@@ -357,37 +355,22 @@ function resetProjectToFirm(projectId, e) {
   _updateTogglePlannedBtn();
 }
 
-/* Bascule le mode planifié pour TOUS les projets sélectionnés (Q4=b).
-   Si au moins un est OFF → passe tous à ON ; si tous sont ON → passe tous à OFF. */
+/* Bascule le mode d'affichage planifié global (comme semaine/mois/…).
+   Un seul état pour toute l'application — persiste en localStorage, jamais sur Firebase. */
 function toggleProjectPlanned(projectId, e) {
   if (e) e.stopPropagation();
-  const ids = (typeof selectedProjectIds !== 'undefined' && selectedProjectIds.size > 0)
-    ? [...selectedProjectIds]
-    : (activeProjectId ? [activeProjectId] : []);
-  if (!ids.length) return;
-  const allOn = ids.every(id => portfolio.find(p => p.id === id)?.usePlanned);
-  ids.forEach(id => {
-    const proj = portfolio.find(p => p.id === id);
-    if (proj) proj.usePlanned = !allOn;
-  });
-  /* usePlanned est un état d'affichage : persistance localStorage uniquement, pas de sync Firebase */
-  _suppressFirebaseSave = true;
-  savePortfolio();
-  _suppressFirebaseSave = false;
+  usePlanned = !usePlanned;
+  /* Persistance locale uniquement (état d'affichage, pas données structurelles) */
+  try { localStorage.setItem('4cap_useplanned', usePlanned ? '1' : '0'); } catch(_) {}
   if (typeof renderNavList === 'function') renderNavList();
   if (typeof renderAll === 'function') renderAll();
   _updateTogglePlannedBtn();
 }
 
-/* Met à jour l'état visuel du bouton toggle planifié :
-   actif si AU MOINS UN des projets sélectionnés a usePlanned=true */
+/* Met à jour l'état visuel du bouton toggle planifié global */
 function _updateTogglePlannedBtn() {
   const btn = document.getElementById('btnTogglePlanned');
   if (!btn) return;
-  const ids = (typeof selectedProjectIds !== 'undefined' && selectedProjectIds.size > 0)
-    ? [...selectedProjectIds]
-    : (activeProjectId ? [activeProjectId] : []);
-  const usePlanned = ids.some(id => portfolio.find(p => p.id === id)?.usePlanned);
   btn.classList.toggle('planned-active', usePlanned);
   btn.title = usePlanned
     ? 'Désactiver le mode planifié (lissage + affichage)'
@@ -431,7 +414,6 @@ function _resetPlannedForFirmProjects(firmData) {
   firmData.forEach(fp => {
     const wp = portfolio.find(p => p.id === fp.id);
     if (!wp) return;
-    wp.usePlanned = false;
     (wp.rows || []).forEach(r => { delete r._source; });
   });
   /* Supprimer les projets créés manuellement */

@@ -235,7 +235,7 @@ function renderGantt(){
     const charge   = _effCharge(r);
     const passee   = _effPassee(r);
     const restante = _effRestante(charge, passee);
-    const planned  = r._source === 'planned';
+    const planned  = r._source === 'planned' && (typeof usePlanned !== 'undefined' && usePlanned);
     const ps = planned ? ' style="color:#22c55e;font-style:italic"' : '';
     if (!hasTracking) {
       return charge != null
@@ -532,7 +532,7 @@ function renderChart(layout,legend,visible,minD0,maxD0,today,leftHTML,mode,hasTr
       width=Math.max(dayWidth,diff(r.debut,r.fin)*dayWidth+dayWidth);
     }
     const tl=todayOk?`<div class="today-line" style="left:${todayX}px"></div>`:'';
-    const tipArgs=`${JSON.stringify(r.projet)},${JSON.stringify(r.groupe||'')},${JSON.stringify(r.tache||'')},${JSON.stringify(fmtD(r.debut))},${JSON.stringify(fmtD(r.fin))},${r.charge},${r._source==='planned'}`;
+    const tipArgs=`${JSON.stringify(r.projet)},${JSON.stringify(r.groupe||'')},${JSON.stringify(r.tache||'')},${JSON.stringify(fmtD(r.debut))},${JSON.stringify(fmtD(r.fin))},${r.charge},${r._source==='planned'&&(typeof usePlanned!=='undefined'&&usePlanned)}`;
     let barHtml;
     if(isProj){
       const col=c;
@@ -777,11 +777,11 @@ function showResChargeTip(e,resourceId,dateKey,resourceNom){
   const gho=(typeof getTasksForResourceDay==='function')
     ?getTasksForResourceDay(resourceId,dateKey):{total:0,tasks:[]};
 
-  /* ── Écarts planifiés : TOUS les projets du portfolio avec usePlanned=true ──
+  /* ── Écarts planifiés : tous les projets si le mode planifié global est actif ──
      Pour chaque tâche : si assignment ≠ GHO (ou _source:'planned') → écart à afficher en vert */
   const _tipRes=(typeof resources!=='undefined')?resources.find(x=>x.id===resourceId):null;
-  const _tipPlannedProjs=(typeof portfolio!=='undefined')
-    ?portfolio.filter(p=>p.usePlanned):[];
+  const _tipPlannedProjs=(typeof usePlanned!=='undefined'&&usePlanned&&typeof portfolio!=='undefined')
+    ?portfolio:[];
   /* Carte "projet::tache" → {charge, projet, tache} pour les écarts */
   const _ecartMap={};
   _tipPlannedProjs.forEach(proj=>{

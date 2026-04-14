@@ -130,6 +130,7 @@ let _lastSaveTs = 0;
 let _tasksDirty = false;         // true si des modifs de tâches non sauvegardées sur Firebase
 let _tasksSnapshot = null;       // JSON snapshot du portfolio avant la première modif
 let _suppressFirebaseSave = false; // true pour bloquer la synchro Firebase (sauvegarde locale seulement)
+let usePlanned = false;            // mode d'affichage global planifié (comme semaine/mois/…)
 let jpEditingIdx = null;
 let selectedProjectIds = new Set();  // IDs des projets cochés (affichés dans le Gantt)
 let multiViewMode = false;           // true quand >1 projet sélectionné
