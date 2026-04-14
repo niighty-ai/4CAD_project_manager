@@ -235,9 +235,9 @@ function renderGantt(){
     const charge   = _effCharge(r);
     const passee   = _effPassee(r);
     const restante = _effRestante(charge, passee);
-    const projUsePlanned = (typeof portfolio !== 'undefined') &&
-      portfolio.some(p => (p.name === r.projet) && p.usePlanned);
-    const planned  = r._source === 'planned' || projUsePlanned;
+    const _chProj = (typeof portfolio !== 'undefined' && r._srcPid)
+      ? portfolio.find(p => p.id === r._srcPid) : null;
+    const planned  = r._source === 'planned' || (_chProj && _chProj.usePlanned) || false;
     const ps = planned ? ' style="color:#22c55e;font-style:italic"' : '';
     if (!hasTracking) {
       return charge != null
@@ -534,9 +534,9 @@ function renderChart(layout,legend,visible,minD0,maxD0,today,leftHTML,mode,hasTr
       width=Math.max(dayWidth,diff(r.debut,r.fin)*dayWidth+dayWidth);
     }
     const tl=todayOk?`<div class="today-line" style="left:${todayX}px"></div>`:'';
-    const _tipProjPlanned = (typeof portfolio !== 'undefined') &&
-      portfolio.some(p => (p.name === r.projet) && p.usePlanned);
-    const tipArgs=`${JSON.stringify(r.projet)},${JSON.stringify(r.groupe||'')},${JSON.stringify(r.tache||'')},${JSON.stringify(fmtD(r.debut))},${JSON.stringify(fmtD(r.fin))},${r.charge},${r._source==='planned'||_tipProjPlanned}`;
+    const _tipProj = (typeof portfolio !== 'undefined' && r._srcPid)
+      ? portfolio.find(p => p.id === r._srcPid) : null;
+    const tipArgs=`${JSON.stringify(r.projet)},${JSON.stringify(r.groupe||'')},${JSON.stringify(r.tache||'')},${JSON.stringify(fmtD(r.debut))},${JSON.stringify(fmtD(r.fin))},${r.charge},${r._source==='planned'||(_tipProj&&_tipProj.usePlanned)||false}`;
     let barHtml;
     if(isProj){
       const col=c;
@@ -781,6 +781,22 @@ function showResChargeTip(e,resourceId,dateKey,resourceNom){
   const gho=(typeof getTasksForResourceDay==='function')
     ?getTasksForResourceDay(resourceId,dateKey):{total:0,tasks:[]};
 
+  /* ── Assignments planifiés : projet actif si usePlanned=true ── */
+  const _activePlannedProj=(typeof activeProjectId!=='undefined'&&typeof portfolio!=='undefined')
+    ?portfolio.find(p=>p.id===activeProjectId&&p.usePlanned):null;
+  const _activePlannedName=_activePlannedProj?_activePlannedProj.name:null;
+  const plannedItems=[];
+  if(_activePlannedProj){
+    (_activePlannedProj.rows||[]).forEach(row=>{
+      if(row._type!=='tache')return;
+      (row.assignments||[]).forEach(a=>{
+        if(a.resourceId!==resourceId)return;
+        const c=(a.daily&&a.daily[dateKey])||0;
+        if(c>0)plannedItems.push({projet:row.projet||_activePlannedProj.name,tache:row.tache||'—',charge:c,isPlanned:true});
+      });
+    });
+  }
+
   /* ── Éditions en cours (non sauvegardées) pour cette ressource + ce jour ── */
   const pending={};   // ri → {charge, projet, tache}
   if(typeof _ganttEdits!=='undefined'){
@@ -797,12 +813,11 @@ function showResChargeTip(e,resourceId,dateKey,resourceNom){
   }
   const hasPending=Object.keys(pending).length>0;
 
-  /* ── Fusion : GHO + éditions en cours ──
-     Pour chaque ligne GHO : si une édition concerne le même projet+tâche,
-     remplacer la charge et marquer comme modifiée.
-     Les éditions sans correspondance GHO sont ajoutées en fin de liste. */
+  /* ── Fusion : (GHO hors projet planifié) + planifié + éditions ── */
+  const ghoFiltered=_activePlannedName
+    ?{...gho,tasks:gho.tasks.filter(t=>t.projet!==_activePlannedName)}:gho;
   const usedRi=new Set();
-  const merged=gho.tasks.map(t=>{
+  const merged=ghoFiltered.tasks.map(t=>{
     const riKey=Object.keys(pending).find(k=>
       pending[k].projet===t.projet&&pending[k].tache===t.tache);
     if(riKey!==undefined){
@@ -811,7 +826,13 @@ function showResChargeTip(e,resourceId,dateKey,resourceNom){
     }
     return{...t,edited:false};
   });
-  /* Nouvelles lignes uniquement dans _ganttEdits (tâche inconnue du GHO) */
+  /* Tâches planifiées (remplacent GHO du projet actif, écrasées par pending si besoin) */
+  plannedItems.forEach(pt=>{
+    const riKey=Object.keys(pending).find(k=>pending[k].projet===pt.projet&&pending[k].tache===pt.tache);
+    if(riKey!==undefined){usedRi.add(riKey);merged.push({...pt,charge:pending[riKey].charge,edited:true});}
+    else merged.push(pt);
+  });
+  /* Nouvelles lignes uniquement dans _ganttEdits (tâche inconnue du GHO/planifié) */
   Object.entries(pending).forEach(([ri,ed])=>{
     if(!usedRi.has(ri)&&ed.charge>0)
       merged.push({projet:ed.projet,tache:ed.tache,charge:ed.charge,edited:true});

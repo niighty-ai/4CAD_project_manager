@@ -376,7 +376,7 @@ function _renderNavProject(p){
       onclick="switchToProject('${p.id}')">
     <input type="checkbox" class="nav-item-check" ${isChecked?'checked':''} onclick="toggleProjectSelection('${p.id}',event)" title="Inclure dans la vue">
     <div style="flex:1;min-width:0;overflow:hidden">
-      <div class="nav-item-name" title="${escH(p.name)}">${escH(p.name)}${plannedBadge}</div>
+      <div class="nav-item-name" title="${escH(p.name)}">${plannedBadge}${escH(p.name)}</div>
       <div class="nav-item-meta">${taskCount} tâche${taskCount!==1?'s':''}</div>
     </div>
     <div class="nav-item-actions">

@@ -899,6 +899,8 @@ function _saveCurrentProjectLocal(){
 function _forcePortfolioFirebaseSave(){
   _tasksDirty = false;
   _tasksSnapshot = null;
+  /* Marquer immédiatement pour bloquer les sync Firebase entrants pendant la sauvegarde */
+  _lastSaveTs = Date.now();
   scheduleFirebaseSave(_serializePortfolio(portfolio));
 }
 
