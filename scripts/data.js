@@ -349,10 +349,10 @@ function resetProjectToFirm(projectId, e) {
   if (typeof _updateSaveBtn === 'function') _updateSaveBtn();
   /* Sauvegarde immédiate (pas de bouton "Enregistrer" requis) */
   if (typeof _forcePortfolioFirebaseSave === 'function') _forcePortfolioFirebaseSave();
-  if (activeProjectId === projectId || (typeof selectedProjectIds !== 'undefined' && selectedProjectIds.has(projectId))) {
-    if (typeof _loadSelectedProjects === 'function') _loadSelectedProjects();
-    if (typeof renderAll === 'function') renderAll();
-  }
+  /* Toujours recharger les rows et re-rendre (même si le projet n'est pas actif),
+     pour éviter tout affichage en cache des valeurs modifiées */
+  if (typeof _loadSelectedProjects === 'function') _loadSelectedProjects();
+  if (typeof renderAll === 'function') renderAll();
   if (typeof renderNavList === 'function') renderNavList();
   _updateTogglePlannedBtn();
 }
@@ -370,7 +370,10 @@ function toggleProjectPlanned(projectId, e) {
     const proj = portfolio.find(p => p.id === id);
     if (proj) proj.usePlanned = !allOn;
   });
+  /* usePlanned est un état d'affichage : persistance localStorage uniquement, pas de sync Firebase */
+  _suppressFirebaseSave = true;
   savePortfolio();
+  _suppressFirebaseSave = false;
   if (typeof renderNavList === 'function') renderNavList();
   if (typeof renderAll === 'function') renderAll();
   _updateTogglePlannedBtn();

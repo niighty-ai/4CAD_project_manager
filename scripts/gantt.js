@@ -777,11 +777,11 @@ function showResChargeTip(e,resourceId,dateKey,resourceNom){
   const gho=(typeof getTasksForResourceDay==='function')
     ?getTasksForResourceDay(resourceId,dateKey):{total:0,tasks:[]};
 
-  /* ── Écarts planifiés : tous les projets sélectionnés avec usePlanned=true ──
+  /* ── Écarts planifiés : TOUS les projets du portfolio avec usePlanned=true ──
      Pour chaque tâche : si assignment ≠ GHO (ou _source:'planned') → écart à afficher en vert */
   const _tipRes=(typeof resources!=='undefined')?resources.find(x=>x.id===resourceId):null;
-  const _tipPlannedProjs=(typeof selectedProjectIds!=='undefined'&&typeof portfolio!=='undefined')
-    ?[...selectedProjectIds].map(id=>portfolio.find(p=>p.id===id&&p.usePlanned)).filter(Boolean):[];
+  const _tipPlannedProjs=(typeof portfolio!=='undefined')
+    ?portfolio.filter(p=>p.usePlanned):[];
   /* Carte "projet::tache" → {charge, projet, tache} pour les écarts */
   const _ecartMap={};
   _tipPlannedProjs.forEach(proj=>{
