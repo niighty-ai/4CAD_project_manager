@@ -136,7 +136,15 @@ let selectedProjectIds = new Set();  // IDs des projets cochés (affichés dans 
 let multiViewMode = false;           // true quand >1 projet sélectionné
 let userWalletClients = new Set();   // Noms de clients chargés dans le portefeuille de l'utilisateur
 let currentUserId = null;            // UID Firebase de l'utilisateur connecté
+let currentUserEmail = null;         // Email de l'utilisateur connecté (affiché dans les verrous)
 let _walletLoaded = false;           // true une fois le wallet utilisateur chargé depuis Firebase
+
+/* ── Verrouillage de projet ── */
+let _lockedProjectId     = null;     // ID du projet verrouillé par cet utilisateur
+let _lockInactivityTimer = null;     // Timer d'expiration du verrou (10 min)
+let _pendingFirebaseUpdate = false;  // Une version plus récente est disponible dans Firebase
+let _projectLocks        = {};       // Cache des verrous Firebase { projectId → lockObj }
+const LOCK_TTL_MS = 10 * 60 * 1000; // 10 minutes
 
 /* ══════════════════════════════════════════════════════════
    MODÈLE DE DONNÉES — RESSOURCES & AFFECTATIONS

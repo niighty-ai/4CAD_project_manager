@@ -150,7 +150,8 @@ function _serializePortfolio(data){
     projectColors: p.projectColors||{},
     collapsed: p.collapsed||{},
     lissageConfig: p.lissageConfig||null,
-    _appCreated: p._appCreated || false
+    _appCreated: p._appCreated || false,
+    updatedAt: p.updatedAt || null
   }));
 }
 
@@ -186,6 +187,7 @@ function _deserializePortfolio(data){
     folder: p.folder||'',
     projectColors: p.projectColors||{},
     collapsed: p.collapsed||{},
+    updatedAt: p.updatedAt || null,
     rows: (p.rows||[]).filter(r=>r._type!=='jalon').map(r=>({
       ...r,
       debut: r.debut ? new Date(r.debut) : null,
@@ -894,9 +896,16 @@ function _saveCurrentProjectLocal(){
 function _forcePortfolioFirebaseSave(){
   _tasksDirty = false;
   _tasksSnapshot = null;
+  /* Horodater le projet actif avant sérialisation */
+  if(activeProjectId){
+    const proj = portfolio.find(p=>p.id===activeProjectId);
+    if(proj) proj.updatedAt = Date.now();
+  }
   /* Marquer immédiatement pour bloquer les sync Firebase entrants pendant la sauvegarde */
   _lastSaveTs = Date.now();
   scheduleFirebaseSave(_serializePortfolio(portfolio));
+  /* Libérer le verrou d'écriture */
+  if(typeof _releaseProjectLock==='function') _releaseProjectLock();
 }
 
 /* Annule toutes les modifs de tâches et restaure le snapshot */
@@ -914,6 +923,8 @@ function revertTaskChanges(){
   _tasksSnapshot = null;
   /* Persister le portfolio annulé en localStorage (sans Firebase) */
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify(_serializePortfolio(portfolio))); } catch(e){}
+  /* Libérer le verrou d'écriture */
+  if(typeof _releaseProjectLock==='function') _releaseProjectLock();
   if(typeof _updateSaveBtn==='function') _updateSaveBtn();
 }
 
@@ -1039,4 +1050,152 @@ function downloadModele(){
   ws2['!cols'] = [{wch:12},{wch:50},{wch:16}];
   XLSX.utils.book_append_sheet(wb, ws2, 'Aide');
   XLSX.writeFile(wb, 'modele_import_gantt.xlsx');
+}
+
+/* ════════════════════════════════════════════════════════════════════════
+   VERROUILLAGE DE PROJET
+   — Verrou acquis à l'entrée en mode édition
+   — Libéré à la sauvegarde, à l'annulation, après 10 min d'inactivité
+     ou lors d'une perte de connexion (Firebase onDisconnect)
+   ════════════════════════════════════════════════════════════════════════ */
+
+/* Tente d'acquérir le verrou d'écriture sur un projet.
+   Retourne true si le verrou est obtenu, false si bloqué par un autre utilisateur. */
+async function _acquireProjectLock(projectId) {
+  if (!currentUserId || !projectId) return true; // pas d'auth → édition libre
+  if (_lockedProjectId === projectId) return true; // déjà verrouillé par nous
+
+  // Vérifier le verrou existant
+  const existing = _projectLocks[projectId];
+  if (existing && existing.userId !== currentUserId && existing.expiresAt > Date.now()) {
+    _showLockBlockedMessage(existing.userDisplayName);
+    return false;
+  }
+
+  const now = Date.now();
+  const lockData = {
+    userId:          currentUserId,
+    userDisplayName: currentUserEmail || currentUserId,
+    lockedAt:        now,
+    expiresAt:       now + LOCK_TTL_MS
+  };
+
+  try {
+    await window._fbAcquireLock(projectId, lockData);
+    _lockedProjectId = projectId;
+    _projectLocks[projectId] = lockData;
+    _startLockInactivityTimer();
+    _updateRefreshBtn();
+    return true;
+  } catch(e) {
+    console.warn('[Lock] Acquisition échouée (mode dégradé — édition autorisée) :', e);
+    return true; // fail-open : en cas d'erreur Firebase, on laisse éditer
+  }
+}
+
+/* Libère le verrou d'écriture tenu par cet utilisateur. */
+function _releaseProjectLock() {
+  if (!_lockedProjectId) return;
+  const pid = _lockedProjectId;
+  _lockedProjectId = null;
+  _pendingFirebaseUpdate = false;
+  _clearLockInactivityTimer();
+  if (typeof window._fbReleaseLock === 'function') {
+    window._fbReleaseLock(pid).catch(e => console.warn('[Lock] Libération échouée :', e));
+  }
+  _updateRefreshBtn();
+}
+
+/* Démarre (ou redémarre) le timer d'inactivité de 10 min. */
+function _startLockInactivityTimer() {
+  _clearLockInactivityTimer();
+  _lockInactivityTimer = setTimeout(() => {
+    _releaseProjectLock();
+    setFbStatus('⏱ Verrou expiré', '#f7971e');
+    setTimeout(() => setFbStatus('☁ Connecté', '#2e7d32'), 3000);
+  }, LOCK_TTL_MS);
+}
+
+function _clearLockInactivityTimer() {
+  if (_lockInactivityTimer) { clearTimeout(_lockInactivityTimer); _lockInactivityTimer = null; }
+}
+
+/* Réinitialise le timer d'inactivité à chaque interaction utilisateur dans le panneau. */
+function _resetLockInactivityTimer() {
+  if (_lockedProjectId) _startLockInactivityTimer();
+}
+
+/* Affiche un message bloquant quand un autre utilisateur détient le verrou. */
+function _showLockBlockedMessage(holderName) {
+  const msg = `Ce projet est en cours d'édition par :\n${holderName}\n\nVeuillez attendre qu'il termine ou que son verrou expire.`;
+  alert(msg);
+}
+
+/* Met à jour l'état et le tooltip du bouton d'actualisation. */
+function _updateRefreshBtn() {
+  const btn = document.getElementById('btnRefreshProject');
+  if (!btn) return;
+
+  // Déterminer le détenteur du verrou sur le projet actif
+  const pid = activeProjectId || _lockedProjectId;
+  const lock = pid ? _projectLocks[pid] : null;
+  const lockValid = lock && lock.expiresAt > Date.now();
+
+  if (lockValid) {
+    if (lock.userId === currentUserId) {
+      btn.title = _pendingFirebaseUpdate
+        ? 'Une version plus récente est disponible — cliquez pour actualiser'
+        : 'Vous avez le verrou d\'écriture sur ce projet';
+    } else {
+      btn.title = `Verrou tenu par : ${lock.userDisplayName}`;
+    }
+  } else {
+    btn.title = _pendingFirebaseUpdate
+      ? 'Une version plus récente est disponible — cliquez pour actualiser'
+      : 'Projet à jour';
+  }
+
+  /* Pas d'attribut disabled → le survol (tooltip) fonctionne même à l'état inactif.
+     L'onclick du bouton vérifie _pendingFirebaseUpdate avant d'agir. */
+  btn.classList.toggle('has-update', !!_pendingFirebaseUpdate);
+  btn.classList.toggle('no-update', !_pendingFirebaseUpdate);
+}
+
+/* Rafraîchit le projet actif depuis Firebase.
+   onDone() est appelé une fois le rafraîchissement terminé (succès ou échec). */
+function refreshActiveProjectFromFirebase(onDone) {
+  if (!_pendingFirebaseUpdate) { if (onDone) onDone(); return; }
+  if (typeof window._fbGetPortfolio !== 'function') { if (onDone) onDone(); return; }
+
+  setFbStatus('⏳ Actualisation...', '#f7971e');
+  window._fbGetPortfolio(function(val) {
+    if (!val || !Array.isArray(val) || !val.length) {
+      setFbStatus('⚠ Données vides', '#e17055');
+      if (onDone) onDone();
+      return;
+    }
+    _pendingFirebaseUpdate = false;
+    const updated = migrateFirebaseData(val);
+    portfolio = updated;
+    /* Réinitialise le snapshot d'annulation avec les données fraîches */
+    _tasksSnapshot = null;
+    _tasksDirty = false;
+    renderNavList();
+    if (activeProjectId) {
+      if (typeof switchToProject === 'function') switchToProject(activeProjectId);
+    }
+    setFbStatus('☁ Actualisé', '#2e7d32');
+    if (typeof _updateSaveBtn === 'function') _updateSaveBtn();
+    _updateRefreshBtn();
+    if (onDone) onDone();
+  });
+}
+
+/* Démarre l'écoute des verrous depuis Firebase (appelé au chargement). */
+function _startLocksListener() {
+  if (typeof window._fbOnLocks !== 'function') return;
+  window._fbOnLocks(function(locks) {
+    _projectLocks = locks || {};
+    _updateRefreshBtn();
+  });
 }

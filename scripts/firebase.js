@@ -1,5 +1,5 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-import { getDatabase, ref, set, onValue, get } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+import { getDatabase, ref, set, onValue, get, remove, onDisconnect } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
 import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged }
   from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 
@@ -39,6 +39,23 @@ window._fbOnAuthChange = (cb) => onAuthStateChanged(_fbAuth, cb);
 /* ── Portefeuille utilisateur (par UID) ── */
 window._fbSetUserWallet = (userId, data) => set(ref(_fbDb, 'user_wallets/' + userId), data);
 window._fbOnUserWallet  = (userId, cb)   => onValue(ref(_fbDb, 'user_wallets/' + userId), snap => cb(snap.val()));
+
+/* ── Lecture unique du portfolio (pour refresh forcé) ── */
+window._fbGetPortfolio = (cb) =>
+  get(_fbRef).then(snap => cb(snap.val())).catch(() => cb(null));
+
+/* ── Verrous de projet (project_locks/{projectId}) ──
+   Chaque verrou : { userId, userDisplayName, lockedAt, expiresAt }
+   onDisconnect supprime automatiquement le verrou en cas de perte de connexion. */
+window._fbAcquireLock = async (projectId, lockData) => {
+  const lockRef = ref(_fbDb, 'project_locks/' + projectId);
+  await set(lockRef, lockData);
+  onDisconnect(lockRef).remove();
+};
+window._fbReleaseLock = (projectId) =>
+  remove(ref(_fbDb, 'project_locks/' + projectId));
+window._fbOnLocks = (cb) =>
+  onValue(ref(_fbDb, 'project_locks'), snap => cb(snap.val() || {}));
 
 /* ── Positions du calendrier (par UID) ──
    Les clés d'événements contiennent des caractères spéciaux (| /) non admis

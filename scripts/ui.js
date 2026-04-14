@@ -657,6 +657,29 @@ function openAddAfter(refRowIdx, e){
   }, 30);
 }
 function openEditPanel(rowIdx){
+  /* ── Refresh préventif + acquisition du verrou ──
+     Si une version plus récente est disponible dans Firebase, on rafraîchit
+     d'abord pour éviter d'écraser des données plus récentes.
+     Le verrou est ensuite acquis avant l'ouverture du panel. */
+  const _doWithLock = () => {
+    if(typeof _acquireProjectLock==='function'){
+      _acquireProjectLock(activeProjectId).then(granted=>{
+        if(granted) _doOpenEditPanel(rowIdx);
+      });
+    } else {
+      _doOpenEditPanel(rowIdx);
+    }
+  };
+
+  if(typeof _pendingFirebaseUpdate!=='undefined' && _pendingFirebaseUpdate
+     && typeof refreshActiveProjectFromFirebase==='function'){
+    refreshActiveProjectFromFirebase(_doWithLock);
+  } else {
+    _doWithLock();
+  }
+}
+
+function _doOpenEditPanel(rowIdx){
   epMode = rowIdx === null ? 'new' : 'edit';
   epEditingIdx = rowIdx;
   const panel = document.getElementById('editPanel');
@@ -750,6 +773,11 @@ function openEditPanel(rowIdx){
 
   panel.classList.add('open');
   _showBackdrop();
+  /* Réinitialise le timer d'inactivité à chaque interaction dans le panel */
+  if(typeof _resetLockInactivityTimer==='function'){
+    panel.addEventListener('input', _resetLockInactivityTimer, {once: false});
+    panel.addEventListener('click', _resetLockInactivityTimer, {once: false});
+  }
   setTimeout(()=>document.getElementById('epTache').focus(), 230);
 }
 function _epSetTacheRequired(required, isGroupe){

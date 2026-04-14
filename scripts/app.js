@@ -20,6 +20,7 @@
         if (user) {
           /* Connecté → affiche l'appli */
           currentUserId = user.uid;
+          currentUserEmail = user.email || user.uid;
           if (loginScreen) loginScreen.style.display = 'none';
           if (appHeader)   appHeader.style.display   = '';
           const userInfo = document.getElementById('connectedUser');
@@ -30,6 +31,7 @@
         } else {
           /* Non connecté → réinitialise l'état utilisateur */
           currentUserId = null;
+          currentUserEmail = null;
           userWalletClients = new Set();
           _walletLoaded = false;
           if (loginScreen) loginScreen.style.display = 'flex';
@@ -91,6 +93,28 @@ function _startFirebaseLoad() {
       window._fbOnValue(function(val) {
         if (_fbInitLoaded && (Date.now() - _lastSaveTs) < 4000) return;
         if (val && Array.isArray(val) && val.length) {
+          /* ── Si l'utilisateur est en train d'éditer un projet (verrou actif) ──
+             On ne remplace pas le projet verrouillé localement, mais on détecte
+             si une version plus récente existe pour activer le bouton de refresh. */
+          if (_fbInitLoaded && _lockedProjectId) {
+            const fbProj   = val.find(p => p.id === _lockedProjectId);
+            const localProj = portfolio.find(p => p.id === _lockedProjectId);
+            if (fbProj && localProj) {
+              const fbTs    = fbProj.updatedAt    || 0;
+              const localTs = localProj.updatedAt || 0;
+              if (fbTs > localTs) {
+                _pendingFirebaseUpdate = true;
+                if (typeof _updateRefreshBtn === 'function') _updateRefreshBtn();
+              }
+            }
+            /* Mettre à jour tous les autres projets sauf celui verrouillé */
+            const updated = migrateFirebaseData(val);
+            const lockedIdx = updated.findIndex(p => p.id === _lockedProjectId);
+            if (lockedIdx >= 0 && localProj) updated[lockedIdx] = localProj;
+            portfolio = updated;
+            renderNavList();
+            return;
+          }
           portfolio = migrateFirebaseData(val);
           renderNavList();
           _tryAutoSelectProject();
@@ -105,6 +129,9 @@ function _startFirebaseLoad() {
       setFbStatus('⚠ Firebase indisponible', '#e17055');
     }
   }, 100);
+
+  /* Écoute des verrous de projet */
+  if (typeof _startLocksListener === 'function') _startLocksListener();
 
   /* Chargement de la base ferme (lecture seule, sync temps-réel) */
   loadFirmPortfolio(); // localStorage d'abord

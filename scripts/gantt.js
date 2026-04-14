@@ -1053,12 +1053,26 @@ function gcpApply(){
   if(val>0&&Math.abs(Math.round(val/0.0625)*0.0625-val)>1e-9){
     errEl.textContent='Doit être un multiple de 0,0625j (= 30 min).';return;
   }
-  const{ri,rsid,dk}=_gcpCtx;
-  const ek=`${ri}::${rsid}::${dk}`;
-  _ganttEdits[ek]=val;
-  _updateSaveBtn();
-  gcpClose();
-  _renderGanttKeepScroll();
+  /* Acquérir le verrou avant d'enregistrer la modification */
+  if(typeof _acquireProjectLock==='function'){
+    _acquireProjectLock(activeProjectId).then(granted=>{
+      if(!granted) return;
+      const{ri,rsid,dk}=_gcpCtx;
+      const ek=`${ri}::${rsid}::${dk}`;
+      _ganttEdits[ek]=val;
+      _resetLockInactivityTimer && _resetLockInactivityTimer();
+      _updateSaveBtn();
+      gcpClose();
+      _renderGanttKeepScroll();
+    });
+  } else {
+    const{ri,rsid,dk}=_gcpCtx;
+    const ek=`${ri}::${rsid}::${dk}`;
+    _ganttEdits[ek]=val;
+    _updateSaveBtn();
+    gcpClose();
+    _renderGanttKeepScroll();
+  }
 }
 
 function gcpClose(){
@@ -1079,6 +1093,8 @@ function _updateSaveBtn(){
     btnCancel.disabled=!has;
     btnCancel.title=has?'Annuler les modifications en cours':'Aucune modification à annuler';
   }
+  /* Synchronise aussi le bouton d'actualisation */
+  if(typeof _updateRefreshBtn==='function') _updateRefreshBtn();
 }
 
 function cancelGanttEdits(){
@@ -1112,6 +1128,8 @@ function cancelGanttEdits(){
   }
 
   if(typeof _saveCurrentProjectLocal==='function') _saveCurrentProjectLocal();
+  /* Libérer le verrou (chemin sans _tasksDirty — revertTaskChanges le gère sinon) */
+  if(typeof _releaseProjectLock==='function') _releaseProjectLock();
   _updateSaveBtn();
   _renderGanttKeepScroll();
   if(typeof affectRowIdx!=='undefined'&&affectRowIdx!==null){
@@ -1169,6 +1187,10 @@ function saveAllEdits(){
   /* 2. Forcer la synchro Firebase pour les modifs de tâches */
   if(typeof _tasksDirty!=='undefined'&&_tasksDirty){
     if(typeof _forcePortfolioFirebaseSave==='function') _forcePortfolioFirebaseSave();
+    /* _forcePortfolioFirebaseSave libère déjà le verrou */
+  } else {
+    /* Pas de tâches dirty mais des gantt edits → libérer le verrou ici */
+    if(typeof _releaseProjectLock==='function') _releaseProjectLock();
   }
   _updateSaveBtn();
 }
