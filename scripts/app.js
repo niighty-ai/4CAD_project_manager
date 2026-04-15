@@ -329,27 +329,44 @@ document.getElementById('fileInput').addEventListener('change',e=>{
       const _taskCount = parsedRows.length;
       const _jalCount  = parsedJalons.length;
       const _summary   = `${_projCount} projet(s), ${_taskCount} tâche(s)${_jalCount > 0 ? `, ${_jalCount} jalon(s)` : ''} détectés.`;
+      /* Restaure la vue utilisateur après import (respecte le wallet + sélection courante) */
+      function _postImportRestore() {
+        savePortfolio();
+        /* 1. Si le projet actif a été retiré du portfolio, le désélectionner */
+        if (activeProjectId && !portfolio.find(p => p.id === activeProjectId)) {
+          activeProjectId = null;
+          multiViewMode   = false;
+        }
+        /* 2. Nettoyer selectedProjectIds des IDs supprimés */
+        selectedProjectIds.forEach(id => {
+          if (!portfolio.find(p => p.id === id)) selectedProjectIds.delete(id);
+        });
+        if (activeProjectId && !selectedProjectIds.has(activeProjectId)) selectedProjectIds.add(activeProjectId);
+        multiViewMode = selectedProjectIds.size > 1;
+        /* 3. Si plus rien de sélectionné, reprendre le premier projet du wallet */
+        if (!activeProjectId || selectedProjectIds.size === 0) {
+          const first = portfolio.find(p => p.client && userWalletClients.has(p.client));
+          if (first) { activeProjectId = first.id; selectedProjectIds.clear(); selectedProjectIds.add(first.id); multiViewMode = false; }
+        }
+        /* 4. Recharger rows depuis le portfolio fusionné (ne montre QUE les projets sélectionnés) */
+        if (typeof _loadSelectedProjects === 'function') _loadSelectedProjects();
+        renderNavList();
+        renderAll();
+      }
+
       if(typeof showImportModal === 'function'){
         showImportModal(_summary, (resetPlanned) => {
           if(typeof saveFirmPortfolio === 'function') saveFirmPortfolio(newFirmData);
           if(typeof _notifyFirmConflicts === 'function') _notifyFirmConflicts(newFirmData);
           if(typeof mergeFirmIntoWorking === 'function') mergeFirmIntoWorking(newFirmData);
           if(resetPlanned && typeof _resetPlannedForFirmProjects === 'function') _resetPlannedForFirmProjects(newFirmData);
-          savePortfolio();
-          rows=[];
-          parsedRows.forEach(r => rows.push(r));
-          parsedJalons.forEach(j => rows.push(j));
-          projectColors={};collapsed={};sortRows();renderAll();
+          _postImportRestore();
         });
       } else {
         if(typeof saveFirmPortfolio === 'function') saveFirmPortfolio(newFirmData);
         if(typeof _notifyFirmConflicts === 'function') _notifyFirmConflicts(newFirmData);
         if(typeof mergeFirmIntoWorking === 'function') mergeFirmIntoWorking(newFirmData);
-        savePortfolio();
-        rows=[];
-        parsedRows.forEach(r => rows.push(r));
-        parsedJalons.forEach(j => rows.push(j));
-        projectColors={};collapsed={};sortRows();renderAll();
+        _postImportRestore();
       }
     }catch(err){alert('Erreur : '+err.message);}
   };
