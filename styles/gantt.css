@@ -1203,7 +1203,7 @@
   flex-shrink: 0;
   transition: color .25s, opacity .25s;
 }
-.lock-indicator.unlocked   { color: var(--muted); opacity: 0.4; }
+.lock-indicator.unlocked   { color: var(--muted); opacity: 0.55; }
 .lock-indicator.locked-me  { color: #2563eb; }
 .lock-indicator.locked-other {
   color: #d97706;

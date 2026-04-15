@@ -1148,14 +1148,15 @@ function _showLockBlockedMessage(holderName) {
   alert(msg);
 }
 
-/* SVG cadenas inline — injectés dans #lockIndicator */
-const _LOCK_SVG_OPEN   = '<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg>';
-const _LOCK_SVG_CLOSED = '<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>';
-
-/* Met à jour l'indicateur cadenas (verrou projet). */
+/* Met à jour l'indicateur cadenas (verrou projet).
+   Utilise ICONS['lock'] / ICONS['lock-open'] de icons.js (chargé après data.js,
+   donc on teste typeof ICONS au moment de l'appel). */
 function _updateRefreshBtn() {
   const el = document.getElementById('lockIndicator');
   if (!el) return;
+
+  const iconLock     = (typeof ICONS !== 'undefined' && ICONS['lock'])      || '';
+  const iconLockOpen = (typeof ICONS !== 'undefined' && ICONS['lock-open']) || '';
 
   const pid = activeProjectId;
   const lock = pid ? _projectLocks[pid] : null;
@@ -1169,11 +1170,11 @@ function _updateRefreshBtn() {
       el.className = 'lock-indicator locked-other';
       el.title = `Verrou tenu par : ${lock.userDisplayName}`;
     }
-    el.innerHTML = _LOCK_SVG_CLOSED;
+    el.innerHTML = iconLock;
   } else {
     el.className = 'lock-indicator unlocked';
     el.title = 'Projet libre — aucun verrou actif';
-    el.innerHTML = _LOCK_SVG_OPEN;
+    el.innerHTML = iconLockOpen;
   }
 }
 
