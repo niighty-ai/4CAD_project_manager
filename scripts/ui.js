@@ -379,7 +379,7 @@ function _renderNavProject(p){
       <div class="nav-item-meta">${taskCount} tâche${taskCount!==1?'s':''}</div>
     </div>
     <div class="nav-item-actions">
-      <button class="nav-action-btn" onclick="startRename('${p.id}',event)" title="Renommer">&#9998;</button>
+      ${p._appCreated?`<button class="nav-action-btn" onclick="startRename('${p.id}',event)" title="Renommer">&#9998;</button>`:''}
       <button class="nav-action-btn" onclick="duplicateProject('${p.id}',event)" title="Dupliquer">&#10063;</button>
       ${hasFirm?`<button class="nav-action-btn" onclick="resetProjectToFirm('${p.id}',event)" title="Réinitialiser à la base ferme">&#8635;</button>`:''}
       ${p._appCreated?`<button class="nav-action-btn danger" onclick="deleteProject('${p.id}',event)" title="Supprimer">&#128465;</button>`:''}
