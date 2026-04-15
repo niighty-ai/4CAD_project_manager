@@ -1191,18 +1191,27 @@
 .btn-save-edits:not(:disabled) { color: #2563eb; border-color: #2563eb; font-weight: 700; }
 .btn-cancel-edits:not(:disabled) { color: #c0392b; border-color: #c0392b; font-weight: 700; }
 
-/* ── Bouton Actualiser projet ── */
-.btn-refresh-project { transition: opacity .2s, color .2s, border-color .2s; }
-.btn-refresh-project.no-update { opacity: 0.35; cursor: default; }
-.btn-refresh-project.has-update {
-  opacity: 1;
-  color: #d97706;
-  border-color: #d97706;
-  animation: refresh-pulse 1.6s ease-in-out infinite;
+/* ── Indicateur de verrou de projet ── */
+.lock-indicator {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 4px;
+  cursor: default;
+  flex-shrink: 0;
+  transition: color .25s, opacity .25s;
 }
-@keyframes refresh-pulse {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(217,119,6,.0); }
-  50%       { box-shadow: 0 0 0 4px rgba(217,119,6,.25); }
+.lock-indicator.unlocked   { color: var(--muted); opacity: 0.4; }
+.lock-indicator.locked-me  { color: #2563eb; }
+.lock-indicator.locked-other {
+  color: #d97706;
+  animation: lock-pulse 1.6s ease-in-out infinite;
+}
+@keyframes lock-pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.45; }
 }
 
 /* ── Popup charge ressource (survol cellule journalière) ── */

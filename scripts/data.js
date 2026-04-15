@@ -1148,34 +1148,33 @@ function _showLockBlockedMessage(holderName) {
   alert(msg);
 }
 
-/* Met à jour l'état et le tooltip du bouton d'actualisation. */
-function _updateRefreshBtn() {
-  const btn = document.getElementById('btnRefreshProject');
-  if (!btn) return;
+/* SVG cadenas inline — injectés dans #lockIndicator */
+const _LOCK_SVG_OPEN   = '<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg>';
+const _LOCK_SVG_CLOSED = '<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>';
 
-  // Déterminer le détenteur du verrou sur le projet actif
-  const pid = activeProjectId || _lockedProjectId;
+/* Met à jour l'indicateur cadenas (verrou projet). */
+function _updateRefreshBtn() {
+  const el = document.getElementById('lockIndicator');
+  if (!el) return;
+
+  const pid = activeProjectId;
   const lock = pid ? _projectLocks[pid] : null;
   const lockValid = lock && lock.expiresAt > Date.now();
 
   if (lockValid) {
     if (lock.userId === currentUserId) {
-      btn.title = _pendingFirebaseUpdate
-        ? 'Une version plus récente est disponible — cliquez pour actualiser'
-        : 'Vous avez le verrou d\'écriture sur ce projet';
+      el.className = 'lock-indicator locked-me';
+      el.title = 'Vous avez le verrou d\'écriture sur ce projet';
     } else {
-      btn.title = `Verrou tenu par : ${lock.userDisplayName}`;
+      el.className = 'lock-indicator locked-other';
+      el.title = `Verrou tenu par : ${lock.userDisplayName}`;
     }
+    el.innerHTML = _LOCK_SVG_CLOSED;
   } else {
-    btn.title = _pendingFirebaseUpdate
-      ? 'Une version plus récente est disponible — cliquez pour actualiser'
-      : 'Projet à jour';
+    el.className = 'lock-indicator unlocked';
+    el.title = 'Projet libre — aucun verrou actif';
+    el.innerHTML = _LOCK_SVG_OPEN;
   }
-
-  /* Pas d'attribut disabled → le survol (tooltip) fonctionne même à l'état inactif.
-     L'onclick du bouton vérifie _pendingFirebaseUpdate avant d'agir. */
-  btn.classList.toggle('has-update', !!_pendingFirebaseUpdate);
-  btn.classList.toggle('no-update', !_pendingFirebaseUpdate);
 }
 
 /* Rafraîchit le projet actif depuis Firebase.
