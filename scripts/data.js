@@ -704,7 +704,14 @@ function _saveBackToPortfolio(){
     proj.projectColors = {...projectColors};
     proj.collapsed = {...collapsed};
   }
+  /* Synchronise en mémoire + localStorage uniquement.
+     Les écritures Firebase ne sont déclenchées que par les actions explicites
+     de l'utilisateur (bouton Enregistrer → _forcePortfolioFirebaseSave).
+     Cela empêche qu'un simple changement de projet écrase les données
+     d'un autre utilisateur dans Firebase. */
+  _suppressFirebaseSave = true;
   savePortfolio();
+  _suppressFirebaseSave = false;
 }
 
 /* ── Charge les projets sélectionnés dans rows[] ── */
@@ -1175,15 +1182,16 @@ function refreshActiveProjectFromFirebase(onDone) {
       return;
     }
     _pendingFirebaseUpdate = false;
-    const updated = migrateFirebaseData(val);
-    portfolio = updated;
-    /* Réinitialise le snapshot d'annulation avec les données fraîches */
+    portfolio = migrateFirebaseData(val);
+    /* Réinitialise le snapshot d'annulation avec les données fraîches.
+       NE PAS appeler switchToProject() ici : cela déclencherait _saveBackToPortfolio()
+       qui écraserait le portfolio fraîchement chargé avec les rows[] en cache. */
     _tasksSnapshot = null;
     _tasksDirty = false;
     renderNavList();
-    if (activeProjectId) {
-      if (typeof switchToProject === 'function') switchToProject(activeProjectId);
-    }
+    /* Recharger rows[] depuis le portfolio actualisé, puis re-rendre le gantt */
+    if (typeof _loadSelectedProjects === 'function') _loadSelectedProjects();
+    if (typeof renderAll === 'function') renderAll();
     setFbStatus('☁ Actualisé', '#2e7d32');
     if (typeof _updateSaveBtn === 'function') _updateSaveBtn();
     _updateRefreshBtn();

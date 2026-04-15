@@ -91,23 +91,28 @@ function _startFirebaseLoad() {
       clearInterval(iv);
       setFbStatus('⏳ Chargement...', '#f7971e');
       window._fbOnValue(function(val) {
+        /* Filtre anti-écho : on ignore les mises à jour Firebase qui arrivent
+           dans les 4 secondes suivant notre propre sauvegarde. */
         if (_fbInitLoaded && (Date.now() - _lastSaveTs) < 4000) return;
+
         if (val && Array.isArray(val) && val.length) {
-          /* ── Si l'utilisateur est en train d'éditer un projet (verrou actif) ──
-             On ne remplace pas le projet verrouillé localement, mais on détecte
-             si une version plus récente existe pour activer le bouton de refresh. */
+
+          /* ── CAS 1 : Verrou actif (utilisateur en mode édition) ──────────────
+             On préserve le projet verrouillé localement et on signale qu'une
+             version plus récente est disponible si Firebase a bougé. */
           if (_fbInitLoaded && _lockedProjectId) {
-            const fbProj   = val.find(p => p.id === _lockedProjectId);
+            const fbProj    = val.find(p => p.id === _lockedProjectId);
             const localProj = portfolio.find(p => p.id === _lockedProjectId);
+
             if (fbProj && localProj) {
-              const fbTs    = fbProj.updatedAt    || 0;
-              const localTs = localProj.updatedAt || 0;
-              if (fbTs > localTs) {
-                _pendingFirebaseUpdate = true;
-                if (typeof _updateRefreshBtn === 'function') _updateRefreshBtn();
-              }
+              /* Firebase a reçu des données pour notre projet verrouillé
+                 (l'anti-écho ci-dessus garantit que ce n'est pas notre propre écho)
+                 → signaler qu'une version externe plus récente est disponible. */
+              _pendingFirebaseUpdate = true;
+              if (typeof _updateRefreshBtn === 'function') _updateRefreshBtn();
             }
-            /* Mettre à jour tous les autres projets sauf celui verrouillé */
+
+            /* Mettre à jour tous les projets SAUF celui verrouillé */
             const updated = migrateFirebaseData(val);
             const lockedIdx = updated.findIndex(p => p.id === _lockedProjectId);
             if (lockedIdx >= 0 && localProj) updated[lockedIdx] = localProj;
@@ -115,10 +120,32 @@ function _startFirebaseLoad() {
             renderNavList();
             return;
           }
+
+          /* ── CAS 2 : Aucun verrou (mode consultation) ────────────────────────
+             On remplace le portfolio. Si le projet actif a été modifié par un
+             autre utilisateur, on signale qu'un refresh manuel est disponible. */
+          const prevProj = activeProjectId
+            ? portfolio.find(p => p.id === activeProjectId)
+            : null;
+          const prevUpdatedAt = prevProj ? (prevProj.updatedAt || 0) : 0;
+
           portfolio = migrateFirebaseData(val);
           renderNavList();
+
+          if (_fbInitLoaded && activeProjectId) {
+            const newProj = portfolio.find(p => p.id === activeProjectId);
+            const newUpdatedAt = newProj ? (newProj.updatedAt || 0) : 0;
+            if (newUpdatedAt > prevUpdatedAt) {
+              /* Le projet actif a une version plus récente dans Firebase :
+                 recharger la vue gantt automatiquement (pas d'édition en cours). */
+              if (typeof _loadSelectedProjects === 'function') _loadSelectedProjects();
+              if (typeof renderAll === 'function') renderAll();
+            }
+          }
+
           _tryAutoSelectProject();
           setFbStatus('☁ Connecté', '#2e7d32');
+
         } else if (!_fbInitLoaded) {
           setFbStatus('☁ Vide', '#f7971e');
         }
