@@ -144,7 +144,7 @@
 <div class="edit-panel" id="editPanel">
   <div class="edit-panel-header">
     <span class="edit-panel-title" id="epTitle">+ Nouvelle tâche</span>
-    <button class="edit-panel-close" onclick="closeEditPanel()"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    <button class="edit-panel-close" onclick="cancelEditPanel()"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
   </div>
   <div class="edit-panel-body">
     <div class="ep-group" style="display:none">
@@ -181,7 +181,7 @@
   </div>
   <div class="edit-panel-footer">
     <button class="ep-btn-delete" id="epDeleteBtn" onclick="deleteFromPanel()" style="display:none"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg> Supprimer</button>
-    <button class="ep-btn-cancel" onclick="closeEditPanel()">Annuler</button>
+    <button class="ep-btn-cancel" onclick="cancelEditPanel()">Annuler</button>
     <button class="ep-btn-save" onclick="saveEditPanel()"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Enregistrer</button>
   </div>
 </div>
@@ -189,7 +189,7 @@
 <div class="edit-panel" id="jalonPanel">
   <div class="edit-panel-header">
     <span class="edit-panel-title" id="jpTitle">◆ Nouveau jalon</span>
-    <button class="edit-panel-close" onclick="closeJalonPanel()"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    <button class="edit-panel-close" onclick="cancelJalonPanel()"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
   </div>
   <div class="edit-panel-body">
     <div class="ep-group">
@@ -208,7 +208,7 @@
   </div>
   <div class="edit-panel-footer">
     <button class="ep-btn-delete" id="jpDeleteBtn" onclick="deleteJalon()" style="display:none"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg> Supprimer</button>
-    <button class="ep-btn-cancel" onclick="closeJalonPanel()">Annuler</button>
+    <button class="ep-btn-cancel" onclick="cancelJalonPanel()">Annuler</button>
     <button class="ep-btn-save" onclick="saveJalonPanel()"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Enregistrer</button>
   </div>
 </div>
@@ -417,7 +417,7 @@
 <div class="edit-panel" id="affectPanel">
   <div class="edit-panel-header">
     <span class="edit-panel-title" id="affectPanelTitle"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 1-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg> Affectations</span>
-    <button class="edit-panel-close" onclick="closeAffectPanel()"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    <button class="edit-panel-close" onclick="cancelAffectPanel()"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
   </div>
   <div class="edit-panel-body" style="padding:0">
     <div id="affectTotals" class="affect-totals"></div>
@@ -452,6 +452,7 @@
           <label class="lissage-cfg-label">Charge journalière maximale (j) — 0 = désactivé</label>
           <input type="number" id="lcfgPreferCharge" class="lissage-cfg-input" step="0.0625" min="0" max="1" value="0.5">
         </div>
+        <label class="lissage-strict-label"><input type="checkbox" id="lcfgStrictPrefer"> Strict</label>
       </div>
       <div class="lissage-cfg-row lissage-cfg-row-inline">
         <div class="lissage-cfg-col">
@@ -522,7 +523,7 @@
 <script src="scripts/data.js?v=5"></script>
 <script src="scripts/icons.js?v=1"></script>
 <script src="scripts/gantt.js?v=7"></script>
-<script src="scripts/ui.js?v=10"></script>
+<script src="scripts/ui.js?v=11"></script>
 <script src="scripts/resources.js?v=6"></script>
 <script src="scripts/calendar.js?v=6"></script>
 <script src="scripts/router.js?v=6"></script>

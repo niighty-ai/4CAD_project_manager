@@ -866,7 +866,18 @@ function onJpProjetSelectChange(){
 }
 function _showBackdrop(){ document.getElementById('panelBackdrop')?.classList.add('visible'); }
 function _hideBackdrop(){ document.getElementById('panelBackdrop')?.classList.remove('visible'); }
-function closeAllPanels(){ closeEditPanel(); closeJalonPanel(); closeAffectPanel(); }
+/* Libère le verrou si aucune modification en attente */
+function _releaseLockIfClean() {
+  const hasEdits = typeof _ganttEdits !== 'undefined' && Object.keys(_ganttEdits).length > 0;
+  if (!_tasksDirty && !hasEdits) {
+    if (typeof _releaseProjectLock === 'function') _releaseProjectLock();
+  }
+}
+/* Fermeture via annulation (croix, bouton Annuler, backdrop) */
+function cancelEditPanel()  { closeEditPanel();  _releaseLockIfClean(); }
+function cancelJalonPanel() { closeJalonPanel(); _releaseLockIfClean(); }
+function cancelAffectPanel(){ closeAffectPanel(); _releaseLockIfClean(); }
+function closeAllPanels(){ closeEditPanel(); closeJalonPanel(); closeAffectPanel(); _releaseLockIfClean(); }
 function closeEditPanel(){
   document.getElementById('editPanel').classList.remove('open');
   _hideBackdrop();
@@ -1543,7 +1554,7 @@ function _getLissageConfig() {
     minCharge:          cfg.minCharge          !== undefined ? cfg.minCharge          : 0.125,
     strictMin:          cfg.strictMin          !== undefined ? cfg.strictMin          : true,
     preferCharge:       cfg.preferCharge       !== undefined ? cfg.preferCharge       : 0.5,
-    strictPrefer:       true,
+    strictPrefer:       cfg.strictPrefer       !== undefined ? cfg.strictPrefer       : false,
     avoidDays:          cfg.avoidDays          !== undefined ? cfg.avoidDays          : [5],
     strictAvoid:        cfg.strictAvoid        !== undefined ? cfg.strictAvoid        : false,
     usePlannedInLissage: cfg.usePlannedInLissage !== undefined ? cfg.usePlannedInLissage : false
@@ -1806,6 +1817,7 @@ function openLissageConfig() {
   _v('lcfgMinCharge',    cfg.minCharge);
   _c('lcfgStrictMin',    cfg.strictMin);
   _v('lcfgPreferCharge', cfg.preferCharge);
+  _c('lcfgStrictPrefer', cfg.strictPrefer);
   _c('lcfgStrictAvoid',  cfg.strictAvoid);
   _c('lcfgUsePlanned',   cfg.usePlannedInLissage);
   document.querySelectorAll('.lcfg-day').forEach(cb => {
@@ -1836,7 +1848,7 @@ function saveLissageConfig() {
   if (!proj) return;
   proj.lissageConfig = {
     minCharge,    strictMin:          _cb('lcfgStrictMin'),
-    preferCharge, strictPrefer:       true,
+    preferCharge, strictPrefer:       _cb('lcfgStrictPrefer'),
     avoidDays,    strictAvoid:        _cb('lcfgStrictAvoid'),
     usePlannedInLissage: _cb('lcfgUsePlanned')
   };
