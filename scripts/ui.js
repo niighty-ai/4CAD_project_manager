@@ -225,7 +225,10 @@ function renderNavList(){
     const someChecked = clientProjs.some(p=>selectedProjectIds.has(p.id));
 
     html += `<div class="nav-client" data-client="${escH(clientName)}">
-      <div class="nav-client-header" onclick="toggleNavClient('${escH(clientName)}')">
+      <div class="nav-client-header" onclick="toggleNavClient('${escH(clientName)}')"
+          ondragover="navDragOver(event,'${escH(clientName)}','')"
+          ondragleave="navDragLeave(event)"
+          ondrop="navDrop(event,'${escH(clientName)}','')">
         <span class="nav-client-chevron${isOpen?' open':''}">&#9658;</span>
         <span class="nav-client-name" title="${escH(clientName)}">${escH(clientName)}</span>
         <div class="nav-client-actions">
@@ -379,7 +382,7 @@ function _renderNavProject(p){
       <button class="nav-action-btn" onclick="startRename('${p.id}',event)" title="Renommer">&#9998;</button>
       <button class="nav-action-btn" onclick="duplicateProject('${p.id}',event)" title="Dupliquer">&#10063;</button>
       ${hasFirm?`<button class="nav-action-btn" onclick="resetProjectToFirm('${p.id}',event)" title="Réinitialiser à la base ferme">&#8635;</button>`:''}
-      <button class="nav-action-btn danger" onclick="deleteProject('${p.id}',event)" title="Supprimer">&#128465;</button>
+      ${p._appCreated?`<button class="nav-action-btn danger" onclick="deleteProject('${p.id}',event)" title="Supprimer">&#128465;</button>`:''}
     </div>
   </div>`;
 }
