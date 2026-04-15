@@ -700,6 +700,8 @@ function confirmUnsavedSwitch() {
   /* Effacer les éditions daily en attente */
   if (typeof _ganttEdits !== 'undefined') _ganttEdits = {};
   revertTaskChanges();
+  /* Libérer le verrou (revertTaskChanges le fait si _tasksDirty, sinon on le fait ici) */
+  if (typeof _releaseProjectLock === 'function') _releaseProjectLock();
   if (typeof _updateSaveBtn === 'function') _updateSaveBtn();
   const cb = _unsavedConfirmCallback; _unsavedConfirmCallback = null;
   if (cb) cb();
