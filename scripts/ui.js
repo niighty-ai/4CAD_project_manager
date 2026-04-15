@@ -869,7 +869,18 @@ function onJpProjetSelectChange(){
 }
 function _showBackdrop(){ document.getElementById('panelBackdrop')?.classList.add('visible'); }
 function _hideBackdrop(){ document.getElementById('panelBackdrop')?.classList.remove('visible'); }
-function closeAllPanels(){ closeEditPanel(); closeJalonPanel(); closeAffectPanel(); }
+/* Libère le verrou si aucune modification en attente */
+function _releaseLockIfClean() {
+  const hasEdits = typeof _ganttEdits !== 'undefined' && Object.keys(_ganttEdits).length > 0;
+  if (!_tasksDirty && !hasEdits) {
+    if (typeof _releaseProjectLock === 'function') _releaseProjectLock();
+  }
+}
+/* Fermeture via annulation (croix, bouton Annuler, backdrop) */
+function cancelEditPanel()  { closeEditPanel();  _releaseLockIfClean(); }
+function cancelJalonPanel() { closeJalonPanel(); _releaseLockIfClean(); }
+function cancelAffectPanel(){ closeAffectPanel(); _releaseLockIfClean(); }
+function closeAllPanels(){ closeEditPanel(); closeJalonPanel(); closeAffectPanel(); _releaseLockIfClean(); }
 function closeEditPanel(){
   document.getElementById('editPanel').classList.remove('open');
   _hideBackdrop();
@@ -1258,7 +1269,7 @@ function openAffectPanel(rowIdx) {
   // Point 5 : si aucune ressource, ouvre avec une ligne vide prête à remplir
   if (!r.assignments || r.assignments.length === 0) {
     if (!r.assignments) r.assignments = [];
-    r.assignments.push({ resourceId: '', resourceNom: '', charge: null, chargePassee: null, chargeRestante: null });
+    r.assignments.push({ resourceId: '', resourceNom: '', charge: null, chargePassee: null, chargeRestante: null, debut: r.debut || null, fin: r.fin || null });
   }
   renderAffectList(r);
 }
