@@ -241,8 +241,10 @@ function renderGantt(){
     if (isPlannedRow && !plannedActive) {
       let firmCharge = null;
       const projId = r._srcPid;
-      if (projId && typeof portfolioFirm !== 'undefined' && typeof _taskKey === 'function') {
-        const firmProj = portfolioFirm.find(p => p.id === projId);
+      if (typeof portfolioFirm !== 'undefined' && typeof _taskKey === 'function') {
+        const firmProj = projId
+          ? (portfolioFirm.find(p => p.id === projId) || portfolioFirm.find(p => p.name === r.projet))
+          : portfolioFirm.find(p => p.name === r.projet);
         if (firmProj) {
           const rKey = _taskKey(r);
           const firmRow = (firmProj.rows || []).find(fr => _taskKey(fr) === rKey);

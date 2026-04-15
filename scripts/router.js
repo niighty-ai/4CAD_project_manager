@@ -8,7 +8,8 @@ let currentView = 'projets';
 function switchView(view) {
   if (view === currentView) return;
   /* Garde : modifications en cours → demander confirmation */
-  if (typeof _tasksDirty !== 'undefined' && _tasksDirty) {
+  const _hasEdits = (typeof _ganttEdits !== 'undefined' && Object.keys(_ganttEdits).length > 0);
+  if (((typeof _tasksDirty !== 'undefined' && _tasksDirty) || _hasEdits)) {
     if (typeof _showUnsavedChangesModal === 'function') {
       _showUnsavedChangesModal(() => {
         currentView = view; /* forcer le passage après annulation des modifs */

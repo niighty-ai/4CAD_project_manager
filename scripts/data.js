@@ -697,7 +697,10 @@ let _unsavedConfirmCallback = null;
 function confirmUnsavedSwitch() {
   const modal = document.getElementById('unsavedChangesModal');
   if (modal) modal.style.display = 'none';
+  /* Effacer les éditions daily en attente */
+  if (typeof _ganttEdits !== 'undefined') _ganttEdits = {};
   revertTaskChanges();
+  if (typeof _updateSaveBtn === 'function') _updateSaveBtn();
   const cb = _unsavedConfirmCallback; _unsavedConfirmCallback = null;
   if (cb) cb();
 }
@@ -712,7 +715,8 @@ function cancelUnsavedSwitch() {
 
 function switchToProject(id){
   /* Garde : modifications en cours → demander confirmation */
-  if (_tasksDirty && id !== activeProjectId) {
+  const _hasEdits = (typeof _ganttEdits !== 'undefined' && Object.keys(_ganttEdits).length > 0);
+  if ((_tasksDirty || _hasEdits) && id !== activeProjectId) {
     _showUnsavedChangesModal(() => switchToProject(id));
     return;
   }
