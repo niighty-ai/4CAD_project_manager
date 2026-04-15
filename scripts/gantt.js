@@ -232,10 +232,39 @@ function renderGantt(){
 
   /* ── Colonnes charge sur une ligne (tâche, groupe, projet) ── */
   function chargeCols(r) {
-    const charge   = _effCharge(r);
+    const isPlannedRow = r._source === 'planned';
+    const plannedActive = typeof usePlanned !== 'undefined' && usePlanned;
+
+    /* Quand le mode planifié est désactivé et que la ligne est planifiée,
+       afficher la charge ferme (depuis portfolioFirm) à la place de la charge planifiée */
+    let charge;
+    if (isPlannedRow && !plannedActive) {
+      let firmCharge = null;
+      const projId = r._srcPid;
+      if (projId && typeof portfolioFirm !== 'undefined' && typeof _taskKey === 'function') {
+        const firmProj = portfolioFirm.find(p => p.id === projId);
+        if (firmProj) {
+          const rKey = _taskKey(r);
+          const firmRow = (firmProj.rows || []).find(fr => _taskKey(fr) === rKey);
+          if (firmRow) {
+            const asgns = firmRow.assignments;
+            if (asgns && asgns.length > 0) {
+              const s = asgns.reduce((acc, a) => acc + (a.charge || 0), 0);
+              firmCharge = Math.round(s * 10000) / 10000 || null;
+            } else {
+              firmCharge = firmRow.charge;
+            }
+          }
+        }
+      }
+      charge = firmCharge; /* null → affiche '—' */
+    } else {
+      charge = _effCharge(r);
+    }
+
     const passee   = _effPassee(r);
     const restante = _effRestante(charge, passee);
-    const planned  = r._source === 'planned' && (typeof usePlanned !== 'undefined' && usePlanned);
+    const planned  = isPlannedRow && plannedActive;
     const ps = planned ? ' style="color:#22c55e;font-style:italic"' : '';
     if (!hasTracking) {
       return charge != null

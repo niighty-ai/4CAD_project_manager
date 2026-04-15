@@ -895,7 +895,6 @@ function _showMissingResPopup(missingNames, updatedCount) {
 function _upsertPortfolioFromGHO(taskData, taskAssignmentMap = {}, resetPlanned = false) {
   if (typeof _saveBackToPortfolio === 'function') _saveBackToPortfolio();
 
-  let walletChanged   = false;
   let projectsCreated = 0;
   let tasksImported   = 0;
   let _idSeq          = 0;
@@ -921,10 +920,6 @@ function _upsertPortfolioFromGHO(taskData, taskAssignmentMap = {}, resetPlanned 
       `p_${Date.now()}_${_idSeq}_${Math.random().toString(36).slice(2, 6)}`;
 
     if (!existWork) projectsCreated++;
-    if (clientName && !userWalletClients.has(clientName)) {
-      userWalletClients.add(clientName);
-      walletChanged = true;
-    }
 
     const firmRows = [];
     tasks.forEach(task => {
@@ -952,26 +947,34 @@ function _upsertPortfolioFromGHO(taskData, taskAssignmentMap = {}, resetPlanned 
     });
   });
 
-  /* ── Sauvegarder la base ferme (remplacement total) ── */
-  if (typeof saveFirmPortfolio === 'function') saveFirmPortfolio(newFirmData);
-
-  /* ── Notifier les conflits avec les modifications planifiées ── */
-  if (typeof _notifyFirmConflicts === 'function') _notifyFirmConflicts(newFirmData);
-
-  /* ── Fusionner dans le portfolio de travail ── */
-  if (typeof mergeFirmIntoWorking === 'function') mergeFirmIntoWorking(newFirmData);
-
-  /* ── Réinitialiser la base planifiée si demandé ── */
-  if (resetPlanned && typeof _resetPlannedForFirmProjects === 'function') _resetPlannedForFirmProjects(newFirmData);
-
-  /* ── Sauvegarder et rafraîchir ── */
-  if (walletChanged && typeof saveUserWallet === 'function') saveUserWallet();
-  savePortfolio();
-  if (typeof renderNavList === 'function') renderNavList();
-
-  if (selectedProjectIds.size > 0 && typeof _loadSelectedProjects === 'function') {
-    _loadSelectedProjects();
+  /* ── Notifier les conflits + fusionner + restaurer (callback-based) ── */
+  function _finishGHOImport() {
+    if (typeof mergeFirmIntoWorking === 'function') mergeFirmIntoWorking(newFirmData);
+    if (resetPlanned && typeof _resetPlannedForFirmProjects === 'function') _resetPlannedForFirmProjects(newFirmData);
+    /* Sauvegarder et restaurer la vue utilisateur (préserve le wallet) */
+    savePortfolio();
+    if (activeProjectId && !portfolio.find(p => p.id === activeProjectId)) {
+      activeProjectId = null; multiViewMode = false;
+    }
+    selectedProjectIds.forEach(id => {
+      if (!portfolio.find(p => p.id === id)) selectedProjectIds.delete(id);
+    });
+    if (activeProjectId && !selectedProjectIds.has(activeProjectId)) selectedProjectIds.add(activeProjectId);
+    multiViewMode = selectedProjectIds.size > 1;
+    if (!activeProjectId || selectedProjectIds.size === 0) {
+      const first = portfolio.find(p => p.client && userWalletClients.has(p.client));
+      if (first) { activeProjectId = first.id; selectedProjectIds.clear(); selectedProjectIds.add(first.id); multiViewMode = false; }
+    }
+    if (typeof _loadSelectedProjects === 'function') _loadSelectedProjects();
+    if (typeof renderNavList === 'function') renderNavList();
     if (typeof renderAll === 'function') renderAll();
+  }
+
+  if (typeof saveFirmPortfolio === 'function') saveFirmPortfolio(newFirmData);
+  if (typeof _notifyFirmConflicts === 'function') {
+    _notifyFirmConflicts(newFirmData, _finishGHOImport);
+  } else {
+    _finishGHOImport();
   }
 
   return { projectsCreated, tasksImported };

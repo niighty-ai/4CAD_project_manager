@@ -414,6 +414,9 @@
 .nav-item.active .nav-item-name {
   color:var(--accent)
 }
+.nav-item.active.nav-item-planned .nav-item-name {
+  color:#22c55e
+}
 
 .nav-sidebar.collapsed .nav-item-name {
   display:none

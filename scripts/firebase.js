@@ -40,6 +40,15 @@ window._fbOnAuthChange = (cb) => onAuthStateChanged(_fbAuth, cb);
 window._fbSetUserWallet = (userId, data) => set(ref(_fbDb, 'user_wallets/' + userId), data);
 window._fbOnUserWallet  = (userId, cb)   => onValue(ref(_fbDb, 'user_wallets/' + userId), snap => cb(snap.val()));
 
+/* ── Dossiers utilisateur (par UID) — stockés en JSON pour éviter les restrictions sur les clés Firebase ── */
+window._fbSetUserFolders = (userId, data) =>
+  set(ref(_fbDb, 'user_folders/' + userId), { d: JSON.stringify(data) });
+window._fbOnUserFolders  = (userId, cb)   =>
+  onValue(ref(_fbDb, 'user_folders/' + userId), snap => {
+    try { const v = snap.val(); cb(v && v.d ? JSON.parse(v.d) : null); }
+    catch(e) { cb(null); }
+  });
+
 /* ── Lecture unique du portfolio (pour refresh forcé) ── */
 window._fbGetPortfolio = (cb) =>
   get(_fbRef).then(snap => cb(snap.val())).catch(() => cb(null));

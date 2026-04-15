@@ -7,6 +7,16 @@ let currentView = 'projets';
 
 function switchView(view) {
   if (view === currentView) return;
+  /* Garde : modifications en cours → demander confirmation */
+  if (typeof _tasksDirty !== 'undefined' && _tasksDirty) {
+    if (typeof _showUnsavedChangesModal === 'function') {
+      _showUnsavedChangesModal(() => {
+        currentView = view; /* forcer le passage après annulation des modifs */
+        switchView(view);
+      });
+      return;
+    }
+  }
   currentView = view;
 
   /* Mise à jour des onglets header */

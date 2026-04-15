@@ -303,15 +303,49 @@ function mergeFirmIntoWorking(newFirmData) {
 }
 
 /* Notifie l'utilisateur si des tâches planifiées existent sur des projets mis à jour */
-function _notifyFirmConflicts(newFirmData) {
+let _pendingConflictCallback = null;
+let _pendingConflictProjs    = null;
+let _pendingConflictFirmData = null;
+
+function _notifyFirmConflicts(newFirmData, onDone) {
   const conflictProjs = newFirmData
     .map(fp => portfolio.find(wp => wp.id === fp.id))
     .filter(wp => wp && (wp.rows || []).some(r => r._source === 'planned'));
-  if (conflictProjs.length === 0) return;
+  if (conflictProjs.length === 0) { if (onDone) onDone(); return; }
+
   const msg = `⚠ La base ferme a été mise à jour.\n\nDes modifications planifiées existent sur :\n${conflictProjs.map(p => `• ${p.name}`).join('\n')}\n\nVoulez-vous réinitialiser ces projets à la nouvelle base ferme ?\n(Les modifications planifiées seront perdues)`;
-  if (confirm(msg)) {
-    conflictProjs.forEach(p => _resetProjectToFirmSilent(p.id, newFirmData));
+  const modal = document.getElementById('firmConflictModal');
+  if (!modal) {
+    /* Fallback si la modal n'est pas présente */
+    if (confirm(msg)) conflictProjs.forEach(p => _resetProjectToFirmSilent(p.id, newFirmData));
+    if (onDone) onDone();
+    return;
   }
+  const textEl = document.getElementById('firmConflictText');
+  if (textEl) textEl.textContent = msg;
+  _pendingConflictCallback = onDone || null;
+  _pendingConflictProjs    = conflictProjs;
+  _pendingConflictFirmData = newFirmData;
+  modal.style.display = 'flex';
+}
+
+function confirmFirmConflict() {
+  const modal = document.getElementById('firmConflictModal');
+  if (modal) modal.style.display = 'none';
+  if (_pendingConflictProjs && _pendingConflictFirmData) {
+    _pendingConflictProjs.forEach(p => _resetProjectToFirmSilent(p.id, _pendingConflictFirmData));
+  }
+  _pendingConflictProjs = null; _pendingConflictFirmData = null;
+  const cb = _pendingConflictCallback; _pendingConflictCallback = null;
+  if (cb) cb();
+}
+
+function cancelFirmConflict() {
+  const modal = document.getElementById('firmConflictModal');
+  if (modal) modal.style.display = 'none';
+  _pendingConflictProjs = null; _pendingConflictFirmData = null;
+  const cb = _pendingConflictCallback; _pendingConflictCallback = null;
+  if (cb) cb();
 }
 
 /* Réinitialise un projet à la base ferme sans confirmation */
@@ -325,6 +359,9 @@ function _resetProjectToFirmSilent(projectId, firmDataSrc) {
   const deser = _deserializePortfolio([JSON.parse(JSON.stringify(_serializePortfolio([firmProj])[0]))])[0];
   portfolio[idx] = {
     ...deser,
+    /* Préserver les métadonnées utilisateur : client, dossier, couleurs, état replié */
+    client:        cur.client        || deser.client,
+    folder:        cur.folder        !== undefined ? cur.folder : (deser.folder || ''),
     collapsed:     cur.collapsed     || {},
     projectColors: cur.projectColors || firmProj.projectColors || {},
     jalons:        cur.jalons        || firmProj.jalons        || []
@@ -561,6 +598,18 @@ function deleteClientFromDB(clientName, e) {
   renderAll();
 }
 
+/* ── Sauvegarde les dossiers de l'utilisateur courant dans Firebase ── */
+function saveUserFolders() {
+  if (!currentUserId || typeof window._fbSetUserFolders !== 'function') return;
+  const data = {};
+  Object.entries(navFolders).forEach(([client, folderSet]) => {
+    if (folderSet && folderSet.size > 0) data[client] = [...folderSet];
+  });
+  window._fbSetUserFolders(currentUserId, data).catch(e => {
+    console.error('[Folders] Erreur sauvegarde:', e);
+  });
+}
+
 /* ── Créer un nouveau dossier dans un client ── */
 function createFolder(clientName, e){
   if(e) e.stopPropagation();
@@ -569,6 +618,7 @@ function createFolder(clientName, e){
   const folderName = name.trim();
   if(!navFolders[clientName]) navFolders[clientName] = new Set();
   navFolders[clientName].add(folderName);
+  saveUserFolders();
   renderNavList();
 }
 
@@ -586,6 +636,7 @@ function renameFolder(clientName, oldFolder, e){
     navFolders[clientName].add(trimmed);
   }
   savePortfolio();
+  saveUserFolders();
   renderNavList();
 }
 
@@ -600,12 +651,12 @@ function deleteFolder(clientName, folderName, e){
   if(e) e.stopPropagation();
   const projs = portfolio.filter(p=>(p.client||'')===clientName && (p.folder||'')===folderName);
   if(projs.length > 0){
-    const choice = confirm(`Supprimer le dossier "${folderName}" ?\n\nOK = déplacer les ${projs.length} projet(s) à la racine\nAnnuler = annuler`);
-    if(choice===null) return;
+    if(!confirm(`Supprimer le dossier "${folderName}" ?\nLes ${projs.length} projet(s) seront déplacés à la racine.`)) return;
     projs.forEach(p=>{ p.folder = ''; });
   }
   if(navFolders[clientName]) navFolders[clientName].delete(folderName);
   savePortfolio();
+  saveUserFolders();
   renderNavList();
 }
 
@@ -624,7 +675,48 @@ function moveProjectToFolder(projId, clientName, folderName){
    SWITCH / SAVE / LOAD — cœur de la navigation
    ══════════════════════════════════════════════ */
 
+/* ── Garde "modifications en cours" : interception avant tout changement de projet ou de vue ── */
+let _pendingSwitchProjectId = null;
+let _pendingSwitchView      = null;
+
+function _showUnsavedChangesModal(onConfirm) {
+  const modal = document.getElementById('unsavedChangesModal');
+  if (!modal) {
+    /* Fallback si la modal n'est pas présente */
+    if (confirm('Des modifications sont en cours et vont être perdues.\nVoulez-vous les annuler et continuer ?')) {
+      revertTaskChanges(); onConfirm();
+    }
+    return;
+  }
+  /* Stocker le callback en utilisant les variables de pending */
+  _unsavedConfirmCallback = onConfirm;
+  modal.style.display = 'flex';
+}
+let _unsavedConfirmCallback = null;
+
+function confirmUnsavedSwitch() {
+  const modal = document.getElementById('unsavedChangesModal');
+  if (modal) modal.style.display = 'none';
+  revertTaskChanges();
+  const cb = _unsavedConfirmCallback; _unsavedConfirmCallback = null;
+  if (cb) cb();
+}
+
+function cancelUnsavedSwitch() {
+  const modal = document.getElementById('unsavedChangesModal');
+  if (modal) modal.style.display = 'none';
+  _unsavedConfirmCallback = null;
+  _pendingSwitchProjectId = null;
+  _pendingSwitchView      = null;
+}
+
 function switchToProject(id){
+  /* Garde : modifications en cours → demander confirmation */
+  if (_tasksDirty && id !== activeProjectId) {
+    _showUnsavedChangesModal(() => switchToProject(id));
+    return;
+  }
+
   /* 1. Sauvegarder l'état courant AVANT tout changement */
   _saveBackToPortfolio();
 

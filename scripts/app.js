@@ -28,6 +28,7 @@
           /* Lance le chargement des données Firebase maintenant qu'on est auth */
           _startFirebaseLoad();
           _startWalletLoad(user.uid);
+          _startFoldersLoad(user.uid);
         } else {
           /* Non connecté → réinitialise l'état utilisateur */
           currentUserId = null;
@@ -223,6 +224,31 @@ function _startWalletLoad(userId) {
   }, 100);
 }
 
+/* ── Chargement des dossiers utilisateur (appelé après auth) ── */
+function _startFoldersLoad(userId) {
+  let attempts = 0;
+  const iv = setInterval(() => {
+    attempts++;
+    if (typeof window._fbOnUserFolders === 'function') {
+      clearInterval(iv);
+      window._fbOnUserFolders(userId, (val) => {
+        if (val && typeof val === 'object') {
+          /* Fusionner avec navFolders existants (union avec les dossiers issus du portfolio) */
+          Object.entries(val).forEach(([client, folders]) => {
+            if (Array.isArray(folders) && folders.length > 0) {
+              if (!navFolders[client]) navFolders[client] = new Set();
+              folders.forEach(f => navFolders[client].add(f));
+            }
+          });
+          renderNavList();
+        }
+      });
+    } else if (attempts > 60) {
+      clearInterval(iv);
+    }
+  }, 100);
+}
+
 /* ── Reste de l'initialisation ─────────────────────────────────────────── */
 
 document.getElementById('cpCustom').addEventListener('input',e=>{if(!cpTarget)return;projectColors[cpTarget]=e.target.value;document.getElementById('colorGrid').querySelectorAll('.color-opt').forEach(el=>el.classList.remove('selected'));renderAll();}
@@ -354,19 +380,24 @@ document.getElementById('fileInput').addEventListener('change',e=>{
         renderAll();
       }
 
-      if(typeof showImportModal === 'function'){
-        showImportModal(_summary, (resetPlanned) => {
-          if(typeof saveFirmPortfolio === 'function') saveFirmPortfolio(newFirmData);
-          if(typeof _notifyFirmConflicts === 'function') _notifyFirmConflicts(newFirmData);
+      function _doImport(resetPlanned) {
+        if(typeof saveFirmPortfolio === 'function') saveFirmPortfolio(newFirmData);
+        if(typeof _notifyFirmConflicts === 'function') {
+          _notifyFirmConflicts(newFirmData, () => {
+            if(typeof mergeFirmIntoWorking === 'function') mergeFirmIntoWorking(newFirmData);
+            if(resetPlanned && typeof _resetPlannedForFirmProjects === 'function') _resetPlannedForFirmProjects(newFirmData);
+            _postImportRestore();
+          });
+        } else {
           if(typeof mergeFirmIntoWorking === 'function') mergeFirmIntoWorking(newFirmData);
           if(resetPlanned && typeof _resetPlannedForFirmProjects === 'function') _resetPlannedForFirmProjects(newFirmData);
           _postImportRestore();
-        });
+        }
+      }
+      if(typeof showImportModal === 'function'){
+        showImportModal(_summary, _doImport);
       } else {
-        if(typeof saveFirmPortfolio === 'function') saveFirmPortfolio(newFirmData);
-        if(typeof _notifyFirmConflicts === 'function') _notifyFirmConflicts(newFirmData);
-        if(typeof mergeFirmIntoWorking === 'function') mergeFirmIntoWorking(newFirmData);
-        _postImportRestore();
+        _doImport(false);
       }
     }catch(err){alert('Erreur : '+err.message);}
   };
