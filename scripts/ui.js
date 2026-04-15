@@ -1698,10 +1698,12 @@ function _computeLissage(charge, debut, fin, resourceId, taskName, extId) {
       let assign;
       if (usePref && s.avail >= pc) {
         assign = rem >= pc ? pc : floorMin(rem);
-      } else if (!cfg.strictPrefer) {
+      } else if (!cfg.strictPrefer || pc === 0) {
+        /* Sans strict (ou preferCharge désactivé) : remplir jusqu'à la capacité libre */
         assign = floorMin(maxSlot);
       } else {
-        continue; // strict prefer mais slot insuffisant → déjà géré par le continue ci-dessus
+        /* Strict : placer au plus pc par jour (slot a avail >= pc garanti par le filtre ligne 1694) */
+        assign = floorMin(Math.min(pc, rem));
       }
       assign = Math.round(assign * 10000) / 10000;
       const minThresh = cfg.strictMin ? cfg.minCharge : 1e-9;
