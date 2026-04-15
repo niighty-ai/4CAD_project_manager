@@ -1302,6 +1302,8 @@ function renderAffectList(r) {
   const asgns = r.assignments || [];
   const container = document.getElementById('affectList');
 
+  const _lcfg = _getLissageConfig();
+  const _chStep = _lcfg.strictMin ? _lcfg.minCharge : 0.0625;
   const rows_html = asgns.map((a, i) => {
     const allRes = typeof resources !== 'undefined' ? resources : [];
     const curRes = allRes.find(r => r.id === a.resourceId);
@@ -1339,7 +1341,7 @@ function renderAffectList(r) {
       <div class="affect-row-charges">
         <div class="affect-charge-group">
           <label class="affect-ch-label ch-prev-lbl">Prévue (j)</label>
-          <input type="number" class="affect-ch-input" step="0.125" min="0"
+          <input type="number" class="affect-ch-input" step="${_chStep}" min="0"
             value="${dispCharge != null ? dispCharge : ''}"
             placeholder="—"
             onchange="affectChangeCharge(${i},'charge',this.value)">
@@ -1694,7 +1696,9 @@ function _computeLissage(charge, debut, fin, resourceId, taskName, extId) {
       if (cfg.strictPrefer && pc > 0 && s.avail < pc) continue;
 
       const maxSlot = Math.min(s.avail, rem);
-      const floorMin = (v) => Math.floor(v / cfg.minCharge) * cfg.minCharge;
+      /* Granularité : strict → multiples de minCharge ; non-strict → multiples de 0.0625 (1/16j) */
+      const grain = cfg.strictMin ? cfg.minCharge : 0.0625;
+      const floorMin = (v) => Math.floor(v / grain) * grain;
       let assign;
       if (usePref && s.avail >= pc) {
         assign = rem >= pc ? pc : floorMin(rem);
@@ -1844,6 +1848,11 @@ function saveLissageConfig() {
   const prefRaw = _fv('lcfgPreferCharge');
   const minCharge    = isNaN(minRaw)  ? 0.125 : Math.max(0.0625, Math.min(1, minRaw));
   const preferCharge = isNaN(prefRaw) ? 0     : Math.max(0,       Math.min(1, prefRaw));
+  /* Validation : charge mini doit être < charge maxi (si maxi activée) */
+  if (preferCharge > 0 && minCharge >= preferCharge) {
+    alert(`La charge journalière minimale (${minCharge}j) doit être inférieure à la charge journalière maximale (${preferCharge}j).`);
+    return;
+  }
   const avoidDays = [];
   document.querySelectorAll('.lcfg-day').forEach(cb => {
     if (cb.checked) avoidDays.push(parseInt(cb.dataset.day));
@@ -1857,6 +1866,24 @@ function saveLissageConfig() {
     avoidDays,    strictAvoid:        _cb('lcfgStrictAvoid'),
     usePlannedInLissage: _cb('lcfgUsePlanned')
   };
-  if (typeof savePortfolio === 'function') savePortfolio();
+  /* Sauvegarder la config.
+     Si le projet est en édition (_tasksDirty), ne pas déclencher un write Firebase
+     séparé pour éviter d'écraser les données en attente : le write Firebase sera
+     inclus dans la sauvegarde du projet.
+     Aussi mettre à jour le snapshot pour que le revert ne perde pas la config lissage. */
+  const inEditMode = typeof _tasksDirty !== 'undefined' && _tasksDirty;
+  if (inEditMode) {
+    try { localStorage.setItem('gantt4cad_portfolio', JSON.stringify(_serializePortfolio(portfolio))); } catch(e) {}
+    if (typeof _tasksSnapshot !== 'undefined' && _tasksSnapshot) {
+      try {
+        const snap = JSON.parse(_tasksSnapshot);
+        const snapProj = snap.find(p => p.id === activeProjectId);
+        if (snapProj) snapProj.lissageConfig = proj.lissageConfig;
+        _tasksSnapshot = JSON.stringify(snap);
+      } catch(e) {}
+    }
+  } else {
+    if (typeof savePortfolio === 'function') savePortfolio();
+  }
   closeLissageConfig();
 }
