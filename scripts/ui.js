@@ -1255,7 +1255,7 @@ function openAffectPanel(rowIdx) {
   // Point 5 : si aucune ressource, ouvre avec une ligne vide prête à remplir
   if (!r.assignments || r.assignments.length === 0) {
     if (!r.assignments) r.assignments = [];
-    r.assignments.push({ resourceId: '', resourceNom: '', charge: null, chargePassee: null, chargeRestante: null });
+    r.assignments.push({ resourceId: '', resourceNom: '', charge: null, chargePassee: null, chargeRestante: null, debut: r.debut || null, fin: r.fin || null });
   }
   renderAffectList(r);
 }
@@ -1543,7 +1543,7 @@ function _getLissageConfig() {
     minCharge:          cfg.minCharge          !== undefined ? cfg.minCharge          : 0.125,
     strictMin:          cfg.strictMin          !== undefined ? cfg.strictMin          : true,
     preferCharge:       cfg.preferCharge       !== undefined ? cfg.preferCharge       : 0.5,
-    strictPrefer:       cfg.strictPrefer       !== undefined ? cfg.strictPrefer       : false,
+    strictPrefer:       true,
     avoidDays:          cfg.avoidDays          !== undefined ? cfg.avoidDays          : [5],
     strictAvoid:        cfg.strictAvoid        !== undefined ? cfg.strictAvoid        : false,
     usePlannedInLissage: cfg.usePlannedInLissage !== undefined ? cfg.usePlannedInLissage : false
@@ -1806,7 +1806,6 @@ function openLissageConfig() {
   _v('lcfgMinCharge',    cfg.minCharge);
   _c('lcfgStrictMin',    cfg.strictMin);
   _v('lcfgPreferCharge', cfg.preferCharge);
-  _c('lcfgStrictPrefer', cfg.strictPrefer);
   _c('lcfgStrictAvoid',  cfg.strictAvoid);
   _c('lcfgUsePlanned',   cfg.usePlannedInLissage);
   document.querySelectorAll('.lcfg-day').forEach(cb => {
@@ -1837,7 +1836,7 @@ function saveLissageConfig() {
   if (!proj) return;
   proj.lissageConfig = {
     minCharge,    strictMin:          _cb('lcfgStrictMin'),
-    preferCharge, strictPrefer:       _cb('lcfgStrictPrefer'),
+    preferCharge, strictPrefer:       true,
     avoidDays,    strictAvoid:        _cb('lcfgStrictAvoid'),
     usePlannedInLissage: _cb('lcfgUsePlanned')
   };

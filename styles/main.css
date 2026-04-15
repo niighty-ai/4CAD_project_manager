@@ -412,6 +412,8 @@ svg { pointer-events: none; }
   width: 16px;
   height: 16px;
   vertical-align: middle;
+  stroke: #fff;
+  fill: none;
 }
 
 /* Boutons footer des panneaux (save / delete) */
