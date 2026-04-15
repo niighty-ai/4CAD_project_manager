@@ -12,7 +12,9 @@ function switchView(view) {
   if (((typeof _tasksDirty !== 'undefined' && _tasksDirty) || _hasEdits)) {
     if (typeof _showUnsavedChangesModal === 'function') {
       _showUnsavedChangesModal(() => {
-        currentView = view; /* forcer le passage après annulation des modifs */
+        /* Ne pas pré-setter currentView ici : confirmUnsavedSwitch vide
+           _ganttEdits/_tasksDirty, donc la garde ne se re-déclenche pas,
+           et currentView est correctement mis à jour dans switchView. */
         switchView(view);
       });
       return;
