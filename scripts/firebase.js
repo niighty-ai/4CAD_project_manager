@@ -56,6 +56,10 @@ window._fbReleaseLock = (projectId) =>
   remove(ref(_fbDb, 'project_locks/' + projectId));
 window._fbOnLocks = (cb) =>
   onValue(ref(_fbDb, 'project_locks'), snap => cb(snap.val() || {}));
+window._fbGetLock = (projectId) =>
+  get(ref(_fbDb, 'project_locks/' + projectId))
+    .then(snap => snap.val())
+    .catch(() => null);
 
 /* ── Positions du calendrier (par UID) ──
    Les clés d'événements contiennent des caractères spéciaux (| /) non admis

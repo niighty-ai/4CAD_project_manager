@@ -1072,8 +1072,14 @@ async function _acquireProjectLock(projectId) {
   if (!currentUserId || !projectId) return true; // pas d'auth → édition libre
   if (_lockedProjectId === projectId) return true; // déjà verrouillé par nous
 
-  // Vérifier le verrou existant
-  const existing = _projectLocks[projectId];
+  // Lire le verrou depuis Firebase en temps réel (évite la race condition du cache local)
+  let existing = null;
+  if (typeof window._fbGetLock === 'function') {
+    existing = await window._fbGetLock(projectId);
+  } else {
+    existing = _projectLocks[projectId] || null;
+  }
+
   if (existing && existing.userId !== currentUserId && existing.expiresAt > Date.now()) {
     _showLockBlockedMessage(existing.userDisplayName);
     return false;
@@ -1087,17 +1093,18 @@ async function _acquireProjectLock(projectId) {
     expiresAt:       now + LOCK_TTL_MS
   };
 
+  // Marquer le verrou localement en avance (fail-open : en cas d'erreur Firebase on laisse éditer)
+  _lockedProjectId = projectId;
+  _projectLocks[projectId] = lockData;
+  _startLockInactivityTimer();
+  _updateRefreshBtn();
+
   try {
     await window._fbAcquireLock(projectId, lockData);
-    _lockedProjectId = projectId;
-    _projectLocks[projectId] = lockData;
-    _startLockInactivityTimer();
-    _updateRefreshBtn();
-    return true;
   } catch(e) {
-    console.warn('[Lock] Acquisition échouée (mode dégradé — édition autorisée) :', e);
-    return true; // fail-open : en cas d'erreur Firebase, on laisse éditer
+    console.warn('[Lock] Écriture Firebase échouée (mode dégradé — édition autorisée) :', e);
   }
+  return true;
 }
 
 /* Libère le verrou d'écriture tenu par cet utilisateur. */

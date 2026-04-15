@@ -1182,14 +1182,17 @@ function saveGanttEdits(){
 
 /* Sauvegarde globale : daily edits + modifs de tâches → Firebase */
 function saveAllEdits(){
+  const hadGanttEdits = Object.keys(_ganttEdits).length > 0;
+  const hadTaskEdits  = typeof _tasksDirty !== 'undefined' && _tasksDirty;
+
   /* 1. Commiter les daily edits (GHO + portfolio local) */
-  if(Object.keys(_ganttEdits).length>0) saveGanttEdits();
-  /* 2. Forcer la synchro Firebase pour les modifs de tâches */
-  if(typeof _tasksDirty!=='undefined'&&_tasksDirty){
+  if(hadGanttEdits) saveGanttEdits();
+
+  /* 2. Forcer la synchro Firebase dès qu'il y a eu des modifications (gantt OU tâches) */
+  if(hadGanttEdits || hadTaskEdits){
     if(typeof _forcePortfolioFirebaseSave==='function') _forcePortfolioFirebaseSave();
-    /* _forcePortfolioFirebaseSave libère déjà le verrou */
+    /* _forcePortfolioFirebaseSave libère le verrou */
   } else {
-    /* Pas de tâches dirty mais des gantt edits → libérer le verrou ici */
     if(typeof _releaseProjectLock==='function') _releaseProjectLock();
   }
   _updateSaveBtn();
