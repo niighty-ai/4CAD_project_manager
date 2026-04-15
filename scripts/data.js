@@ -655,6 +655,7 @@ function switchToProject(id){
   renderNavList();
   renderAll();
   _updateTogglePlannedBtn();
+  if (typeof _updateRefreshBtn === 'function') _updateRefreshBtn();
 }
 
 /* ── Sauvegarde les rows[] vers le(s) projet(s) source dans portfolio ──
@@ -794,6 +795,7 @@ function toggleProjectSelection(id, e){
 
   _loadSelectedProjects();
   renderNavList(); renderAll();
+  if (typeof _updateRefreshBtn === 'function') _updateRefreshBtn();
 }
 
 /* ── Tout cocher/décocher pour un client ── */
@@ -826,6 +828,7 @@ function selectAllClientProjects(clientName, e){
   if(selectedProjectIds.size===1) activeProjectId=[...selectedProjectIds][0];
   _loadSelectedProjects();
   renderNavList(); renderAll();
+  if (typeof _updateRefreshBtn === 'function') _updateRefreshBtn();
 }
 
 function deleteProject(id, e){
