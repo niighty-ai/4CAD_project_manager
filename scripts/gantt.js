@@ -430,9 +430,10 @@ function renderGantt(){
 
   const activeProj = portfolio.find(p=>p.id===activeProjectId);
   const lhTitle = activeProj ? escH(activeProj.name) : 'Projet / Groupe / Tâche';
+  const _canRenameProj = activeProj?._appCreated;
   const leftHTML=`<div class="gantt-left${hasTracking?' has-tracking':''}" id="ganttLeftPanel" style="width:${labelW}px">
     <div class="gantt-left-header">
-      <span class="lh-title lh-title-editable" onclick="startRenameLhTitle()" title="Cliquer pour renommer">${lhTitle}</span>
+      <span class="lh-title${_canRenameProj?' lh-title-editable':''}" ${_canRenameProj?'onclick="startRenameLhTitle()" title="Cliquer pour renommer"':''}>${lhTitle}</span>
     </div>
     <div class="gantt-left-row gantt-col-headers">
       <span class="ch-hdr-label"></span>${headerCols()}

@@ -1030,7 +1030,7 @@ function deleteFromPanel(){
 function startRenameLhTitle(){
   if(!activeProjectId) return;
   const proj = portfolio.find(p=>p.id===activeProjectId);
-  if(!proj) return;
+  if(!proj || !proj._appCreated) return;
   const titleEl = document.querySelector('.lh-title-editable');
   if(!titleEl || titleEl.querySelector('.lh-title-input')) return;
   titleEl.style.visibility = 'hidden';
