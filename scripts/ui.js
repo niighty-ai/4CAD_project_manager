@@ -1441,7 +1441,22 @@ function affectChangeCharge(idx, field, val) {
     : r.charge;
   saveAndRefreshAffect(r);
   /* Lissage automatique sur modification de la charge prévue */
-  if (field === 'charge') _proposeLissageForAssignment(idx);
+  if (field === 'charge') {
+    const a = r.assignments[idx];
+    if (!a.charge || a.charge <= 0) {
+      /* Charge = 0 : vider toutes les cellules daily de cet assignment */
+      if (a.resourceId && typeof _ganttEdits !== 'undefined') {
+        const prefix = `${affectRowIdx}::${a.resourceId}::`;
+        Object.keys(_ganttEdits).forEach(k => { if (k.startsWith(prefix)) delete _ganttEdits[k]; });
+        if (a.daily) Object.keys(a.daily).forEach(dk => { _ganttEdits[`${prefix}${dk}`] = 0; });
+      }
+      if (typeof _updateSaveBtn === 'function') _updateSaveBtn();
+      if (typeof _renderGanttKeepScroll === 'function') _renderGanttKeepScroll();
+      else if (typeof renderGantt === 'function') renderGantt();
+    } else {
+      _proposeLissageForAssignment(idx);
+    }
+  }
 }
 
 function affectChangeDate(idx, field, val) {
@@ -1700,13 +1715,14 @@ function _computeLissage(charge, debut, fin, resourceId, taskName, extId) {
       const grain = cfg.strictMin ? cfg.minCharge : 0.0625;
       const floorMin = (v) => Math.floor(v / grain) * grain;
       let assign;
-      if (usePref && s.avail >= pc) {
+      if (usePref && cfg.strictPrefer && s.avail >= pc) {
+        /* Strict + répartition uniforme possible : placer exactement pc */
         assign = rem >= pc ? pc : floorMin(rem);
       } else if (!cfg.strictPrefer || pc === 0) {
         /* Sans strict (ou preferCharge désactivé) : remplir jusqu'à la capacité libre */
         assign = floorMin(maxSlot);
       } else {
-        /* Strict : placer au plus pc par jour (slot a avail >= pc garanti par le filtre ligne 1694) */
+        /* Strict : placer au plus pc par jour (slot a avail >= pc garanti par le filtre) */
         assign = floorMin(Math.min(pc, rem));
       }
       assign = Math.round(assign * 10000) / 10000;
