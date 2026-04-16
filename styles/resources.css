@@ -139,7 +139,7 @@
 .gho-table thead th {
   position: sticky;
   top: 0;
-  z-index: 4;
+  z-index: 6; /* doit être > z-index des cellules sticky du corps (5) */
   background: var(--surface2);
 }
 
@@ -448,9 +448,12 @@
 .gho-td-day.we,
 .gho-td-day.weekend { background: rgba(0,0,0,.04); }
 .gho-td-day.today   { background: rgba(236,114,6,.10); }
+/* Backgrounds opaques pour les th de jours : overlay semi-transparent
+   peint par-dessus la couleur de fond solide, pour masquer le contenu
+   qui défile derrière l'en-tête sticky. */
 .gho-th-day.weekend,
-.gho-th-day.we      { background: rgba(0,0,0,.05); color: var(--muted); }
-.gho-th-day.today   { background: rgba(236,114,6,.18); color: var(--accent); font-weight: 700; }
+.gho-th-day.we      { background: linear-gradient(rgba(0,0,0,.05), rgba(0,0,0,.05)) var(--surface2); color: var(--muted); }
+.gho-th-day.today   { background: linear-gradient(rgba(236,114,6,.18), rgba(236,114,6,.18)) var(--surface2); color: var(--accent); font-weight: 700; }
 
 /* ── Charge cell content ── */
 .gho-cell {
@@ -609,7 +612,7 @@
 
 
 /* ── Jour férié ── */
-.gho-th-day.ferie  { background: rgba(156,39,176,.12); color: #7b1fa2; }
+.gho-th-day.ferie  { background: linear-gradient(rgba(156,39,176,.12), rgba(156,39,176,.12)) var(--surface2); color: #7b1fa2; }
 .gho-td-day.ferie  { background: rgba(156,39,176,.06); }
 
 /* ── Drag cursor on calendar day cells ── */
