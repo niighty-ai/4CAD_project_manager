@@ -651,6 +651,16 @@ function _attachResEvents() {
 
   /* Scroll to today on load */
   _scrollToToday();
+
+  /* Fix sticky header overlap: align days row top to actual months row height */
+  requestAnimationFrame(() => {
+    const monthsRow = document.querySelector('#ghoScrollWrap .gho-thead-months');
+    const daysCells = document.querySelectorAll('#ghoScrollWrap .gho-thead-days th');
+    if (monthsRow && daysCells.length) {
+      const h = Math.round(monthsRow.getBoundingClientRect().height);
+      daysCells.forEach(th => { th.style.top = h + 'px'; });
+    }
+  });
 }
 
 /* ══════════════════════════════════

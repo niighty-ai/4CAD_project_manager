@@ -143,9 +143,11 @@
   background: var(--surface2);
 }
 
-/* Hauteur fixe de la ligne mois = 26px pour que la ligne jours soit exactement à top:26px */
+/* La hauteur de la ligne mois est déterminée par son contenu (search bar, etc.).
+   Le top de la ligne jours est calculé dynamiquement en JS (_attachResEvents)
+   pour s'aligner exactement sous la ligne mois réelle. */
 .gho-thead-months th { height: 26px; }
-.gho-thead-days th { top: 26px; }
+.gho-thead-days th { top: 26px; } /* valeur de repli, écrasée en JS */
 
 /* Padding des cellules header */
 .gho-th-res  { padding: 4px 8px; }
