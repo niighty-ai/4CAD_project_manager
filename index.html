@@ -8,7 +8,6 @@
 (function(){var t=localStorage.getItem('gantt4cad_theme');if(t)document.documentElement.setAttribute('data-theme',t);})();
 </script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/pptxgenjs@3.12.0/dist/pptxgen.bundle.js"></script>
 <link rel="stylesheet" href="styles/main.css">
 <link rel="stylesheet" href="styles/header.css">
 <link rel="stylesheet" href="styles/gantt.css">
@@ -212,24 +211,6 @@
     <button class="ep-btn-save" onclick="saveJalonPanel()"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Enregistrer</button>
   </div>
 </div>
-<!-- PPTX Warning Modal -->
-<div id="pptxModal" style="display: none; position: fixed; inset: 0px; z-index: 10000; background: rgba(0, 0, 0, 0.45); backdrop-filter: blur(3px); align-items: center; justify-content: center;">
-  <div style="background: var(--surface); border-top: 4px solid var(--accent); border-radius: 8px; padding: 28px 32px; max-width: 440px; width: 90%; box-shadow: rgba(0, 0, 0, 0.35) 0px 12px 40px; font-family: Arial, sans-serif;">
-    <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;">
-      <span style="flex-shrink:0;color:var(--accent);display:flex;align-items:center;"><svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></span>
-      <div>
-        <div style="font-size: 15px; font-weight: 700; color: var(--text); margin-bottom: 3px;">Gantt trop long pour une seule slide</div>
-        <div style="font-size: 12px; color: var(--muted);" id="pptxModalDesc"></div>
-      </div>
-    </div>
-    <div style="background: rgba(236, 114, 6, 0.08); border: 1px solid rgba(236, 114, 6, 0.25); border-radius: 5px; padding: 10px 14px; margin-bottom: 20px; font-size: 12px; color: var(--text); line-height: 1.6;" id="pptxModalDetail"></div>
-    <div style="font-size: 11px; color: var(--muted); margin-bottom: 20px;">Vous pouvez continuer — le Gantt sera réparti automatiquement sur plusieurs slides.</div>
-    <div style="display:flex;gap:10px;justify-content:flex-end;">
-      <button onclick="closePptxModal()" style="font-family: Arial, sans-serif; font-size: 12px; font-weight: 600; padding: 8px 18px; border: 1px solid var(--border); border-radius: 4px; background: var(--surface2); color: var(--text); cursor: pointer;">Annuler</button>
-      <button onclick="confirmPptxExport()" style="font-family: Arial, sans-serif; font-size: 12px; font-weight: 700; padding: 8px 18px; border: medium; border-radius: 4px; background: var(--accent); color: rgb(255, 255, 255); cursor: pointer;">Continuer l'export</button>
-    </div>
-  </div>
-</div>
 
 <div id="viewProjets">
 <div class="app-shell">
@@ -276,8 +257,7 @@
             <button onclick="changeZoom(1)">+</button>
           </div>
           <div class="sep"></div>
-          <button class="btn-ghost" onclick="exportPPTX()" style="color:var(--accent);border-color:var(--accent);" title="Exporter en PPTX"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> PPTX</button>
-          <label for="fileInput" class="btn-ghost" style="cursor:pointer;padding:6px 12px;border-radius:4px;font-size:12px;font-weight:600;" title="Importer un fichier"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg> Importer</label>
+<label for="fileInput" class="btn-ghost" style="cursor:pointer;padding:6px 12px;border-radius:4px;font-size:12px;font-weight:600;" title="Importer un fichier"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg> Importer</label>
           <input type="file" id="fileInput" accept=".xlsx,.xls,.csv,.xml" style="display:none">
           <button class="btn-ghost" onclick="openLissageConfig()" title="Configuration du lissage de charge"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg> Lissage</button>
           <div class="sep"></div>
