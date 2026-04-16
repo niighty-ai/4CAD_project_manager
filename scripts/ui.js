@@ -1598,7 +1598,7 @@ function _getLissageConfig() {
     strictPrefer:       cfg.strictPrefer       !== undefined ? cfg.strictPrefer       : false,
     avoidDays:          cfg.avoidDays          !== undefined ? cfg.avoidDays          : [5],
     strictAvoid:        cfg.strictAvoid        !== undefined ? cfg.strictAvoid        : false,
-    usePlannedInLissage: cfg.usePlannedInLissage !== undefined ? cfg.usePlannedInLissage : false
+    usePlannedInLissage: cfg.usePlannedInLissage !== undefined ? cfg.usePlannedInLissage : true
   };
 }
 
