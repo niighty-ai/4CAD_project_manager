@@ -1743,12 +1743,10 @@ function _computeLissage(charge, debut, fin, resourceId, taskName, extId) {
       place(s, rem >= pc ? pc : rem);
     }
 
-    /* Passe 2 : remplir les slots partiels (avail < pc) selon strictPrefer */
-    if (!cfg.strictPrefer) {
-      for (const s of [...prefPartial, ...avoidPart]) {
-        if (rem <= 1e-9) break;
-        place(s, s.avail);
-      }
+    /* Passe 2 : remplir les slots partiels (avail < pc) — toujours, strict ou non */
+    for (const s of [...prefPartial, ...avoidPart]) {
+      if (rem <= 1e-9) break;
+      place(s, s.avail);
     }
 
     /* Passe 3 (non-strict seulement) : déborder sur les slots "full" au-delà de pc */
