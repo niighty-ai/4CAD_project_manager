@@ -17,7 +17,8 @@ const CAL_PX_PER_MIN        = 1.5;      // pixels par minute
 const CAL_SNAP_MIN          = 15;       // snap à 15 min
 
 /* ── État ──────────────────────────────────────────────────────────────────── */
-let calWeekStart   = null;
+let calWeekStart    = null;
+let calShowPlanned  = false;  // afficher les tâches planifiées (false = ferme seulement)
 let calSelectedRes = '';
 let calPositions   = {};   // { eventKey: startMinutes }  — source de vérité (Firebase + localStorage)
 let calChecksums   = {};   // { eventKey: charge }        — snapshot des charges à la dernière sauvegarde
@@ -139,7 +140,7 @@ function _calMonday(date)  {
   d.setDate(d.getDate() - ((d.getDay()+6)%7));
   return d;
 }
-function _calWeekDays()   { return [0,1,2,3,4].map(i => _calAddDays(calWeekStart, i)); }
+function _calWeekDays()   { return [0,1,2,3,4,5,6].map(i => _calAddDays(calWeekStart, i)); }
 function _calFmtMin(min)  {
   return `${String(Math.floor(min/60)).padStart(2,'0')}h${String(min%60).padStart(2,'0')}`;
 }
@@ -147,9 +148,28 @@ function _calFmt(n) {
   return Number.isInteger(n) ? String(n) : Number(n).toFixed(2).replace(/\.?0+$/,'');
 }
 
+/* ── Bascule "Planifié" : afficher ou masquer les tâches planifiées ─────────── */
+function toggleCalPlanned() {
+  calShowPlanned = !calShowPlanned;
+  try { localStorage.setItem('gantt4cad_cal_showplanned', calShowPlanned ? '1' : '0'); } catch(_) {}
+  _calUpdatePlannedBtn();
+  _calRender();
+}
+
+function _calUpdatePlannedBtn() {
+  const btn = document.getElementById('calTogglePlannedBtn');
+  if (!btn) return;
+  btn.classList.toggle('cal-planned-active', calShowPlanned);
+  btn.title = calShowPlanned
+    ? 'Masquer les tâches planifiées (afficher ferme seulement)'
+    : 'Afficher les tâches planifiées';
+}
+
 /* ── Point d'entrée (appelé par le router) ─────────────────────────────────── */
 function renderCalendarView() {
   if (!calWeekStart) calWeekStart = _calMonday(new Date());
+  /* Restaurer l'état du toggle planifié */
+  try { calShowPlanned = localStorage.getItem('gantt4cad_cal_showplanned') === '1'; } catch(_) {}
   /* 1. Rendu immédiat depuis localStorage */
   _calReadLocalStorage();
   _calPopulateResources();
@@ -303,15 +323,16 @@ function calGoToday()  { calWeekStart = _calMonday(new Date());       _calRender
 /* ── Rendu ─────────────────────────────────────────────────────────────────── */
 function _calRender() {
   _calUpdateLabel();
+  _calUpdatePlannedBtn();
   _calRenderGrid();
 }
 
 function _calUpdateLabel() {
   const days = _calWeekDays();
-  const d0=days[0], d4=days[4];
+  const d0=days[0], d6=days[6];
   const fmt = d => d.toLocaleDateString('fr-FR',{day:'2-digit',month:'long'});
   const el  = document.getElementById('calWeekLabel');
-  if (el) el.textContent = `Semaine du ${fmt(d0)} au ${fmt(d4)} ${d4.getFullYear()}`;
+  if (el) el.textContent = `Semaine du ${fmt(d0)} au ${fmt(d6)} ${d6.getFullYear()}`;
   const todayMon = _calMonday(new Date());
   document.getElementById('calTodayBtn')
     ?.classList.toggle('cal-today-active', calWeekStart.getTime()===todayMon.getTime());
@@ -346,6 +367,7 @@ function _calGetEventsForDate(dateStr) {
   for (const proj of portfolio) {
     (proj.rows||[]).forEach((row, rowIdx) => {
       if (row._type !== 'tache') return;
+      if (row._source === 'planned' && !calShowPlanned) return; // masquer les tâches planifiées si toggle OFF
       for (const asgn of (row.assignments||[])) {
         if (asgn.resourceNom !== calSelectedRes) continue;
         const charge = (asgn.daily||{})[dateStr];
@@ -376,6 +398,7 @@ function _calGetEventsForDate(dateStr) {
     if (!proj) continue;
     const row  = (proj.rows||[])[parseInt(rowIdxStr, 10)];
     if (!row) continue;
+    if (row._source === 'planned' && !calShowPlanned) continue;
     const asgn = row.assignments?.find(a => (a.resourceId||a.resourceNom) === resKey);
     if (!asgn || asgn.resourceNom !== calSelectedRes) continue;
     const charge = (asgn.daily||{})[origDateStr];
@@ -394,6 +417,7 @@ function _calGetEventsForDate(dateStr) {
     if (!proj) continue;
     const row  = (proj.rows||[])[parseInt(rowIdxStr, 10)];
     if (!row) continue;
+    if (row._source === 'planned' && !calShowPlanned) continue;
     const asgn = row.assignments?.find(a => (a.resourceId||a.resourceNom) === resKey);
     if (!asgn || asgn.resourceNom !== calSelectedRes) continue;
     const charge = (asgn.daily||{})[origDateStr];
@@ -517,7 +541,7 @@ function _calComputeDayLayout(events) {
 }
 
 
-const _CAL_DAYS = ['Lundi','Mardi','Mercredi','Jeudi','Vendredi'];
+const _CAL_DAYS = ['Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi','Dimanche'];
 
 function _calRenderGrid() {
   const grid = document.getElementById('calWeekGrid');
@@ -551,6 +575,7 @@ function _calRenderGrid() {
   grid.innerHTML = days.map((d, i) => {
     const dateStr  = _calDateStr(d);
     const isToday  = dateStr === todayStr;
+    const isWeekend = i >= 5; // Samedi (5) et Dimanche (6)
     const events   = _calGetEventsForDate(dateStr);
     const dayShort = d.toLocaleDateString('fr-FR',{day:'2-digit',month:'short'});
     const total    = events.reduce((s,e)=>s+e.charge, 0);
@@ -605,7 +630,7 @@ function _calRenderGrid() {
     })();
 
     return `
-      <div class="cal-day-col${isToday?' cal-today':''}" data-date="${dateStr}" data-ncols="${N}">
+      <div class="cal-day-col${isToday?' cal-today':''}${isWeekend?' cal-weekend':''}" data-date="${dateStr}" data-ncols="${N}">
         <div class="cal-day-header">
           <span class="cal-day-name">${_CAL_DAYS[i]}</span>
           <span class="cal-day-date">${dayShort}</span>
@@ -1043,9 +1068,9 @@ function exportIcal() {
   list.innerHTML = allMondays.map(monday => {
     const t        = monday.getTime();
     const isWorked = workedTimes.has(t);
-    const friday   = _calAddDays(monday, 4);
+    const sunday   = _calAddDays(monday, 6);
     const fmt = d => d.toLocaleDateString('fr-FR', { day:'2-digit', month:'short' });
-    const label    = `${fmt(monday)} – ${fmt(friday)} ${friday.getFullYear()}`;
+    const label    = `${fmt(monday)} – ${fmt(sunday)} ${sunday.getFullYear()}`;
     return `
       <label class="cal-export-week-item${isWorked ? '' : ' cal-export-week-unplanned'}">
         <input type="checkbox" class="cal-export-cb" value="${t}"${t === currentTime ? ' checked' : ''}>
@@ -1097,7 +1122,7 @@ function _calBuildAndDownloadIcs(mondays) {
   ];
 
   for (const monday of mondays) {
-    [0,1,2,3,4].forEach(offset => {
+    [0,1,2,3,4,5,6].forEach(offset => {
       const d       = _calAddDays(monday, offset);
       const dateStr = _calDateStr(d);
       const events  = _calGetEventsForDate(dateStr);

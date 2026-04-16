@@ -159,6 +159,8 @@
   font-weight: 700;
   color: var(--muted);
   border-right: 1px solid var(--border);
+  background-color: var(--surface2); /* explicite : évite tout fond transparent lors du compositing sticky */
+  overflow: hidden;
 }
 .gho-th-day {
   padding: 2px 1px;
@@ -167,6 +169,7 @@
   font-weight: 600;
   color: var(--text);
   border-right: 1px solid var(--border);
+  background-color: var(--surface2); /* explicite : évite tout fond transparent lors du compositing sticky */
 }
 
 /* ── Sticky left columns ── */

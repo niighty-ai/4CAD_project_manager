@@ -231,7 +231,7 @@
 /* ── Grille semaine ──────────────────────────────────────────────────────── */
 .cal-week-grid {
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  grid-template-columns: repeat(7, 1fr);
   flex: 1;
   overflow: hidden;
   min-height: 0;
@@ -260,6 +260,18 @@
 }
 
 .cal-day-col.cal-today .cal-day-name { font-weight: 800; }
+
+/* Colonne week-end (samedi / dimanche) — fond légèrement différent */
+.cal-day-col.cal-weekend {
+  background: color-mix(in srgb, var(--border) 18%, var(--bg));
+}
+.cal-day-col.cal-weekend > .cal-day-header {
+  background: color-mix(in srgb, var(--border) 22%, var(--surface));
+}
+.cal-day-col.cal-weekend .cal-day-name {
+  color: var(--muted);
+  opacity: .7;
+}
 
 /* Colonne cible pendant un drag inter-jour */
 .cal-day-col--drop-target {
@@ -1027,4 +1039,11 @@
 .cal-split-btn-confirm:hover {
   background: var(--accent-dark);
   border-color: var(--accent-dark);
+}
+
+/* ── Bouton toggle Planifié ──────────────────────────────────────────────── */
+.cal-planned-active {
+  color: #22c55e !important;
+  border-color: #86efac !important;
+  background: rgba(34,197,94,.12) !important;
 }
