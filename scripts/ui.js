@@ -1539,24 +1539,30 @@ function affectAddRow() {
 }
 
 function saveAndRefreshAffect(r) {
+  /* Capturer une clé stable AVANT le tri.
+     sortRows() reconstruit rows[] avec de nouveaux objets ({...spread}),
+     donc rows.indexOf(r) retourne toujours -1 — on ne peut pas se fier à la référence. */
+  const _stableKey = (row) =>
+    (row.projet || '') + '\0' + JSON.stringify(row.niveaux || []) + '\0' + (row.tache || '');
+  const curKey = _stableKey(r);
+
   sortRows();
-  /* Re-synchroniser affectRowIdx après le tri : sortRows() peut déplacer les lignes.
-     Si l'index change, mettre à jour les clés _ganttEdits pour qu'elles restent cohérentes. */
+
+  /* Resynchroniser affectRowIdx et les clés _ganttEdits après le tri */
   if (affectRowIdx !== null) {
-    const newIdx = rows.indexOf(r);
-    if (newIdx !== -1 && newIdx !== affectRowIdx) {
-      if (typeof _ganttEdits !== 'undefined') {
-        const oldPfx = `${affectRowIdx}::`, newPfx = `${newIdx}::`;
-        Object.keys(_ganttEdits).filter(k => k.startsWith(oldPfx)).forEach(k => {
-          _ganttEdits[newPfx + k.slice(oldPfx.length)] = _ganttEdits[k];
-          delete _ganttEdits[k];
-        });
-      }
-      affectRowIdx = newIdx;
+    const newIdx = rows.findIndex(row => row._type === 'tache' && _stableKey(row) === curKey);
+    if (newIdx !== -1 && newIdx !== affectRowIdx && typeof _ganttEdits !== 'undefined') {
+      const oldPfx = `${affectRowIdx}::`, newPfx = `${newIdx}::`;
+      Object.keys(_ganttEdits).filter(k => k.startsWith(oldPfx)).forEach(k => {
+        _ganttEdits[newPfx + k.slice(oldPfx.length)] = _ganttEdits[k];
+        delete _ganttEdits[k];
+      });
     }
+    if (newIdx !== -1) affectRowIdx = newIdx;
   }
+
   saveCurrentProject();
-  renderAffectList(r);
+  renderAffectList(rows[affectRowIdx] || r);
   renderGantt();
 }
 
@@ -1726,15 +1732,20 @@ function _computeLissage(charge, debut, fin, resourceId, taskName, extId) {
       if (cfg.strictPrefer && pc > 0 && s.avail < pc) continue;
 
       const maxSlot = Math.min(s.avail, rem);
-      /* Granularité : strict → multiples de minCharge ; non-strict → multiples de 0.0625 (1/16j) */
       const grain = cfg.strictMin ? cfg.minCharge : 0.0625;
       const floorMin = (v) => Math.floor(v / grain) * grain;
       let assign;
       if (usePref && s.avail >= pc) {
-        /* Répartition uniforme possible : placer exactement pc */
+        /* Répartition uniforme : placer exactement pc (ou ce qu'il reste) */
         assign = rem >= pc ? pc : floorMin(rem);
-      } else if (!cfg.strictPrefer || pc === 0) {
-        /* Sans strict (ou preferCharge désactivé) : remplir jusqu'à la capacité libre */
+      } else if (usePref) {
+        /* usePref=true mais ce slot est en-dessous de pc : skip.
+           La charge peut tenir entièrement dans les slots préférés → on n'utilise
+           pas les slots partiels maintenant ; ils seront utilisés si besoin dans
+           la passe greedy qui suit éventuellement. */
+        continue;
+      } else if (!cfg.strictPrefer) {
+        /* Mode non-strict : remplir jusqu'à la capacité libre */
         assign = floorMin(maxSlot);
       } else {
         /* Strict : placer au plus pc par jour (slot a avail >= pc garanti par le filtre) */
@@ -1803,44 +1814,59 @@ function _proposeLissageForAssignment(idx) {
   };
 
   if (remaining > 1e-9) {
-    /* Chercher la date d'extension au-delà de la fin de tâche */
+    /* Chercher la date d'extension au-delà de la fin de tâche.
+       On cherche les jours ouvrés non-évités les plus proches pouvant absorber le reste. */
     const cfg = _getLissageConfig();
     const pc = cfg.preferCharge || 0;
+    const grain = cfg.strictMin ? cfg.minCharge : 0.0625;
     let extD = new Date(taskFin); extD.setHours(0,0,0,0);
     let extRem = remaining;
     const extDaily = { ...daily };
-    let iters = 0;
-    while (extRem > 1e-9 && iters++ < 730) {
+    /* Compteur sur les jours ouvrés uniquement (week-ends et fériés ne comptent pas) */
+    let workDaysTried = 0;
+    while (extRem > 1e-9 && workDaysTried < 365) {
       extD.setDate(extD.getDate() + 1);
       const dw = extD.getDay();
       if (dw === 0 || dw === 6) continue;
       if (typeof _isFerie === 'function' && _isFerie(extD)) continue;
+      if (cfg.avoidDays.includes(dw)) continue;          /* respecter les jours évités */
+      workDaysTried++;
       const avail = _availCapForDay(a.resourceId, extD, r.tache || '', r.externalTaskId || '');
-      if (avail < cfg.minCharge) continue;
+      if (avail < (cfg.strictMin ? cfg.minCharge : 1e-9)) continue;
       const dk = _dayKeyLocal(extD);
       const maxSlot = Math.min(avail, extRem);
       const assign = (pc > 0 && maxSlot >= pc)
-        ? (extRem >= pc ? pc : Math.floor(extRem / cfg.minCharge) * cfg.minCharge)
-        : Math.floor(maxSlot / cfg.minCharge) * cfg.minCharge;
+        ? (extRem >= pc ? pc : Math.floor(extRem / grain) * grain)
+        : Math.floor(maxSlot / grain) * grain;
       const a2 = Math.round(assign * 10000) / 10000;
-      if (a2 >= cfg.minCharge) {
+      const minA = cfg.strictMin ? cfg.minCharge : 1e-9;
+      if (a2 >= minA) {
         extDaily[dk] = (extDaily[dk] || 0) + a2;
         extRem = Math.round((extRem - a2) * 10000) / 10000;
       }
     }
 
     const taskFinFmt = taskFin.toLocaleDateString('fr-FR');
-    const extFmt = extD.toLocaleDateString('fr-FR');
-    const accept = confirm(
-      `La charge (${a.charge}j) ne peut pas être entièrement répartie avant la fin de la tâche (${taskFinFmt}).\n` +
-      `Reste à placer : ${Math.round(remaining * 1000) / 1000}j\n\n` +
-      `OK → Étendre la date de fin de la tâche au ${extFmt}\n` +
-      `Annuler → Répartition partielle (${Math.round((a.charge - remaining) * 1000) / 1000}j)`
-    );
-    applyEdits(
-      accept && extRem < 1e-9 ? extDaily : daily,
-      accept && extRem < 1e-9 ? extD : null
-    );
+    if (extRem > 1e-9) {
+      /* Impossible de placer le reste même en étendant (ressource trop chargée ou contraintes) */
+      const placed = Math.round((a.charge - remaining) * 1000) / 1000;
+      const msg = document.getElementById('affectLissageMsg');
+      if (msg) {
+        msg.textContent = `Impossible de placer ${Math.round(remaining*1000)/1000}j — répartition partielle : ${placed}j.`;
+        msg.className = 'affect-lissage-msg warn';
+        msg.style.display = 'block';
+      }
+      applyEdits(daily, null);
+    } else {
+      const extFmt = extD.toLocaleDateString('fr-FR');
+      const accept = confirm(
+        `La charge (${a.charge}j) ne peut pas être entièrement répartie avant la fin de la tâche (${taskFinFmt}).\n` +
+        `Reste à placer : ${Math.round(remaining * 1000) / 1000}j\n\n` +
+        `OK → Étendre la date de fin de la tâche au ${extFmt}\n` +
+        `Annuler → Répartition partielle (${Math.round((a.charge - remaining) * 1000) / 1000}j)`
+      );
+      applyEdits(accept ? extDaily : daily, accept ? extD : null);
+    }
   } else {
     applyEdits(daily, null);
   }
