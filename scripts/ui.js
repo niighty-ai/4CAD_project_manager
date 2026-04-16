@@ -1540,6 +1540,21 @@ function affectAddRow() {
 
 function saveAndRefreshAffect(r) {
   sortRows();
+  /* Re-synchroniser affectRowIdx après le tri : sortRows() peut déplacer les lignes.
+     Si l'index change, mettre à jour les clés _ganttEdits pour qu'elles restent cohérentes. */
+  if (affectRowIdx !== null) {
+    const newIdx = rows.indexOf(r);
+    if (newIdx !== -1 && newIdx !== affectRowIdx) {
+      if (typeof _ganttEdits !== 'undefined') {
+        const oldPfx = `${affectRowIdx}::`, newPfx = `${newIdx}::`;
+        Object.keys(_ganttEdits).filter(k => k.startsWith(oldPfx)).forEach(k => {
+          _ganttEdits[newPfx + k.slice(oldPfx.length)] = _ganttEdits[k];
+          delete _ganttEdits[k];
+        });
+      }
+      affectRowIdx = newIdx;
+    }
+  }
   saveCurrentProject();
   renderAffectList(r);
   renderGantt();
@@ -1715,8 +1730,8 @@ function _computeLissage(charge, debut, fin, resourceId, taskName, extId) {
       const grain = cfg.strictMin ? cfg.minCharge : 0.0625;
       const floorMin = (v) => Math.floor(v / grain) * grain;
       let assign;
-      if (usePref && cfg.strictPrefer && s.avail >= pc) {
-        /* Strict + répartition uniforme possible : placer exactement pc */
+      if (usePref && s.avail >= pc) {
+        /* Répartition uniforme possible : placer exactement pc */
         assign = rem >= pc ? pc : floorMin(rem);
       } else if (!cfg.strictPrefer || pc === 0) {
         /* Sans strict (ou preferCharge désactivé) : remplir jusqu'à la capacité libre */
