@@ -1716,49 +1716,59 @@ function _computeLissage(charge, debut, fin, resourceId, taskName, extId) {
   const preferred = allSlots.filter(s => !s.avoid);
   const avoided   = cfg.strictAvoid ? [] : allSlots.filter(s => s.avoid);
 
-  /* preferCharge : vérifier si faisable en tranches de pc */
-  const prefSlots = allSlots.filter(s => s.avail >= pc);
-  const prefCap   = pc > 0 ? prefSlots.length * pc : 0;
-  const usePref   = pc > 0 && prefCap >= charge;
-
+  const grain     = cfg.strictMin ? cfg.minCharge : 0.0625;
+  const floorMin  = (v) => Math.floor(v / grain) * grain;
+  const minThresh = cfg.strictMin ? cfg.minCharge : 1e-9;
   const result = {};
   let rem = charge;
 
-  for (const list of [preferred, avoided]) {
-    for (const s of list) {
+  function place(s, amount) {
+    const assign = Math.round(floorMin(Math.min(amount, rem)) * 10000) / 10000;
+    if (assign >= minThresh && rem > 1e-9) {
+      result[s.dk] = Math.round(((result[s.dk] || 0) + assign) * 10000) / 10000;
+      rem = Math.round((rem - assign) * 10000) / 10000;
+    }
+  }
+
+  if (pc > 0) {
+    /* Séparer les slots selon qu'ils peuvent absorber au moins pc ou non */
+    const prefFull    = preferred.filter(s => s.avail >= pc);
+    const prefPartial = preferred.filter(s => s.avail <  pc);
+    const avoidFull   = avoided.filter(s => s.avail >= pc);
+    const avoidPart   = avoided.filter(s => s.avail <  pc);
+
+    /* Passe 1 : assigner exactement pc sur les slots "full" (preferred first, then avoided) */
+    for (const s of [...prefFull, ...avoidFull]) {
       if (rem <= 1e-9) break;
+      place(s, rem >= pc ? pc : rem);
+    }
 
-      /* strictPrefer : n'utiliser ce slot que s'il peut absorber exactement pc */
-      if (cfg.strictPrefer && pc > 0 && s.avail < pc) continue;
-
-      const maxSlot = Math.min(s.avail, rem);
-      const grain = cfg.strictMin ? cfg.minCharge : 0.0625;
-      const floorMin = (v) => Math.floor(v / grain) * grain;
-      let assign;
-      if (usePref && s.avail >= pc) {
-        /* Répartition uniforme : placer exactement pc (ou ce qu'il reste) */
-        assign = rem >= pc ? pc : floorMin(rem);
-      } else if (usePref) {
-        /* usePref=true mais ce slot est en-dessous de pc : skip.
-           La charge peut tenir entièrement dans les slots préférés → on n'utilise
-           pas les slots partiels maintenant ; ils seront utilisés si besoin dans
-           la passe greedy qui suit éventuellement. */
-        continue;
-      } else if (!cfg.strictPrefer) {
-        /* Mode non-strict : remplir jusqu'à la capacité libre */
-        assign = floorMin(maxSlot);
-      } else {
-        /* Strict : placer au plus pc par jour (slot a avail >= pc garanti par le filtre) */
-        assign = floorMin(Math.min(pc, rem));
-      }
-      assign = Math.round(assign * 10000) / 10000;
-      const minThresh = cfg.strictMin ? cfg.minCharge : 1e-9;
-      if (assign >= minThresh) {
-        result[s.dk] = (result[s.dk] || 0) + assign;
-        rem = Math.round((rem - assign) * 10000) / 10000;
+    /* Passe 2 : remplir les slots partiels (avail < pc) selon strictPrefer */
+    if (!cfg.strictPrefer) {
+      for (const s of [...prefPartial, ...avoidPart]) {
+        if (rem <= 1e-9) break;
+        place(s, s.avail);
       }
     }
-    if (rem <= 1e-9) break;
+
+    /* Passe 3 (non-strict seulement) : déborder sur les slots "full" au-delà de pc */
+    if (!cfg.strictPrefer && rem > 1e-9) {
+      for (const s of [...prefFull, ...avoidFull]) {
+        if (rem <= 1e-9) break;
+        const already = result[s.dk] || 0;
+        const extra = s.avail - already;
+        if (extra > 1e-9) place(s, extra);
+      }
+    }
+  } else {
+    /* pc=0 : remplissage glouton simple */
+    for (const list of [preferred, avoided]) {
+      for (const s of list) {
+        if (rem <= 1e-9) break;
+        place(s, s.avail);
+      }
+      if (rem <= 1e-9) break;
+    }
   }
 
   return { daily: result, remaining: Math.max(0, rem) };
