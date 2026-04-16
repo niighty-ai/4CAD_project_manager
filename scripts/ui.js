@@ -1519,9 +1519,30 @@ function affectAddRow() {
 }
 
 function saveAndRefreshAffect(r) {
+  /* Capturer une clé stable AVANT le tri.
+     sortRows() reconstruit rows[] avec de nouveaux objets ({...spread}),
+     donc rows.indexOf(r) retourne toujours -1 — on ne peut pas se fier à la référence. */
+  const _stableKey = (row) =>
+    (row.projet || '') + '\0' + JSON.stringify(row.niveaux || []) + '\0' + (row.tache || '');
+  const curKey = _stableKey(r);
+
   sortRows();
+
+  /* Resynchroniser affectRowIdx et les clés _ganttEdits après le tri */
+  if (affectRowIdx !== null) {
+    const newIdx = rows.findIndex(row => row._type === 'tache' && _stableKey(row) === curKey);
+    if (newIdx !== -1 && newIdx !== affectRowIdx && typeof _ganttEdits !== 'undefined') {
+      const oldPfx = `${affectRowIdx}::`, newPfx = `${newIdx}::`;
+      Object.keys(_ganttEdits).filter(k => k.startsWith(oldPfx)).forEach(k => {
+        _ganttEdits[newPfx + k.slice(oldPfx.length)] = _ganttEdits[k];
+        delete _ganttEdits[k];
+      });
+    }
+    if (newIdx !== -1) affectRowIdx = newIdx;
+  }
+
   saveCurrentProject();
-  renderAffectList(r);
+  renderAffectList(rows[affectRowIdx] || r);
   renderGantt();
 }
 
