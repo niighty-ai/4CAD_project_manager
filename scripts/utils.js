@@ -57,6 +57,8 @@ function fmtD(d){if(!d)return'—';return`${String(d.getDate()).padStart(2,'0')}
 function fmtShort(d){if(!d)return'—';return`${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}`;}
 function toInput(d){if(!d)return'';return`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;}
 function roundCharge(v){if(v==null)return null;const n=parseFloat(v);return isNaN(n)?null:Math.round(n*10000)/10000;}
+/* Reconvertit une valeur arrondie à 2 décimales vers le 16ème de journée exact si correspondance. */
+function snapToSixteenth(v){if(v==null||isNaN(v))return v;const c=Math.round(v*16)/16;return Math.round(c*100)/100===Math.round(v*100)/100?c:v;}
 function fmtCharge(v){if(v==null)return'—';const n=parseFloat(v);return isNaN(n)?'—':(Math.round(n*100)/100).toString();}
 function diff(a,b){return Math.round((b-a)/86400000);}
 function escH(s){return String(s||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}

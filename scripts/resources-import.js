@@ -479,8 +479,9 @@ function parseGHOExcel(buffer) {
       if (!dateKey) continue;
 
       const chargeRaw = row[colCharge];
-      const jours = parseFloat(String(chargeRaw ?? '').replace(',', '.'));
+      let jours = parseFloat(String(chargeRaw ?? '').replace(',', '.'));
       if (!jours || jours <= 0) continue; /* Charge nulle/vide → pas d'entrée daily */
+      jours = snapToSixteenth(jours);
 
       const daily = parsed[resName][projName][tKey].daily;
       daily[dateKey] = Math.round(((daily[dateKey] || 0) + jours) * 10000) / 10000;
