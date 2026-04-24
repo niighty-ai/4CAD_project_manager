@@ -29,6 +29,10 @@ let _resFilter     = '';           // filtre texte recherche
 let _resTypeFilter = 'Employee';   // filtre type de ressource (défaut : Employee)
 let _resUnitH      = false;        // false = jours, true = heures (affichage seulement)
 
+/* ── Largeurs des colonnes redimensionnables (persistées en session) ── */
+let _ghoActW  = 200; // largeur colonne PROJET
+let _ghoTaskW = 240; // largeur colonne TÂCHE
+
 /* ── Année affichée ── */
 let _resYear = new Date().getFullYear();
 
@@ -245,7 +249,9 @@ function _refreshResView() {
 function _buildResViewHTML() {
   const days = _getDaysOfYear(_resYear);
   const COL_W = 34;
-  const RES_W = 200, ACT_W = 200, TASK_W = 240;
+  const RES_W = 200;
+  const ACT_W  = _ghoActW;
+  const TASK_W = _ghoTaskW;
 
   const _lastImport = resources.reduce((best,r) =>
     r.ghoData?.importDate && r.ghoData.importDate > best ? r.ghoData.importDate : best, '');
@@ -263,12 +269,13 @@ function _buildResViewHTML() {
         <button class="gho-btn-import" onclick="triggerGHOImport()">↑ Import Charge</button>
       </div>
     </div>
-    <div class="gho-scroll-wrap" id="ghoScrollWrap">
-      <table class="gho-table" style="width:${RES_W+ACT_W+TASK_W+days.length*COL_W}px">
+    <div class="gho-scroll-wrap" id="ghoScrollWrap"
+         style="--gho-task-left:${RES_W+ACT_W}px">
+      <table class="gho-table" id="ghoTable" style="width:${RES_W+ACT_W+TASK_W+days.length*COL_W}px">
         <colgroup>
-          <col style="width:${RES_W}px">
-          <col style="width:${ACT_W}px">
-          <col style="width:${TASK_W}px">
+          <col id="ghoColRes"  style="width:${RES_W}px">
+          <col id="ghoColAct"  style="width:${ACT_W}px">
+          <col id="ghoColTask" style="width:${TASK_W}px">
           ${days.map(()=>`<col style="width:${COL_W}px">`).join('')}
         </colgroup>
         <thead>
@@ -291,8 +298,12 @@ function _buildResViewHTML() {
                 </select>
               </div>
             </th>
-            <th class="gho-th-act gho-sticky-act" rowspan="2">PROJET</th>
-            <th class="gho-th-task gho-sticky-task" rowspan="2">TÂCHE</th>
+            <th class="gho-th-act gho-sticky-act" rowspan="2">
+              PROJET<div class="gho-col-resize-handle" id="ghoResizeAct"></div>
+            </th>
+            <th class="gho-th-task gho-sticky-task" rowspan="2">
+              TÂCHE<div class="gho-col-resize-handle" id="ghoResizeTask"></div>
+            </th>
             ${_buildMonthHeaders(days, COL_W)}
           </tr>
           <tr class="gho-thead-days">
@@ -626,12 +637,67 @@ function _attachResEvents() {
     if (e.key === 'Escape') closeResInfo();
   }, { once: true });
 
+  /* ── Redimensionnement colonnes PROJET et TÂCHE ── */
+  const RES_W = 200;
+  _initGhoColResize('ghoResizeAct',  'ghoColAct',  'act');
+  _initGhoColResize('ghoResizeTask', 'ghoColTask', 'task');
+
+  function _initGhoColResize(handleId, colId, which) {
+    const handle = document.getElementById(handleId);
+    if (!handle) return;
+    handle.addEventListener('mousedown', e => {
+      e.stopPropagation(); e.preventDefault();
+      const startX   = e.clientX;
+      const startW   = which === 'act' ? _ghoActW : _ghoTaskW;
+      const MIN_W    = 80;
+
+      function onMove(ev) {
+        const newW = Math.max(MIN_W, startW + ev.clientX - startX);
+        const col  = document.getElementById(colId);
+        const wrap = document.getElementById('ghoScrollWrap');
+        const tbl  = document.getElementById('ghoTable');
+        if (!col || !wrap || !tbl) return;
+
+        if (which === 'act') {
+          _ghoActW = newW;
+          col.style.width = newW + 'px';
+          /* Mettre à jour toutes les cellules td/th de la colonne 2 (index 1) */
+          document.querySelectorAll('#ghoScrollWrap .gho-td-act, #ghoScrollWrap .gho-th-act')
+            .forEach(c => { c.style.width = newW + 'px'; c.style.minWidth = newW + 'px'; });
+          /* Décaler la colonne tâche sticky */
+          wrap.style.setProperty('--gho-task-left', (RES_W + newW) + 'px');
+        } else {
+          _ghoTaskW = newW;
+          col.style.width = newW + 'px';
+          document.querySelectorAll('#ghoScrollWrap .gho-td-task, #ghoScrollWrap .gho-th-task')
+            .forEach(c => { c.style.width = newW + 'px'; c.style.minWidth = newW + 'px'; });
+        }
+        /* Recalculer la largeur totale de la table */
+        const days = tbl.querySelectorAll('colgroup col').length - 3;
+        tbl.style.width = (RES_W + _ghoActW + _ghoTaskW + days * 34) + 'px';
+      }
+
+      function onUp() {
+        document.removeEventListener('mousemove', onMove);
+        document.removeEventListener('mouseup', onUp);
+        document.body.style.cursor = '';
+        document.body.style.userSelect = '';
+      }
+
+      document.body.style.cursor = 'col-resize';
+      document.body.style.userSelect = 'none';
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup', onUp);
+    });
+  }
+
   /* Drag-scroll on the single table wrapper */
   const wrap = document.getElementById('ghoScrollWrap');
   if (wrap) {
     let isDragging = false, startX = 0, startY = 0, startSL = 0, startST = 0;
     wrap.addEventListener('mousedown', e => {
-      if (e.target.closest('button') || e.target.closest('input') || e.target.closest('select')) return;
+      if (e.target.closest('button') || e.target.closest('input') || e.target.closest('select')
+          || e.target.closest('.gho-col-resize-handle')) return;
       isDragging = true;
       startX = e.pageX; startY = e.pageY;
       startSL = wrap.scrollLeft; startST = wrap.scrollTop;

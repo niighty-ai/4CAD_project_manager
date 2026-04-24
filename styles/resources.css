@@ -187,11 +187,32 @@
 }
 .gho-sticky-task {
   position: sticky;
-  left: 400px; /* RES_W(200) + ACT_W(200) */
+  left: var(--gho-task-left, 400px);
   z-index: 5;
   background-color: var(--bg);
   border-right: 2px solid var(--border) !important;
   box-shadow: 3px 0 6px rgba(0,0,0,.1);
+}
+
+/* ── Poignées de redimensionnement des colonnes ── */
+.gho-th-act,
+.gho-th-task {
+  position: relative;
+}
+.gho-col-resize-handle {
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 5px;
+  cursor: col-resize;
+  z-index: 10;
+  background: transparent;
+  transition: background .15s;
+}
+.gho-col-resize-handle:hover,
+.gho-col-resize-handle:active {
+  background: rgba(var(--accent-rgb, 236,114,6), .5);
 }
 /* Corner cells: sticky both top and left — highest z-index */
 .gho-table thead th.gho-sticky-res,
@@ -387,24 +408,12 @@
   overflow: hidden;
 }
 .gho-td-task-inner {
+  position: relative;
   display: flex;
   align-items: center;
-  gap: 5px;
   padding: 3px 8px;
+  overflow: hidden;
 }
-.gho-task-id {
-  font-size: 9px;
-  font-family: 'Courier New', monospace;
-  color: var(--muted);
-  background: var(--surface2);
-  border-radius: 3px;
-  padding: 1px 4px;
-  white-space: nowrap;
-  flex-shrink: 0;
-  opacity: 0;
-  transition: opacity .15s;
-}
-.gho-row-task:hover .gho-task-id { opacity: 1; }
 .gho-task-name {
   flex: 1;
   min-width: 0;
@@ -413,7 +422,25 @@
   white-space: nowrap;
   font-size: 10px;
   color: var(--text);
+  text-align: left;
 }
+.gho-task-id {
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 9px;
+  font-family: 'Courier New', monospace;
+  color: var(--muted);
+  background: var(--surface2);
+  border-radius: 3px;
+  padding: 1px 4px;
+  white-space: nowrap;
+  opacity: 0;
+  transition: opacity .15s;
+  pointer-events: none;
+}
+.gho-row-task:hover .gho-task-id { opacity: 1; }
 
 /* ── Popup ressources manquantes ── */
 .gho-dialog-wide { min-width: 380px; max-width: 520px; }
