@@ -454,11 +454,17 @@ function _resetPlannedForFirmProjects(firmData) {
   firmData.forEach(fp => {
     const wp = portfolio.find(p => p.id === fp.id);
     if (!wp) return;
-    const firmTaskKeys = new Set((fp.rows || []).map(_taskKey));
-    /* Supprimer les tâches absentes de la base ferme (orphelines d'anciens imports) */
-    wp.rows = (wp.rows || []).filter(r => firmTaskKeys.has(_taskKey(r)));
-    /* Supprimer les marqueurs planifiés sur les tâches restantes */
-    wp.rows.forEach(r => { delete r._source; });
+    /* Remplacer intégralement les rows par la base ferme :
+       - supprime les tâches orphelines d'anciens imports (absentes de fp.rows)
+       - écrase les versions planifiées par l'utilisateur (même celles qui matchent une tâche ferme)
+       - supprime tous les marqueurs _source */
+    wp.rows = (fp.rows || []).map(r => {
+      const { _source, ...rest } = r;
+      return {
+        ...rest,
+        assignments: (rest.assignments||[]).map(a=>({...a, daily:a.daily?{...a.daily}:{}}))
+      };
+    });
   });
   /* Supprimer les projets créés manuellement */
   const appCreatedIds = portfolio.filter(p => p._appCreated).map(p => p.id);
@@ -784,7 +790,10 @@ function _saveBackToPortfolio(){
       }
       /* Striper le préfixe projet des niveaux avant sauvegarde
          (ajouté par sortRows pour l'affichage multi-vue uniquement) */
-      proj.rows   = mine.map(r=>{const{_srcPid,...rest}=r;return{...rest};});
+      proj.rows   = mine.map(r=>{const{_srcPid,...rest}=r;return{
+        ...rest,
+        assignments:(rest.assignments||[]).map(a=>({...a, daily:a.daily?{...a.daily}:{}}))
+      };});
       proj.jalons = mineJalons.map(r=>{const{_srcPid,...rest}=r;return{...rest};});
       const projNames = [...new Set([...mine,...mineJalons].map(r=>r.projet))];
       proj.projectColors = proj.projectColors||{};
@@ -803,7 +812,10 @@ function _saveBackToPortfolio(){
        ((proj.rows||[]).filter(r=>r._type==='tache').length > 0 || (proj.jalons||[]).length > 0)){
       return; /* Préserver les données existantes */
     }
-    proj.rows   = taches.map(r=>{const{_srcPid,...rest}=r;return{...rest};});
+    proj.rows   = taches.map(r=>{const{_srcPid,...rest}=r;return{
+      ...rest,
+      assignments:(rest.assignments||[]).map(a=>({...a, daily:a.daily?{...a.daily}:{}}))
+    };});
     proj.jalons = jalons.map(r=>{const{_srcPid,...rest}=r;return{...rest};});
     proj.projectColors = {...projectColors};
     proj.collapsed = {...collapsed};
