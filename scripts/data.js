@@ -447,13 +447,18 @@ function cancelImport() {
   if (modal) modal.style.display = 'none';
 }
 
-/* Supprime les marqueurs planifiés sur tous les projets présents dans firmData
-   et supprime aussi les projets créés manuellement (_appCreated:true) */
+/* Supprime les marqueurs planifiés sur tous les projets présents dans firmData,
+   retire aussi les tâches sans contrepartie ferme (orphelines d'anciens imports),
+   et supprime les projets créés manuellement (_appCreated:true) */
 function _resetPlannedForFirmProjects(firmData) {
   firmData.forEach(fp => {
     const wp = portfolio.find(p => p.id === fp.id);
     if (!wp) return;
-    (wp.rows || []).forEach(r => { delete r._source; });
+    const firmTaskKeys = new Set((fp.rows || []).map(_taskKey));
+    /* Supprimer les tâches absentes de la base ferme (orphelines d'anciens imports) */
+    wp.rows = (wp.rows || []).filter(r => firmTaskKeys.has(_taskKey(r)));
+    /* Supprimer les marqueurs planifiés sur les tâches restantes */
+    wp.rows.forEach(r => { delete r._source; });
   });
   /* Supprimer les projets créés manuellement */
   const appCreatedIds = portfolio.filter(p => p._appCreated).map(p => p.id);
@@ -821,7 +826,13 @@ function _loadSelectedProjects(){
   selectedProjectIds.forEach(pid=>{
     const proj = portfolio.find(p=>p.id===pid);
     if(!proj) return;
-    const taches = (proj.rows||[]).filter(r=>r._type==='tache').map(r=>({...r, _srcPid:pid}));
+    /* Deep-copy assignments et daily pour éviter les références partagées avec portfolio.
+       Sans cette copie profonde, modifier rows[k].assignments modifie aussi portfolio,
+       ce qui corrompt le snapshot pris par saveCurrentProject() pour le revert. */
+    const taches = (proj.rows||[]).filter(r=>r._type==='tache').map(r=>({
+      ...r, _srcPid: pid,
+      assignments: (r.assignments||[]).map(a=>({...a, daily: a.daily ? {...a.daily} : {}}))
+    }));
     const jalons = (proj.jalons||[]).map(r=>({...r, _srcPid:pid}));
     rows.push(...taches, ...jalons);
     Object.assign(projectColors, proj.projectColors||{});

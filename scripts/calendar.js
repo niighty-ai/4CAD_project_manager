@@ -643,6 +643,24 @@ function _calRenderGrid() {
         </div>
       </div>`;
   }).join('');
+
+  /* Synchroniser le scroll vertical entre toutes les colonnes */
+  _calAttachScrollSync(grid);
+}
+
+/* ── Scroll synchronisé entre toutes les colonnes du calendrier ─────────────── */
+let _calScrollSyncing = false;
+function _calAttachScrollSync(grid) {
+  const scrollEls = grid.querySelectorAll('.cal-day-scroll');
+  scrollEls.forEach(el => {
+    el.addEventListener('scroll', () => {
+      if (_calScrollSyncing) return;
+      _calScrollSyncing = true;
+      const top = el.scrollTop;
+      scrollEls.forEach(other => { if (other !== el) other.scrollTop = top; });
+      _calScrollSyncing = false;
+    });
+  });
 }
 
 /* ── Drag (vertical + changement de jour) ──────────────────────────────────── */
