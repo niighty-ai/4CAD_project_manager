@@ -525,6 +525,7 @@ function parseGHOExcel(buffer) {
     /* ── Mise à jour ghoData des ressources ── */
     const now        = new Date();
     const importDate = `${String(now.getDate()).padStart(2,'0')}/${String(now.getMonth()+1).padStart(2,'0')}/${now.getFullYear()}`;
+    const importTs   = Date.now(); // timestamp précis pour arbitrage lors des fusions Firebase
     const missing    = [];
     let   updated    = 0;
 
@@ -541,7 +542,7 @@ function parseGHOExcel(buffer) {
         .filter(p => p.tasks.length > 0);
 
       /* Toujours écrire ghoData, même si projects est vide, pour écraser les anciennes données */
-      res.ghoData = { importDate, projects };
+      res.ghoData = { importDate, importTs, projects };
       updated++;
     });
 
@@ -551,7 +552,7 @@ function parseGHOExcel(buffer) {
       if (parsed[resName]) return; /* Déjà traitée ci-dessus */
       const res = _findResourceByName(resName);
       if (!res) return; /* Introuvable — déjà dans missing si nécessaire */
-      res.ghoData = { importDate, projects: [] }; /* Vide → plus de charges affichées */
+      res.ghoData = { importDate, importTs, projects: [] }; /* Vide → plus de charges affichées */
     });
 
     saveResources(); // métadonnées → gantt_resources
