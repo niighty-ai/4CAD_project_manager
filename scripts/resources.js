@@ -98,6 +98,15 @@ function _mergeGhoData(payload) {
       }));
     }
 
+    /* ── Arbitrage par timestamp d'import ───────────────────────────────────
+       Si les données locales proviennent d'un import plus récent que les
+       données entrantes (Firebase écho ou sync d'un ancien client), on les
+       ignore pour éviter que d'anciennes tâches ne réapparaissent.
+    ─────────────────────────────────────────────────────────────────────── */
+    const existingTs = r.ghoData?.importTs || 0;
+    const incomingTs = incoming.importTs   || 0;
+    if (existingTs > incomingTs) return; // données locales plus récentes → ignorer
+
     /* ── Fusion avec les données GHO existantes ─────────────────────────────
        Objectif : les projets/tâches ajoutés manuellement depuis le Gantt
        (absents de l'import) doivent être conservés après chaque import GHO.

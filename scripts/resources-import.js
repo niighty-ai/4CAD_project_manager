@@ -525,8 +525,10 @@ function parseGHOExcel(buffer) {
     /* ── Mise à jour ghoData des ressources ── */
     const now        = new Date();
     const importDate = `${String(now.getDate()).padStart(2,'0')}/${String(now.getMonth()+1).padStart(2,'0')}/${now.getFullYear()}`;
+    const importTs   = Date.now(); // timestamp précis pour arbitrage lors des fusions Firebase
     const missing    = [];
     let   updated    = 0;
+    const updatedResIds = new Set(); // IDs des ressources traitées par l'import
 
     /* 1. Ressources avec des charges effectives → mettre à jour */
     Object.entries(parsed).forEach(([resName, projMap]) => {
@@ -541,7 +543,8 @@ function parseGHOExcel(buffer) {
         .filter(p => p.tasks.length > 0);
 
       /* Toujours écrire ghoData, même si projects est vide, pour écraser les anciennes données */
-      res.ghoData = { importDate, projects };
+      res.ghoData = { importDate, importTs, projects };
+      updatedResIds.add(res.id);
       updated++;
     });
 
@@ -551,7 +554,15 @@ function parseGHOExcel(buffer) {
       if (parsed[resName]) return; /* Déjà traitée ci-dessus */
       const res = _findResourceByName(resName);
       if (!res) return; /* Introuvable — déjà dans missing si nécessaire */
-      res.ghoData = { importDate, projects: [] }; /* Vide → plus de charges affichées */
+      res.ghoData = { importDate, importTs, projects: [] }; /* Vide → plus de charges affichées */
+      updatedResIds.add(res.id);
+    });
+
+    /* 3. Ressources absentes du fichier → vider leur ghoData pour éviter les résidus d'anciens imports */
+    resources.forEach(r => {
+      if (!updatedResIds.has(r.id) && r.ghoData) {
+        r.ghoData = { importDate, importTs, projects: [] };
+      }
     });
 
     saveResources(); // métadonnées → gantt_resources
