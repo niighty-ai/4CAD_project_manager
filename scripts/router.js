@@ -31,12 +31,14 @@ function switchView(view) {
   const viewProjets    = document.getElementById('viewProjets');
   const viewRessources = document.getElementById('viewRessources');
   const viewCalendar   = document.getElementById('viewCalendar');
+  const viewTodo       = document.getElementById('viewTodo');
   const navSidebar     = document.getElementById('navSidebar');
 
   /* Masquer tout */
   viewProjets.style.display    = 'none';
   viewRessources.style.display = 'none';
   viewCalendar.style.display   = 'none';
+  if (viewTodo) viewTodo.style.display = 'none';
 
   if (view === 'projets') {
     viewProjets.style.display = '';
@@ -52,5 +54,10 @@ function switchView(view) {
     viewCalendar.style.display = 'flex';
     navSidebar.style.display   = 'none';
     renderCalendarView();
+
+  } else if (view === 'todo') {
+    if (viewTodo) viewTodo.style.display = 'flex';
+    navSidebar.style.display = 'none';
+    if (typeof renderTodoView === 'function') renderTodoView();
   }
 }

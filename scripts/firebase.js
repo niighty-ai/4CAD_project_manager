@@ -83,3 +83,30 @@ window._fbGetCalPositions = (userId, cb) =>
       catch(e) { cb(null); }
     })
     .catch(() => cb(null));
+
+/* ── Données To Do par utilisateur ── */
+window._fbSetTodoData = (userId, data) =>
+  set(ref(_fbDb, 'todo_data/' + userId), { d: JSON.stringify(data) });
+window._fbOnTodoData = (userId, cb) =>
+  onValue(ref(_fbDb, 'todo_data/' + userId), snap => {
+    try { const v = snap.val(); cb(v?.d ? JSON.parse(v.d) : null); }
+    catch(e) { cb(null); }
+  });
+
+/* ── Tâches partagées entre utilisateurs ── */
+window._fbSetSharedTask = (taskId, data) =>
+  set(ref(_fbDb, 'todo_shared/' + taskId), { d: JSON.stringify(data) });
+window._fbRemoveSharedTask = (taskId) =>
+  remove(ref(_fbDb, 'todo_shared/' + taskId));
+window._fbGetSharedTask = (taskId, cb) =>
+  get(ref(_fbDb, 'todo_shared/' + taskId))
+    .then(snap => {
+      try { const v = snap.val(); cb(v?.d ? JSON.parse(v.d) : null); }
+      catch(e) { cb(null); }
+    }).catch(() => cb(null));
+
+/* ── Références de partage par utilisateur ── */
+window._fbSetTodoShares = (userId, refs) =>
+  set(ref(_fbDb, 'todo_shares/' + userId), refs || null);
+window._fbOnTodoShares = (userId, cb) =>
+  onValue(ref(_fbDb, 'todo_shares/' + userId), snap => cb(snap.val() || {}));

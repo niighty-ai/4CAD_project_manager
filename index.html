@@ -14,6 +14,7 @@
 <link rel="stylesheet" href="styles/panels.css">
 <link rel="stylesheet" href="styles/resources.css">
 <link rel="stylesheet" href="styles/calendar.css">
+<link rel="stylesheet" href="styles/todo.css">
 <script type="module" src="scripts/firebase.js"></script>
 </head>
 <body>
@@ -123,6 +124,9 @@
     </button>
     <button class="nav-tab" data-view="calendrier" onclick="switchView('calendrier')">
       <span class="nav-tab-icon"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></span> Calendrier
+    </button>
+    <button class="nav-tab" data-view="todo" onclick="switchView('todo')">
+      <span class="nav-tab-icon"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></span> To Do
     </button>
   </nav>
   <div class="toolbar">
@@ -535,6 +539,11 @@
   </div>
 </div>
 
+<!-- ══════════════════════════════════════════════
+     VUE TO DO
+     ══════════════════════════════════════════════ -->
+<div id="viewTodo" style="display:none;"></div>
+
 <script src="scripts/xml_import.js?v=6"></script>
 <script src="scripts/utils.js?v=6"></script>
 <script src="scripts/data.js?v=7"></script>
@@ -549,6 +558,9 @@
 <script src="scripts/resources.js?v=7"></script>
 <script src="scripts/calendar-export.js?v=1"></script>
 <script src="scripts/calendar.js?v=7"></script>
+<script src="scripts/todo.js?v=1"></script>
+<script src="scripts/todo-ui.js?v=1"></script>
+<script src="scripts/todo-modal.js?v=1"></script>
 <script src="scripts/router.js?v=6"></script>
 <script src="scripts/app.js?v=6"></script>
 </body></html>

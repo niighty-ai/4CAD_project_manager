@@ -29,6 +29,7 @@
           _startFirebaseLoad();
           _startWalletLoad(user.uid);
           _startFoldersLoad(user.uid);
+          if (typeof _startTodoLoad === 'function') _startTodoLoad(user.uid);
         } else {
           /* Non connecté → réinitialise l'état utilisateur */
           currentUserId = null;
