@@ -1,0 +1,974 @@
+/* ═══════════════════════════════════════════
+   todo.css — Onglet To Do (partie 1/4 : layout + sidebar)
+   ═══════════════════════════════════════════ */
+
+/* ── Layout principal ── */
+#viewTodo {
+  display: flex;
+  height: calc(100vh - var(--header-h));
+  overflow: hidden;
+  background: var(--bg);
+}
+
+/* ── Sidebar gauche ── */
+.todo-sidebar {
+  width: 260px;
+  min-width: 220px;
+  max-width: 320px;
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 12px 0 24px;
+  flex-shrink: 0;
+  user-select: none;
+}
+
+.todo-sidebar::-webkit-scrollbar { width: 4px; }
+.todo-sidebar::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+/* ── Item sidebar (vue ou dossier) ── */
+.todo-sidebar-item {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 7px 14px 7px 18px;
+  cursor: pointer;
+  border-radius: 6px;
+  margin: 1px 6px;
+  font-size: 13px;
+  color: var(--text);
+  font-weight: 500;
+  transition: background .12s;
+  position: relative;
+}
+.todo-sidebar-item:hover { background: var(--surface2); }
+.todo-sidebar-item.active {
+  background: var(--surface2);
+  color: var(--accent);
+  font-weight: 700;
+}
+.todo-sidebar-item svg { flex-shrink: 0; opacity: .7; }
+.todo-sidebar-item.active svg { opacity: 1; color: var(--accent); }
+
+/* Badge de comptage */
+.todo-sidebar-count {
+  margin-left: auto;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--muted);
+  background: var(--surface2);
+  border-radius: 10px;
+  padding: 1px 7px;
+  min-width: 20px;
+  text-align: center;
+}
+.todo-sidebar-item.active .todo-sidebar-count {
+  background: rgba(236,114,6,.15);
+  color: var(--accent);
+}
+
+/* ── Séparateur de section ── */
+.todo-sidebar-section {
+  margin-top: 8px;
+}
+
+.todo-sidebar-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 5px 14px 5px 18px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1.4px;
+  text-transform: uppercase;
+  color: var(--muted);
+  cursor: pointer;
+}
+.todo-sidebar-section-header:hover .todo-section-add { opacity: 1; }
+
+.todo-section-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: color .12s;
+}
+.todo-section-toggle svg {
+  transition: transform .2s;
+}
+.todo-section-toggle.collapsed svg { transform: rotate(-90deg); }
+
+.todo-section-add {
+  width: 22px; height: 22px;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 5px;
+  opacity: 0;
+  transition: opacity .15s, background .12s;
+  color: var(--muted);
+  cursor: pointer;
+}
+.todo-section-add:hover { background: var(--border); color: var(--text); }
+
+/* Dossier avec couleur dot */
+.todo-folder-dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+/* Actions dossier (rename/delete) visibles au hover */
+.todo-folder-actions {
+  display: none;
+  align-items: center;
+  gap: 2px;
+  margin-left: auto;
+}
+.todo-sidebar-item:hover .todo-folder-actions { display: flex; }
+.todo-sidebar-item:hover .todo-sidebar-count { display: none; }
+
+.todo-folder-btn {
+  width: 22px; height: 22px;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 4px;
+  color: var(--muted);
+  cursor: pointer;
+  transition: background .12s, color .12s;
+}
+.todo-folder-btn:hover { background: var(--border); color: var(--text); }
+
+/* Dossier en cours de drag */
+.todo-sidebar-item.dragging {
+  opacity: .4;
+  pointer-events: none;
+}
+.todo-sidebar-item.drag-over-folder {
+  background: rgba(236,114,6,.12);
+  outline: 2px dashed var(--accent);
+  outline-offset: -2px;
+}
+
+/* ═══════════════════════════════════════════
+   partie 2/4 : zone principale + liste tâches
+   ═══════════════════════════════════════════ */
+
+/* ── Zone principale ── */
+.todo-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-width: 0;
+}
+
+/* ── Header de la liste ── */
+.todo-main-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 18px 28px 10px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+  flex-shrink: 0;
+}
+.todo-main-title {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text);
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Bouton tri */
+.todo-sort-btn {
+  display: flex; align-items: center; gap: 5px;
+  padding: 5px 10px;
+  font-size: 12px; font-weight: 600;
+  background: var(--surface2);
+  color: var(--muted);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all .12s;
+  white-space: nowrap;
+}
+.todo-sort-btn:hover { background: var(--border); color: var(--text); }
+.todo-sort-btn.active { color: var(--accent); border-color: var(--accent); background: rgba(236,114,6,.08); }
+
+/* Menu déroulant tri */
+.todo-sort-menu {
+  position: absolute;
+  right: 0; top: calc(100% + 4px);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px var(--shadow);
+  min-width: 180px;
+  z-index: 200;
+  padding: 4px;
+  display: none;
+}
+.todo-sort-menu.open { display: block; }
+.todo-sort-option {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 12px;
+  font-size: 12px; font-weight: 600;
+  color: var(--text);
+  border-radius: 5px;
+  cursor: pointer;
+  transition: background .1s;
+}
+.todo-sort-option:hover { background: var(--surface2); }
+.todo-sort-option.active { color: var(--accent); }
+.todo-sort-option .sort-dir { margin-left: auto; color: var(--muted); font-size: 11px; }
+
+/* ── Corps scrollable ── */
+.todo-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0 28px 40px;
+}
+.todo-body::-webkit-scrollbar { width: 5px; }
+.todo-body::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+/* ── Groupe de tâches ── */
+.todo-group {
+  margin-top: 18px;
+}
+.todo-group-title {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--muted);
+  padding: 4px 0 8px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 4px;
+  display: flex; align-items: center; gap: 6px;
+}
+
+/* ── Ligne de tâche ── */
+.todo-task-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 7px 4px;
+  border-radius: 7px;
+  cursor: pointer;
+  transition: background .1s;
+  border-bottom: 1px solid transparent;
+  position: relative;
+}
+.todo-task-row:hover { background: var(--surface2); }
+.todo-task-row.dragging { opacity: .3; }
+.todo-task-row.drag-over {
+  border-top: 2px solid var(--accent);
+}
+.todo-task-row.completed .todo-task-title { text-decoration: line-through; color: var(--muted); }
+
+/* Checkbox priorité */
+.todo-check {
+  width: 18px; height: 18px;
+  border-radius: 50%;
+  border: 2px solid var(--muted);
+  flex-shrink: 0;
+  margin-top: 1px;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: all .15s;
+  background: transparent;
+}
+.todo-check:hover { transform: scale(1.15); }
+.todo-check.p1 { border-color: #db4035; }
+.todo-check.p2 { border-color: #ff9a14; }
+.todo-check.p3 { border-color: #4073ff; }
+.todo-check.p4 { border-color: var(--muted); }
+.todo-check.checked { background: var(--muted); border-color: var(--muted); }
+.todo-check.checked.p1 { background: #db4035; border-color: #db4035; }
+.todo-check.checked.p2 { background: #ff9a14; border-color: #ff9a14; }
+.todo-check.checked.p3 { background: #4073ff; border-color: #4073ff; }
+.todo-check svg { display: none; }
+.todo-check.checked svg { display: block; color: #fff; }
+
+/* Contenu de la tâche */
+.todo-task-content { flex: 1; min-width: 0; }
+.todo-task-title {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text);
+  line-height: 1.4;
+  word-break: break-word;
+}
+.todo-task-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 4px;
+}
+
+/* Pills / badges méta */
+.todo-pill {
+  display: inline-flex; align-items: center; gap: 3px;
+  font-size: 10px; font-weight: 600;
+  padding: 2px 7px;
+  border-radius: 10px;
+  white-space: nowrap;
+}
+.todo-pill-date        { background: rgba(236,114,6,.12); color: var(--accent); }
+.todo-pill-date.overdue { background: rgba(219,64,53,.12); color: #db4035; }
+.todo-pill-assignee    { background: rgba(114,182,236,.15); color: var(--blue); }
+.todo-pill-type        { background: var(--surface2); color: var(--muted); border: 1px solid var(--border); }
+.todo-pill-status      { background: var(--surface2); color: var(--text); border: 1px solid var(--border); }
+.todo-pill-priority.p1 { background: rgba(219,64,53,.12); color: #db4035; }
+.todo-pill-priority.p2 { background: rgba(255,154,20,.12); color: #ff9a14; }
+.todo-pill-priority.p3 { background: rgba(64,115,255,.12); color: #4073ff; }
+.todo-pill-priority.p4 { background: var(--surface2); color: var(--muted); }
+
+/* Sous-tâche indentée */
+.todo-task-row.subtask {
+  padding-left: 28px;
+}
+.todo-task-row.subtask .todo-check {
+  width: 15px; height: 15px;
+  border-width: 1.5px;
+}
+.todo-subtask-count {
+  display: inline-flex; align-items: center; gap: 3px;
+  font-size: 10px; color: var(--muted); font-weight: 600;
+}
+
+/* Actions tâche (hover) */
+.todo-task-actions {
+  display: none;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+}
+.todo-task-row:hover .todo-task-actions { display: flex; }
+.todo-task-action-btn {
+  width: 26px; height: 26px;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 5px;
+  color: var(--muted);
+  cursor: pointer;
+  transition: background .1s, color .1s;
+}
+.todo-task-action-btn:hover { background: var(--border); color: var(--text); }
+.todo-task-action-btn.danger:hover { background: rgba(219,64,53,.12); color: #db4035; }
+
+/* ── Ajout rapide ── */
+.todo-add-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+  padding: 8px 10px;
+  border-radius: 7px;
+  border: 1.5px dashed var(--border);
+  cursor: text;
+  transition: border-color .15s;
+}
+.todo-add-bar:hover, .todo-add-bar:focus-within {
+  border-color: var(--accent);
+  background: var(--surface);
+}
+.todo-add-bar svg { color: var(--accent); flex-shrink: 0; }
+.todo-add-input {
+  flex: 1;
+  border: none;
+  background: transparent;
+  color: var(--text);
+  font-size: 13px;
+  font-family: Arial, sans-serif;
+  outline: none;
+}
+.todo-add-input::placeholder { color: var(--muted); }
+
+/* État vide */
+.todo-empty {
+  text-align: center;
+  padding: 60px 20px;
+  color: var(--muted);
+}
+.todo-empty svg { margin-bottom: 12px; opacity: .4; }
+.todo-empty-title { font-size: 15px; font-weight: 700; margin-bottom: 6px; color: var(--text); opacity: .6; }
+.todo-empty-sub { font-size: 12px; line-height: 1.6; }
+
+/* ═══════════════════════════════════════════
+   partie 3/4 : modale détail tâche
+   ═══════════════════════════════════════════ */
+
+.todo-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,.45);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  animation: todoFadeIn .15s ease;
+}
+@keyframes todoFadeIn { from { opacity: 0 } to { opacity: 1 } }
+
+.todo-modal {
+  background: var(--surface);
+  border-radius: 12px;
+  box-shadow: 0 20px 60px rgba(0,0,0,.3);
+  width: 860px;
+  max-width: 100%;
+  max-height: 90vh;
+  display: flex;
+  overflow: hidden;
+  animation: todoSlideUp .18s ease;
+}
+@keyframes todoSlideUp { from { transform: translateY(16px); opacity: 0 } to { transform: none; opacity: 1 } }
+
+/* Colonne gauche */
+.todo-modal-left {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-right: 1px solid var(--border);
+}
+
+.todo-modal-left-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 24px 28px;
+}
+.todo-modal-left-body::-webkit-scrollbar { width: 4px; }
+.todo-modal-left-body::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+/* Titre éditable */
+.todo-modal-title-input {
+  width: 100%;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text);
+  background: transparent;
+  border: none;
+  outline: none;
+  font-family: Arial, sans-serif;
+  line-height: 1.3;
+  resize: none;
+  padding: 0;
+  margin-bottom: 12px;
+}
+.todo-modal-title-input::placeholder { color: var(--muted); }
+
+/* Description */
+.todo-modal-desc {
+  width: 100%;
+  font-size: 13px;
+  color: var(--text);
+  background: transparent;
+  border: none;
+  outline: none;
+  font-family: Arial, sans-serif;
+  line-height: 1.6;
+  resize: none;
+  min-height: 60px;
+  padding: 0;
+  margin-bottom: 20px;
+}
+.todo-modal-desc::placeholder { color: var(--muted); }
+
+/* Section sous-tâches */
+.todo-modal-section { margin-bottom: 22px; }
+.todo-modal-section-title {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 10px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.todo-subtask-list { display: flex; flex-direction: column; gap: 2px; margin-bottom: 8px; }
+.todo-subtask-item {
+  display: flex; align-items: center; gap: 8px;
+  padding: 5px 6px;
+  border-radius: 5px;
+  transition: background .1s;
+}
+.todo-subtask-item:hover { background: var(--surface2); }
+.todo-subtask-item input[type=text] {
+  flex: 1;
+  border: none;
+  background: transparent;
+  color: var(--text);
+  font-size: 12px;
+  font-family: Arial, sans-serif;
+  outline: none;
+  cursor: pointer;
+}
+.todo-subtask-item input[type=text]:focus { cursor: text; }
+.todo-subtask-item.done input[type=text] {
+  text-decoration: line-through;
+  color: var(--muted);
+}
+.todo-subtask-del {
+  width: 20px; height: 20px;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 4px; color: var(--muted); cursor: pointer;
+  opacity: 0; transition: opacity .1s, background .1s;
+}
+.todo-subtask-item:hover .todo-subtask-del { opacity: 1; }
+.todo-subtask-del:hover { background: var(--border); color: #db4035; }
+
+.todo-add-subtask {
+  display: flex; align-items: center; gap: 7px;
+  font-size: 12px; color: var(--muted);
+  cursor: pointer;
+  padding: 4px 6px;
+  border-radius: 5px;
+  width: fit-content;
+  transition: background .1s, color .1s;
+}
+.todo-add-subtask:hover { background: var(--surface2); color: var(--accent); }
+
+/* Section commentaires */
+.todo-comment-list { display: flex; flex-direction: column; gap: 12px; margin-bottom: 14px; }
+.todo-comment {
+  display: flex; gap: 10px;
+}
+.todo-comment-avatar {
+  width: 28px; height: 28px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: #fff;
+  font-size: 10px; font-weight: 700;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+.todo-comment-body { flex: 1; min-width: 0; }
+.todo-comment-header {
+  display: flex; align-items: baseline; gap: 8px;
+  margin-bottom: 3px;
+}
+.todo-comment-author { font-size: 11px; font-weight: 700; color: var(--text); }
+.todo-comment-date { font-size: 10px; color: var(--muted); }
+.todo-comment-edited { font-size: 10px; color: var(--muted); font-style: italic; }
+.todo-comment-text {
+  font-size: 12px; color: var(--text);
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.todo-comment-actions {
+  display: none;
+  gap: 4px;
+  margin-top: 4px;
+}
+.todo-comment:hover .todo-comment-actions { display: flex; }
+.todo-comment-action {
+  font-size: 10px; font-weight: 600;
+  color: var(--muted);
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 4px;
+  transition: background .1s, color .1s;
+}
+.todo-comment-action:hover { background: var(--surface2); color: var(--accent); }
+.todo-comment-action.danger:hover { color: #db4035; }
+
+/* Zone de saisie commentaire */
+.todo-comment-form {
+  display: flex; gap: 10px; align-items: flex-start;
+}
+.todo-comment-input-wrap {
+  flex: 1;
+  border: 1.5px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+  transition: border-color .15s;
+}
+.todo-comment-input-wrap:focus-within { border-color: var(--accent); }
+.todo-comment-input {
+  width: 100%;
+  border: none;
+  background: transparent;
+  color: var(--text);
+  font-size: 12px;
+  font-family: Arial, sans-serif;
+  outline: none;
+  resize: none;
+  padding: 8px 12px;
+  min-height: 38px;
+  max-height: 120px;
+}
+.todo-comment-submit {
+  padding: 7px 14px;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  font-size: 12px; font-weight: 700;
+  cursor: pointer;
+  transition: background .12s;
+  white-space: nowrap;
+}
+.todo-comment-submit:hover { background: var(--accent-dark); }
+.todo-comment-submit:disabled { opacity: .5; cursor: default; }
+
+/* Colonne droite (propriétés) */
+.todo-modal-right {
+  width: 240px;
+  flex-shrink: 0;
+  overflow-y: auto;
+  padding: 24px 18px;
+  background: var(--surface2);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.todo-modal-right::-webkit-scrollbar { width: 3px; }
+.todo-modal-right::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+/* Champ propriété */
+.todo-prop { display: flex; flex-direction: column; gap: 5px; }
+.todo-prop-label {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 1.3px;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.todo-prop-value {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 10px;
+  cursor: pointer;
+  transition: border-color .12s;
+  display: flex; align-items: center; gap: 6px;
+  min-height: 32px;
+}
+.todo-prop-value:hover { border-color: var(--accent); }
+.todo-prop-value select,
+.todo-prop-value input {
+  flex: 1;
+  border: none;
+  background: transparent;
+  color: var(--text);
+  font-size: 12px;
+  font-family: Arial, sans-serif;
+  outline: none;
+  cursor: pointer;
+  min-width: 0;
+}
+.todo-prop-value input[type=date] { cursor: text; }
+
+/* Sélecteur de priorité */
+.todo-priority-opts {
+  display: flex; gap: 4px;
+}
+.todo-priority-opt {
+  flex: 1;
+  padding: 5px 4px;
+  text-align: center;
+  font-size: 11px; font-weight: 700;
+  border-radius: 5px;
+  border: 2px solid transparent;
+  cursor: pointer;
+  transition: all .12s;
+  color: var(--muted);
+  background: var(--surface);
+  border-color: var(--border);
+}
+.todo-priority-opt:hover { border-color: currentColor; }
+.todo-priority-opt.p1 { color: #db4035; }
+.todo-priority-opt.p2 { color: #ff9a14; }
+.todo-priority-opt.p3 { color: #4073ff; }
+.todo-priority-opt.p4 { color: var(--muted); }
+.todo-priority-opt.selected { color: #fff; border-color: transparent; }
+.todo-priority-opt.selected.p1 { background: #db4035; }
+.todo-priority-opt.selected.p2 { background: #ff9a14; }
+.todo-priority-opt.selected.p3 { background: #4073ff; }
+.todo-priority-opt.selected.p4 { background: var(--muted); }
+
+/* Tags assignees */
+.todo-assignees { display: flex; flex-wrap: wrap; gap: 4px; }
+.todo-assignee-tag {
+  display: inline-flex; align-items: center; gap: 4px;
+  background: rgba(114,182,236,.15);
+  color: var(--blue);
+  font-size: 10px; font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 10px;
+}
+.todo-assignee-remove {
+  cursor: pointer; opacity: .7;
+  display: flex; align-items: center;
+}
+.todo-assignee-remove:hover { opacity: 1; }
+
+/* Dropdown autocomplete assignee */
+.todo-assignee-dropdown {
+  position: absolute;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  box-shadow: 0 8px 24px var(--shadow);
+  z-index: 1100;
+  max-height: 200px;
+  overflow-y: auto;
+  min-width: 200px;
+}
+.todo-assignee-opt {
+  padding: 8px 12px;
+  font-size: 12px;
+  cursor: pointer;
+  color: var(--text);
+  transition: background .1s;
+}
+.todo-assignee-opt:hover { background: var(--surface2); }
+
+/* Partage */
+.todo-share-list { display: flex; flex-direction: column; gap: 5px; }
+.todo-share-item {
+  display: flex; align-items: center; gap: 7px;
+  font-size: 11px; color: var(--text);
+}
+.todo-share-item .todo-comment-avatar {
+  width: 22px; height: 22px; font-size: 9px;
+}
+.todo-share-remove {
+  margin-left: auto;
+  cursor: pointer;
+  color: var(--muted);
+  display: flex; align-items: center;
+}
+.todo-share-remove:hover { color: #db4035; }
+
+/* Bouton bas de modale */
+.todo-modal-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 28px;
+  border-top: 1px solid var(--border);
+  background: var(--surface);
+  flex-shrink: 0;
+}
+.todo-modal-footer-info {
+  font-size: 10px; color: var(--muted);
+}
+.todo-modal-close {
+  width: 28px; height: 28px;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 6px; cursor: pointer;
+  color: var(--muted);
+  transition: background .1s, color .1s;
+}
+.todo-modal-close:hover { background: var(--surface2); color: var(--text); }
+
+/* ═══════════════════════════════════════════
+   partie 4/4 : vues, dialogs, inline edit, responsive
+   ═══════════════════════════════════════════ */
+
+/* ── Dialog création/renommage ── */
+.todo-dialog-overlay {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,.4);
+  z-index: 1200;
+  display: flex; align-items: center; justify-content: center;
+}
+.todo-dialog {
+  background: var(--surface);
+  border-radius: 10px;
+  box-shadow: 0 16px 48px var(--shadow);
+  padding: 24px;
+  width: 360px;
+  max-width: 96vw;
+}
+.todo-dialog-title {
+  font-size: 14px; font-weight: 700;
+  color: var(--text); margin-bottom: 14px;
+}
+.todo-dialog-input {
+  width: 100%;
+  padding: 9px 11px;
+  border-radius: 6px;
+  border: 1.5px solid var(--border);
+  background: var(--surface2);
+  color: var(--text);
+  font-size: 13px; font-family: Arial, sans-serif;
+  outline: none;
+  transition: border-color .15s;
+  margin-bottom: 8px;
+  box-sizing: border-box;
+}
+.todo-dialog-input:focus { border-color: var(--accent); }
+
+/* Color picker dossier */
+.todo-folder-colors {
+  display: flex; gap: 6px; flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+.todo-folder-color-opt {
+  width: 20px; height: 20px;
+  border-radius: 50%;
+  cursor: pointer;
+  border: 2px solid transparent;
+  transition: transform .1s, border-color .1s;
+}
+.todo-folder-color-opt:hover { transform: scale(1.2); }
+.todo-folder-color-opt.selected { border-color: var(--text); }
+
+.todo-dialog-actions {
+  display: flex; justify-content: flex-end; gap: 8px;
+  margin-top: 16px;
+}
+.todo-dialog-cancel {
+  padding: 7px 16px;
+  background: var(--surface2);
+  color: var(--muted);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 12px; font-weight: 600;
+  cursor: pointer;
+  transition: background .12s;
+}
+.todo-dialog-cancel:hover { background: var(--border); color: var(--text); }
+.todo-dialog-ok {
+  padding: 7px 16px;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  font-size: 12px; font-weight: 700;
+  cursor: pointer;
+  transition: background .12s;
+}
+.todo-dialog-ok:hover { background: var(--accent-dark); }
+
+/* ── Dialog gestion types/statuts ── */
+.todo-tags-list {
+  display: flex; flex-direction: column; gap: 5px;
+  max-height: 200px; overflow-y: auto;
+  margin-bottom: 10px;
+}
+.todo-tag-item {
+  display: flex; align-items: center; gap: 8px;
+  padding: 6px 8px;
+  background: var(--surface2);
+  border-radius: 6px;
+}
+.todo-tag-item span {
+  flex: 1;
+  font-size: 12px; color: var(--text);
+}
+.todo-tag-del {
+  width: 20px; height: 20px;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 4px; color: var(--muted); cursor: pointer;
+}
+.todo-tag-del:hover { background: var(--border); color: #db4035; }
+
+/* ── Dialog partage ── */
+.todo-share-input-wrap {
+  display: flex; gap: 8px;
+  margin-bottom: 12px;
+}
+.todo-share-input-wrap input {
+  flex: 1;
+  padding: 8px 10px;
+  border: 1.5px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface2);
+  color: var(--text);
+  font-size: 12px; font-family: Arial, sans-serif;
+  outline: none;
+  transition: border-color .15s;
+}
+.todo-share-input-wrap input:focus { border-color: var(--accent); }
+.todo-share-add-btn {
+  padding: 8px 14px;
+  background: var(--accent);
+  color: #fff; border: none;
+  border-radius: 6px;
+  font-size: 12px; font-weight: 700;
+  cursor: pointer; white-space: nowrap;
+}
+.todo-share-add-btn:hover { background: var(--accent-dark); }
+
+/* ── Recurrence select ── */
+.todo-recurrence-wrap { display: flex; flex-direction: column; gap: 6px; }
+.todo-recurrence-wrap select {
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 12px; font-family: Arial, sans-serif;
+  outline: none;
+  cursor: pointer;
+}
+.todo-recurrence-wrap select:focus { border-color: var(--accent); }
+
+/* ── Tooltip récurrence ── */
+.todo-recurrence-badge {
+  display: inline-flex; align-items: center; gap: 3px;
+  font-size: 10px; font-weight: 600;
+  color: #43a047;
+  background: rgba(67,160,71,.12);
+  padding: 2px 7px;
+  border-radius: 10px;
+}
+
+/* ── Inline rename sidebar ── */
+.todo-inline-rename {
+  flex: 1;
+  border: none;
+  background: transparent;
+  color: var(--text);
+  font-size: 13px; font-weight: 500;
+  font-family: Arial, sans-serif;
+  outline: none;
+  padding: 0;
+}
+
+/* ── Toast notifications ── */
+.todo-toast {
+  position: fixed;
+  bottom: 28px; left: 50%;
+  transform: translateX(-50%);
+  background: var(--text);
+  color: var(--bg);
+  padding: 9px 20px;
+  border-radius: 8px;
+  font-size: 12px; font-weight: 600;
+  z-index: 2000;
+  pointer-events: none;
+  animation: todoToastIn .2s ease, todoToastOut .3s ease 2.5s forwards;
+  white-space: nowrap;
+  box-shadow: 0 4px 16px var(--shadow);
+}
+@keyframes todoToastIn  { from { opacity:0; transform:translateX(-50%) translateY(8px) } to { opacity:1; transform:translateX(-50%) translateY(0) } }
+@keyframes todoToastOut { from { opacity:1 } to { opacity:0 } }
+
+/* ── Responsive ── */
+@media (max-width: 700px) {
+  .todo-sidebar { width: 200px; min-width: 180px; }
+  .todo-modal { flex-direction: column; }
+  .todo-modal-right { width: 100%; max-height: 240px; border-right: none; border-top: 1px solid var(--border); }
+  .todo-modal-left { border-right: none; }
+}
+@media (max-width: 500px) {
+  .todo-sidebar { display: none; }
+  .todo-body { padding: 0 12px 40px; }
+  .todo-main-header { padding: 14px 14px 8px; }
+}
