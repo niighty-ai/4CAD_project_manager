@@ -250,6 +250,7 @@ function _todoDeleteTask(taskId) {
   _todoData.tasks = _todoData.tasks.filter(t => t.id !== taskId);
   _todoSave();
   _todoRenderTaskList();
+  if (typeof _todoRenderSidebar === 'function') _todoRenderSidebar();
 }
 
 function _todoCompleteTask(taskId) {
@@ -277,6 +278,7 @@ function _todoCompleteTask(taskId) {
   task.updatedAt = new Date().toISOString();
   _todoSave();
   _todoRenderTaskList();
+  if (typeof _todoRenderSidebar === 'function') _todoRenderSidebar();
 }
 
 /* ── CRUD Commentaires ────────────────────────────────────────────────────── */

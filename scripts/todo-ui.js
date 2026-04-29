@@ -482,8 +482,11 @@ function _todoTaskDrop(e, toId) {
   _todoRenderTaskList();
 }
 
-/* ── Événements globaux ── */
+/* ── Événements globaux (une seule fois) ── */
+let _todoGlobalEventsAttached = false;
 function _todoAttachGlobalEvents() {
+  if (_todoGlobalEventsAttached) return;
+  _todoGlobalEventsAttached = true;
   document.addEventListener('keydown', _todoGlobalKey);
 }
 
