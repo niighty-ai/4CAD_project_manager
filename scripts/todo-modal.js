@@ -596,7 +596,6 @@ function _tmPickAssignee(name) {
   const assignees = task.assignees || [];
   if (assignees.find(a => (a.name || a) === name)) return;
   assignees.push({ name });
-  const activeId = _tmActiveSubId || _todoModalTaskId;
   _todoUpdateTask(activeId, { assignees });
   document.getElementById('tmAssigneeInput').value = '';
   document.getElementById('tmAssigneeDropdown').style.display = 'none';
