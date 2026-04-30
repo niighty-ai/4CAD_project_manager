@@ -252,11 +252,15 @@ function _todoFolderDrop(e, toIdx) {
 function _esc(str) {
   return String(str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
-/* Détecte les URLs dans du texte déjà échappé et les rend cliquables */
+/* Rend les URLs cliquables. Supporte [texte](url) et les URL brutes.
+   Un seul passage regex évite les remplacements imbriqués. */
 function _todoLinkify(text) {
+  const s = 'color:var(--accent);text-decoration:underline';
   return _esc(text).replace(
-    /(https?:\/\/[^\s<>"']+)/g,
-    '<a href="$1" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()" style="color:var(--accent);word-break:break-all;text-decoration:underline">$1</a>'
+    /\[([^\]]+)\]\((https?:\/\/[^)]+)\)|(https?:\/\/[^\s<>"']+)/g,
+    (_, linkText, mdUrl, bareUrl) => mdUrl
+      ? `<a href="${mdUrl}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()" style="${s}">${linkText}</a>`
+      : `<a href="${bareUrl}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()" style="${s};word-break:break-all">${bareUrl}</a>`
   );
 }
 
