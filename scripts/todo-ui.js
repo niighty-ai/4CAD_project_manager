@@ -493,10 +493,11 @@ function _todoGroupTasks(tasks, groupBy) {
 
 /* ── HTML d'une ligne de tâche ── */
 function _todoTaskRowHtml(task, isSub) {
-  const pClass   = (task.priority || 'P4').toLowerCase();
-  const checked  = task.completed ? 'checked' : '';
-  const doneClass= task.completed ? 'completed' : '';
-  const subClass = isSub ? 'subtask' : '';
+  const pClass     = (task.priority || 'P4').toLowerCase();
+  const checked    = task.completed ? 'checked' : '';
+  const doneClass  = task.completed ? 'completed' : '';
+  const subClass   = isSub ? 'subtask' : '';
+  const overdueRow = !task.completed && _todoIsOverdue(task.dueDate) ? 'overdue-row' : '';
 
   /* Méta pills (avec couleurs dynamiques et édition inline) */
   const typeName    = _todoTypeName(task.type);
@@ -576,7 +577,7 @@ function _todoTaskRowHtml(task, isSub) {
   }
 
   return `
-    <div class="todo-task-row ${subClass} ${doneClass}" data-task-id="${task.id}"
+    <div class="todo-task-row ${subClass} ${doneClass} ${overdueRow}" data-task-id="${task.id}"
          draggable="true"
          ondragstart="_todoTaskDragStart(event,'${task.id}')"
          ondragover="_todoTaskDragOver(event,'${task.id}')"

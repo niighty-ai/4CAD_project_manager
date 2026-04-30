@@ -269,6 +269,15 @@
 }
 .todo-task-row.completed .todo-task-title { text-decoration: line-through; color: var(--muted); }
 
+/* Tâche en retard — Option B : fond teinté + bande gauche */
+.todo-task-row.overdue-row {
+  background: rgba(219, 64, 53, .05);
+  border-left: 3px solid #db4035;
+  padding-left: 8px;
+  border-radius: 0 7px 7px 0;
+}
+.todo-task-row.overdue-row:hover { background: rgba(219, 64, 53, .1); }
+
 /* Checkbox priorité */
 .todo-check {
   width: 18px; height: 18px;
