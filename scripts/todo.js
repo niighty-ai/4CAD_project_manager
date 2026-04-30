@@ -89,6 +89,25 @@ function _todoSave() {
   }, 200);
 }
 
+/* ── Nettoyage automatique des tâches terminées > 7 jours ─────────────────── */
+function _todoCleanupOldCompleted() {
+  const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+  const cutoff  = Date.now() - WEEK_MS;
+  const isExpired = t => t.completed && t.completedAt && new Date(t.completedAt).getTime() < cutoff;
+
+  let changed = false;
+  _todoData.tasks.filter(t => !t.parentId && isExpired(t)).forEach(root => {
+    const subs = _todoData.tasks.filter(s => s.parentId === root.id);
+    /* Supprimer seulement si toutes les sous-tâches sont aussi expirées */
+    if (subs.every(s => isExpired(s))) {
+      const ids = new Set([root.id, ...subs.map(s => s.id)]);
+      _todoData.tasks = _todoData.tasks.filter(t => !ids.has(t.id));
+      changed = true;
+    }
+  });
+  if (changed) _todoSave();
+}
+
 /* ── Chargement initial (appelé depuis app.js) ────────────────────────────── */
 function _startTodoLoad(userId) {
   _todoReadLS();
@@ -106,6 +125,7 @@ function _startTodoLoad(userId) {
         _todoWriteLS();
       }
       _todoLoaded = true;
+      _todoCleanupOldCompleted();
       if (currentView === 'todo') _todoRender();
     });
   }
