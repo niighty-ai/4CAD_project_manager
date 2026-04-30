@@ -986,10 +986,16 @@ function _tmInsertLink(textareaId, btnEl) {
     </div>`;
 
   document.body.appendChild(popup);
-  const rect = btnEl.getBoundingClientRect();
-  popup.style.bottom = (window.innerHeight - rect.top + 6) + 'px';
-  const left = Math.min(rect.left, window.innerWidth - 252);
+  const rect   = btnEl.getBoundingClientRect();
+  const popupH = popup.offsetHeight;
+  const left   = Math.min(rect.left, window.innerWidth - 252);
   popup.style.left = left + 'px';
+  /* Ouvre en bas si pas assez d'espace au-dessus */
+  if (rect.top - popupH - 6 >= 0) {
+    popup.style.bottom = (window.innerHeight - rect.top + 6) + 'px';
+  } else {
+    popup.style.top = (rect.bottom + 6) + 'px';
+  }
 
   const focusEl = sel ? document.getElementById('tmLinkUrl') : document.getElementById('tmLinkText');
   focusEl?.focus();
