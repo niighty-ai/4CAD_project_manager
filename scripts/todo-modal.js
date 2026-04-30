@@ -65,12 +65,14 @@ function _todoRenderModal() {
           <textarea class="todo-modal-title-input" id="tmTitle"
             rows="1" placeholder="Titre de la tâche…"
             oninput="_tmAutoResize(this)"
+            onfocus="_tmBackToParent()"
             onblur="_tmSaveTitle()">${_esc(task.title)}</textarea>
 
           <!-- Description -->
           <textarea class="todo-modal-desc" id="tmDesc"
             rows="3" placeholder="Ajouter une description…"
             oninput="_tmAutoResize(this)"
+            onfocus="_tmBackToParent()"
             onblur="_tmSaveDesc()">${_esc(task.description || '')}</textarea>
 
           <!-- Sous-tâches -->
@@ -209,6 +211,13 @@ function _tmSelectSub(subId) {
 function _tmFocusSub(subId) {
   if (_tmActiveSubId === subId) return;
   _tmActiveSubId = subId;
+  _tmRenderSubtasks();
+  _tmRenderRight();
+  _tmRenderComments();
+}
+function _tmBackToParent() {
+  if (!_tmActiveSubId) return;
+  _tmActiveSubId = null;
   _tmRenderSubtasks();
   _tmRenderRight();
   _tmRenderComments();
