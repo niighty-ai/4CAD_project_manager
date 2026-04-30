@@ -448,6 +448,18 @@ function _todoTaskRowHtml(task, isSub) {
   const statusColor = _todoStatusColor(_todoFindStatus(statusName) || task.status);
 
   let meta = '';
+  /* Badge dossier en premier — vue globale ET vues personnalisées */
+  const _isViewOrAll = !_todoSelectedFolderId || (_todoSelectedFolderId || '').startsWith('view:');
+  if (_isViewOrAll && task.folderId && !isSub) {
+    const folder = _todoData.folders.find(f => f.id === task.folderId);
+    if (folder) {
+      meta += `<span class="todo-pill todo-pill-folder" style="--c:${folder.color || '#888'}">
+        <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+        </svg>
+        ${_esc(folder.name)}</span>`;
+    }
+  }
   if (task.priority && task.priority !== 'P4') {
     meta += `<span class="todo-pill todo-pill-priority ${pClass} todo-pill-clickable"
       onclick="event.stopPropagation();_todoPillEdit(event,'priority','${task.id}')">${_esc(task.priority)}</span>`;
@@ -475,17 +487,6 @@ function _todoTaskRowHtml(task, isSub) {
       meta += `<span class="todo-pill todo-pill-assignee">${_esc(a.name || a)}</span>`;
     });
     if (task.assignees.length > 2) meta += `<span class="todo-pill todo-pill-assignee">+${task.assignees.length - 2}</span>`;
-  }
-  /* Badge dossier dans la vue globale "Toutes les tâches" */
-  if (!_todoSelectedFolderId && task.folderId && !isSub) {
-    const folder = _todoData.folders.find(f => f.id === task.folderId);
-    if (folder) {
-      meta += `<span class="todo-pill todo-pill-folder" style="--c:${folder.color || '#888'}">
-        <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
-        </svg>
-        ${_esc(folder.name)}</span>`;
-    }
   }
 
   if (task.recurrence && task.recurrence.type !== 'none') {
