@@ -1,6 +1,30 @@
 /* ═══════════════════════════════════════════
-   todo-ui.js — Rendu sidebar + liste (1/3)
+   todo-ui.js — Rendu sidebar + liste (v2)
    ═══════════════════════════════════════════ */
+
+/* ── Helpers types/statuts (compat string legacy ou {name,color}) ── */
+function _todoTypeName(t)    { return typeof t === 'object' ? (t?.name  || '') : (t  || ''); }
+function _todoTypeColor(t)   { return typeof t === 'object' ? (t?.color || '#546e7a') : '#546e7a'; }
+function _todoStatusName(s)  { return typeof s === 'object' ? (s?.name  || '') : (s  || ''); }
+function _todoStatusColor(s) { return typeof s === 'object' ? (s?.color || '#546e7a') : '#546e7a'; }
+function _todoFindType(name) {
+  return _todoData.settings.taskTypes.find(t => _todoTypeName(t) === name) || null;
+}
+function _todoFindStatus(name) {
+  return _todoData.settings.taskStatuses.find(s => _todoStatusName(s) === name) || null;
+}
+
+/* ── Préférences de vue persistées ── */
+function _todoViewCtx() { return _todoSelectedFolderId || 'all'; }
+function _todoGetViewPrefs(ctx) {
+  return (_todoData.settings.viewPrefs || {})[ctx || 'all'] || {};
+}
+function _todoSetViewPrefs(ctx, updates) {
+  if (!_todoData.settings.viewPrefs) _todoData.settings.viewPrefs = {};
+  const key = ctx || 'all';
+  _todoData.settings.viewPrefs[key] = { ...(_todoData.settings.viewPrefs[key] || {}), ...updates };
+  _todoSave();
+}
 
 /* ── Point d'entrée (appelé par router.js) ── */
 function renderTodoView() {
@@ -223,9 +247,14 @@ function _todoRenderTaskList() {
   const main = document.getElementById('todoMain');
   if (!main) return;
 
-  /* Titre de la section courante */
-  let title = 'Toutes les tâches';
-  let filters = null;
+  const ctx           = _todoViewCtx();
+  const prefs         = _todoGetViewPrefs(ctx);
+  const sort          = prefs.sort          || { field: 'order', dir: 'asc' };
+  const group         = prefs.group         || 'none';
+  const hideCompleted = prefs.hideCompleted !== false; /* true par défaut */
+
+  let title     = 'Toutes les tâches';
+  let filters   = null;
   let baseTasks = _todoAllTasks();
 
   if (_todoSelectedFolderId && _todoSelectedFolderId.startsWith('view:')) {
@@ -235,40 +264,72 @@ function _todoRenderTaskList() {
     filters = view ? view.filters : {};
   } else if (_todoSelectedFolderId) {
     const folder = _todoData.folders.find(f => f.id === _todoSelectedFolderId);
-    title = folder ? folder.name : 'Dossier';
+    title     = folder ? folder.name : 'Dossier';
     baseTasks = _todoData.tasks.filter(t => t.folderId === _todoSelectedFolderId);
   }
 
-  /* Appliquer filtres vue + tri */
-  if (filters) baseTasks = _todoApplyViewFilters(baseTasks, filters);
-  const rootTasks    = baseTasks.filter(t => !t.parentId);
-  const sortedTasks  = _todoSortTasks(rootTasks);
+  if (filters)        baseTasks = _todoApplyViewFilters(baseTasks, filters);
+  if (hideCompleted)  baseTasks = baseTasks.filter(t => !t.completed);
 
-  /* Noms des champs de tri */
-  const sortLabels = {
+  const rootTasks   = baseTasks.filter(t => !t.parentId);
+  const sortedTasks = _todoSortTasksBy(rootTasks, sort);
+
+  const sortLabels  = {
     order:'Manuel', priority:'Priorité', dueDate:'Échéance',
     title:'Nom', status:'Statut', type:'Type', created:'Création'
   };
+  const groupLabels = { none:'Aucun', type:'Type', status:'Statut', priority:'Priorité' };
 
   main.innerHTML = `
     <div class="todo-main-header">
       <div class="todo-main-title">${_esc(title)}</div>
+
+      <button class="todo-sort-btn ${hideCompleted ? 'active' : ''}"
+              title="${hideCompleted ? 'Afficher terminées' : 'Masquer terminées'}"
+              onclick="_todoToggleHideCompleted()">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          ${hideCompleted
+            ? '<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/>'
+            : '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>'}
+        </svg>
+        ${hideCompleted ? 'Masquer terminées' : 'Afficher terminées'}
+      </button>
+
       <div style="position:relative">
-        <button class="todo-sort-btn ${_todoSortConfig.field !== 'order' ? 'active' : ''}" onclick="_todoToggleSortMenu(this)">
+        <button class="todo-sort-btn ${group !== 'none' ? 'active' : ''}" onclick="_todoToggleGroupMenu(this)">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="15" y2="12"/><line x1="3" y1="18" x2="9" y2="18"/>
+            <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
+            <rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>
           </svg>
-          Trier : ${sortLabels[_todoSortConfig.field] || 'Manuel'}
+          Grouper : ${groupLabels[group] || 'Aucun'}
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <polyline points="6 9 12 15 18 9"/>
+          </svg>
+        </button>
+        <div class="todo-sort-menu" id="todoGroupMenu">
+          ${Object.entries(groupLabels).map(([k, l]) => `
+            <div class="todo-sort-option ${group === k ? 'active' : ''}"
+                 onclick="_todoSetGroup('${k}')">${l}</div>`).join('')}
+        </div>
+      </div>
+
+      <div style="position:relative">
+        <button class="todo-sort-btn ${sort.field !== 'order' ? 'active' : ''}" onclick="_todoToggleSortMenu(this)">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="15" y2="12"/>
+            <line x1="3" y1="18" x2="9" y2="18"/>
+          </svg>
+          Trier : ${sortLabels[sort.field] || 'Manuel'}
           <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
             <polyline points="6 9 12 15 18 9"/>
           </svg>
         </button>
         <div class="todo-sort-menu" id="todoSortMenu">
           ${Object.entries(sortLabels).map(([f, l]) => `
-            <div class="todo-sort-option ${_todoSortConfig.field === f ? 'active' : ''}"
+            <div class="todo-sort-option ${sort.field === f ? 'active' : ''}"
                  onclick="_todoSetSort('${f}')">
               ${l}
-              ${_todoSortConfig.field === f ? `<span class="sort-dir">${_todoSortConfig.dir === 'asc' ? '↑' : '↓'}</span>` : ''}
+              ${sort.field === f ? `<span class="sort-dir">${sort.dir === 'asc' ? '↑' : '↓'}</span>` : ''}
             </div>`).join('')}
         </div>
       </div>
@@ -277,7 +338,7 @@ function _todoRenderTaskList() {
 
   const body = document.getElementById('todoBody');
 
-  if (sortedTasks.length === 0 && baseTasks.filter(t => t.parentId).length === 0) {
+  if (sortedTasks.length === 0) {
     body.innerHTML = `
       <div class="todo-empty">
         <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
@@ -286,29 +347,86 @@ function _todoRenderTaskList() {
         <div class="todo-empty-title">Aucune tâche</div>
         <div class="todo-empty-sub">Ajoutez votre première tâche ci-dessous</div>
       </div>`;
-  } else {
-    let listHtml = '';
+  } else if (group === 'none') {
+    let html = '';
     sortedTasks.forEach(task => {
-      listHtml += _todoTaskRowHtml(task, false);
-      /* Sous-tâches */
-      const subs = _todoSortTasks(baseTasks.filter(t => t.parentId === task.id));
-      subs.forEach(st => { listHtml += _todoTaskRowHtml(st, true); });
+      html += _todoTaskRowHtml(task, false);
+      _todoSortTasksBy(baseTasks.filter(t => t.parentId === task.id), sort)
+        .forEach(st => { html += _todoTaskRowHtml(st, true); });
     });
-    body.innerHTML = `<div class="todo-task-list" id="todoTaskList">${listHtml}</div>`;
-    _todoAttachTaskEvents();
+    body.innerHTML = `<div class="todo-task-list" id="todoTaskList">${html}</div>`;
+  } else {
+    const groups = _todoGroupTasks(sortedTasks, group);
+    let html = '';
+    groups.forEach(({ label, color, tasks: gTasks }) => {
+      html += `<div class="todo-group">
+        <div class="todo-group-title">
+          ${color ? `<span class="todo-group-dot" style="background:${color}"></span>` : ''}
+          ${_esc(label)}<span class="todo-group-count">${gTasks.length}</span>
+        </div>`;
+      gTasks.forEach(task => {
+        html += _todoTaskRowHtml(task, false);
+        _todoSortTasksBy(baseTasks.filter(t => t.parentId === task.id), sort)
+          .forEach(st => { html += _todoTaskRowHtml(st, true); });
+      });
+      html += `</div>`;
+    });
+    body.innerHTML = `<div class="todo-task-list" id="todoTaskList">${html}</div>`;
   }
 
-  /* Barre d'ajout rapide */
-  const addBarHtml = `
+  _todoAttachTaskEvents();
+
+  body.insertAdjacentHTML('beforeend', `
     <div class="todo-add-bar" id="todoAddBar" onclick="document.getElementById('todoAddInput').focus()">
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
         <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
       </svg>
       <input id="todoAddInput" class="todo-add-input" placeholder="Ajouter une tâche…"
-             onkeydown="_todoAddBarKey(event)"
-             onclick="event.stopPropagation()">
-    </div>`;
-  body.insertAdjacentHTML('beforeend', addBarHtml);
+             onkeydown="_todoAddBarKey(event)" onclick="event.stopPropagation()">
+    </div>`);
+}
+
+/* ── Tri par config objet ── */
+function _todoSortTasksBy(tasks, sort) {
+  const field = sort?.field || 'order';
+  const dir   = sort?.dir   || 'asc';
+  const m     = dir === 'asc' ? 1 : -1;
+  return [...tasks].sort((a, b) => {
+    switch (field) {
+      case 'priority': return m * ((_PRIORITY_ORDER[a.priority]||3)-(_PRIORITY_ORDER[b.priority]||3));
+      case 'dueDate':  return m * ((a.dueDate ? new Date(a.dueDate) : new Date('9999')) - (b.dueDate ? new Date(b.dueDate) : new Date('9999')));
+      case 'title':    return m * a.title.localeCompare(b.title, 'fr');
+      case 'status':   return m * (_todoStatusName(a.status)||'').localeCompare(_todoStatusName(b.status)||'', 'fr');
+      case 'type':     return m * (_todoTypeName(a.type)||'').localeCompare(_todoTypeName(b.type)||'', 'fr');
+      case 'created':  return m * (new Date(a.createdAt) - new Date(b.createdAt));
+      default:         return m * ((a.order||0)-(b.order||0));
+    }
+  });
+}
+
+/* ── Groupement ── */
+function _todoGroupTasks(tasks, groupBy) {
+  const map = new Map();
+  const pColors = { P1:'#db4035', P2:'#ff9a14', P3:'#4073ff', P4:'#888' };
+  tasks.forEach(task => {
+    let key, label, color;
+    if (groupBy === 'type') {
+      label = _todoTypeName(task.type) || '(Sans type)';
+      color = _todoTypeColor(_todoFindType(_todoTypeName(task.type)) || task.type);
+      key   = label;
+    } else if (groupBy === 'status') {
+      label = _todoStatusName(task.status) || '(Sans statut)';
+      color = _todoStatusColor(_todoFindStatus(_todoStatusName(task.status)) || task.status);
+      key   = label;
+    } else {
+      key   = task.priority || 'P4';
+      label = key;
+      color = pColors[key] || '#888';
+    }
+    if (!map.has(key)) map.set(key, { label, color, tasks: [] });
+    map.get(key).tasks.push(task);
+  });
+  return [...map.values()];
 }
 
 /* ── HTML d'une ligne de tâche ── */
@@ -318,20 +436,29 @@ function _todoTaskRowHtml(task, isSub) {
   const doneClass= task.completed ? 'completed' : '';
   const subClass = isSub ? 'subtask' : '';
 
-  /* Méta pills */
+  /* Méta pills (avec couleurs dynamiques et édition inline) */
+  const typeName    = _todoTypeName(task.type);
+  const typeColor   = _todoTypeColor(_todoFindType(typeName) || task.type);
+  const statusName  = _todoStatusName(task.status);
+  const statusColor = _todoStatusColor(_todoFindStatus(statusName) || task.status);
+
   let meta = '';
   if (task.priority && task.priority !== 'P4') {
-    meta += `<span class="todo-pill todo-pill-priority ${pClass}">${_esc(task.priority)}</span>`;
+    meta += `<span class="todo-pill todo-pill-priority ${pClass} todo-pill-clickable"
+      onclick="event.stopPropagation();_todoPillEdit(event,'priority','${task.id}')">${_esc(task.priority)}</span>`;
   }
-  if (task.status) {
-    meta += `<span class="todo-pill todo-pill-status">${_esc(task.status)}</span>`;
+  if (statusName) {
+    meta += `<span class="todo-pill todo-pill-status todo-pill-clickable" style="--c:${statusColor}"
+      onclick="event.stopPropagation();_todoPillEdit(event,'status','${task.id}')">${_esc(statusName)}</span>`;
   }
-  if (task.type) {
-    meta += `<span class="todo-pill todo-pill-type">${_esc(task.type)}</span>`;
+  if (typeName) {
+    meta += `<span class="todo-pill todo-pill-type todo-pill-clickable" style="--c:${typeColor}"
+      onclick="event.stopPropagation();_todoPillEdit(event,'type','${task.id}')">${_esc(typeName)}</span>`;
   }
   if (task.dueDate) {
     const overdue = !task.completed && _todoIsOverdue(task.dueDate) ? 'overdue' : '';
-    meta += `<span class="todo-pill todo-pill-date ${overdue}">
+    meta += `<span class="todo-pill todo-pill-date ${overdue} todo-pill-clickable"
+      onclick="event.stopPropagation();_todoPillEdit(event,'dueDate','${task.id}')">
       <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/>
         <line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
@@ -421,10 +548,11 @@ function _todoAddBarKey(e) {
   _todoShowToast('Tâche ajoutée');
 }
 
-/* ── Tri ── */
+/* ── Tri persisté ── */
 function _todoToggleSortMenu(btn) {
   const menu = document.getElementById('todoSortMenu');
   if (!menu) return;
+  document.getElementById('todoGroupMenu')?.classList.remove('open');
   const open = menu.classList.toggle('open');
   if (open) {
     const close = e => { if (!btn.contains(e.target) && !menu.contains(e.target)) { menu.classList.remove('open'); document.removeEventListener('click', close); }};
@@ -433,14 +561,101 @@ function _todoToggleSortMenu(btn) {
 }
 
 function _todoSetSort(field) {
-  if (_todoSortConfig.field === field) {
-    _todoSortConfig.dir = _todoSortConfig.dir === 'asc' ? 'desc' : 'asc';
-  } else {
-    _todoSortConfig.field = field;
-    _todoSortConfig.dir   = 'asc';
-  }
+  const ctx   = _todoViewCtx();
+  const prefs = _todoGetViewPrefs(ctx);
+  const cur   = prefs.sort || { field: 'order', dir: 'asc' };
+  const dir   = cur.field === field ? (cur.dir === 'asc' ? 'desc' : 'asc') : 'asc';
+  _todoSetViewPrefs(ctx, { sort: { field, dir } });
   document.getElementById('todoSortMenu')?.classList.remove('open');
   _todoRenderTaskList();
+}
+
+/* ── Regroupement persisté ── */
+function _todoToggleGroupMenu(btn) {
+  const menu = document.getElementById('todoGroupMenu');
+  if (!menu) return;
+  document.getElementById('todoSortMenu')?.classList.remove('open');
+  const open = menu.classList.toggle('open');
+  if (open) {
+    const close = e => { if (!btn.contains(e.target) && !menu.contains(e.target)) { menu.classList.remove('open'); document.removeEventListener('click', close); }};
+    setTimeout(() => document.addEventListener('click', close), 0);
+  }
+}
+
+function _todoSetGroup(group) {
+  _todoSetViewPrefs(_todoViewCtx(), { group });
+  document.getElementById('todoGroupMenu')?.classList.remove('open');
+  _todoRenderTaskList();
+}
+
+/* ── Masquer terminées persisté ── */
+function _todoToggleHideCompleted() {
+  const ctx   = _todoViewCtx();
+  const prefs = _todoGetViewPrefs(ctx);
+  _todoSetViewPrefs(ctx, { hideCompleted: prefs.hideCompleted === false });
+  _todoRenderTaskList();
+}
+
+/* ── Édition inline pills ── */
+function _todoPillEdit(event, field, taskId) {
+  document.querySelector('.todo-pill-dropdown')?.remove();
+  const task = _todoData.tasks.find(t => t.id === taskId);
+  if (!task) return;
+  const rect = event.currentTarget.getBoundingClientRect();
+  const drop = document.createElement('div');
+  drop.className = 'todo-pill-dropdown';
+  drop.style.cssText = 'position:fixed;z-index:2000;min-width:150px;background:var(--surface);border:1px solid var(--border);border-radius:8px;box-shadow:0 8px 24px var(--shadow);padding:4px 0;';
+  let html = '';
+  if (field === 'priority') {
+    const pCol = { P1:'#db4035', P2:'#ff9a14', P3:'#4073ff', P4:'#aaa' };
+    ['P1','P2','P3','P4'].forEach(p => {
+      html += `<div class="todo-pill-opt ${task.priority===p?'selected':''}" onclick="_todoPillSet('${taskId}','priority','${p}')">
+        <span class="todo-pill-opt-dot" style="background:${pCol[p]}"></span>${p}</div>`;
+    });
+  } else if (field === 'status') {
+    html += `<div class="todo-pill-opt ${!task.status?'selected':''}" onclick="_todoPillSet('${taskId}','status','')">— Aucun —</div>`;
+    _todoData.settings.taskStatuses.forEach(s => {
+      const n = _todoStatusName(s); const c = _todoStatusColor(s);
+      html += `<div class="todo-pill-opt ${_todoStatusName(task.status)===n?'selected':''}" onclick="_todoPillSet('${taskId}','status','${_esc(n)}')">
+        <span class="todo-pill-opt-dot" style="background:${c}"></span>${_esc(n)}</div>`;
+    });
+  } else if (field === 'type') {
+    html += `<div class="todo-pill-opt ${!task.type?'selected':''}" onclick="_todoPillSet('${taskId}','type','')">— Aucun —</div>`;
+    _todoData.settings.taskTypes.forEach(t => {
+      const n = _todoTypeName(t); const c = _todoTypeColor(t);
+      html += `<div class="todo-pill-opt ${_todoTypeName(task.type)===n?'selected':''}" onclick="_todoPillSet('${taskId}','type','${_esc(n)}')">
+        <span class="todo-pill-opt-dot" style="background:${c}"></span>${_esc(n)}</div>`;
+    });
+  } else if (field === 'dueDate') {
+    html = `<div style="padding:8px">
+      <input type="date" value="${task.dueDate?task.dueDate.slice(0,10):''}"
+             style="border:1px solid var(--border);border-radius:5px;padding:5px 8px;background:var(--surface2);color:var(--text);font-size:12px;outline:none"
+             onchange="_todoPillSet('${taskId}','dueDate',this.value)">
+      <div style="margin-top:6px;text-align:right">
+        <span style="font-size:11px;color:var(--muted);cursor:pointer" onclick="_todoPillSet('${taskId}','dueDate','')">Effacer</span>
+      </div></div>`;
+  }
+  drop.innerHTML = html;
+  document.body.appendChild(drop);
+  const dr = drop.getBoundingClientRect();
+  let top = rect.bottom + 4, left = rect.left;
+  if (top + dr.height > window.innerHeight) top = rect.top - dr.height - 4;
+  if (left + dr.width  > window.innerWidth)  left = window.innerWidth - dr.width - 8;
+  drop.style.top = top + 'px'; drop.style.left = left + 'px';
+  setTimeout(() => document.addEventListener('click', function h(e) {
+    if (!drop.contains(e.target)) { drop.remove(); document.removeEventListener('click', h, true); }
+  }, true), 0);
+}
+
+function _todoPillSet(taskId, field, value) {
+  document.querySelector('.todo-pill-dropdown')?.remove();
+  if (field === 'dueDate') {
+    _todoUpdateTask(taskId, { dueDate: value ? new Date(value).toISOString() : null });
+  } else {
+    _todoUpdateTask(taskId, { [field]: value });
+  }
+  _todoRenderTaskList();
+  if (typeof _todoModalTaskId !== 'undefined' && _todoModalTaskId) _tmRenderRight();
 }
 
 /* ── Drag & drop tâches ── */
@@ -474,9 +689,8 @@ function _todoTaskDrop(e, toId) {
   const from = _todoData.tasks.find(t => t.id === _todoTaskDragId);
   const to   = _todoData.tasks.find(t => t.id === toId);
   if (!from || !to) { _todoTaskDragId = null; return; }
-  /* Échanger les ordres */
   const tmp = from.order; from.order = to.order; to.order = tmp;
-  _todoSortConfig.field = 'order';
+  _todoSetViewPrefs(_todoViewCtx(), { sort: { field: 'order', dir: 'asc' } });
   _todoTaskDragId = null;
   _todoSave();
   _todoRenderTaskList();
@@ -492,7 +706,11 @@ function _todoAttachGlobalEvents() {
 
 function _todoGlobalKey(e) {
   if (currentView !== 'todo') return;
-  if (e.key === 'Escape') { _todoCloseModal(); _todoCloseDialog(); }
+  if (e.key === 'Escape') {
+    document.querySelector('.todo-pill-dropdown')?.remove();
+    _todoCloseModal();
+    _todoCloseDialog();
+  }
 }
 
 /* ── Attach events sur les lignes ── */
@@ -555,7 +773,10 @@ function _todoConfirmDeleteView(id) {
    DIALOGS (3/3)
    ══════════════════════════════════════════ */
 
-const _FOLDER_COLORS = ['#EC7206','#e53935','#8e24aa','#1e88e5','#43a047','#fb8c00','#6d4c41','#546e7a'];
+const _FOLDER_COLORS = [
+  '#EC7206','#e53935','#8e24aa','#1e88e5',
+  '#43a047','#fb8c00','#6d4c41','#546e7a'
+];
 
 /* ── Dialog Dossier (créer / renommer) ── */
 function _todoOpenFolderDialog(folderId) {
@@ -621,62 +842,84 @@ function _todoSubmitFolderDialog(folderId) {
   _todoRenderTaskList();
 }
 
-/* ── Dialog Vue (créer / modifier) ── */
+/* ── Dialog Vue amélioré (date filter + showNoDate + 500px) ── */
 function _todoOpenViewDialog(viewId) {
-  const existing = viewId ? _todoData.views.find(v => v.id === viewId) : null;
-  const title    = existing ? 'Modifier la vue' : 'Nouvelle vue';
-  const f        = existing?.filters || {};
-
-  const priorities = ['P1','P2','P3','P4'];
+  const existing   = viewId ? _todoData.views.find(v => v.id === viewId) : null;
+  const title      = existing ? 'Modifier la vue' : 'Nouvelle vue';
+  const f          = existing?.filters || {};
   const statuses   = _todoData.settings.taskStatuses;
   const types      = _todoData.settings.taskTypes;
+  const dateFilter = f.dateFilter || 'all';
+  const showNoDate = f.showNoDate !== false;
 
   const chkP = p => (f.priority || []).includes(p) ? 'checked' : '';
-  const chkS = s => (f.status   || []).includes(s) ? 'checked' : '';
-  const chkT = t => (f.type     || []).includes(t) ? 'checked' : '';
+  const chkS = s => (f.status || []).includes(_todoStatusName(s)) ? 'checked' : '';
+  const chkT = t => (f.type   || []).includes(_todoTypeName(t))   ? 'checked' : '';
 
   const overlay = document.createElement('div');
   overlay.className = 'todo-dialog-overlay';
   overlay.id = 'todoDialogOverlay';
 
   overlay.innerHTML = `
-    <div class="todo-dialog" style="width:420px">
+    <div class="todo-dialog" style="width:500px;max-width:96vw">
       <div class="todo-dialog-title">${title}</div>
       <input class="todo-dialog-input" id="todoViewNameInput"
              placeholder="Nom de la vue" value="${_esc(existing?.name || '')}">
 
-      <div style="font-size:10px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;
-                  color:var(--muted);margin-bottom:8px">Filtres</div>
-
-      ${priorities.length ? `
-        <div style="font-size:11px;font-weight:700;color:var(--text);margin-bottom:5px">Priorité</div>
-        <div style="display:flex;gap:8px;margin-bottom:12px">
-          ${priorities.map(p => `<label style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer">
-            <input type="checkbox" value="${p}" class="vf-priority" ${chkP(p)}> ${p}</label>`).join('')}
-        </div>` : ''}
+      <div class="todo-vd-section-label">Priorité</div>
+      <div class="todo-vd-checkrow">
+        ${['P1','P2','P3','P4'].map(p => `
+          <label class="todo-vd-check">
+            <input type="checkbox" value="${p}" class="vf-priority" ${chkP(p)}>
+            <span class="todo-vd-check-label ${p.toLowerCase()}">${p}</span>
+          </label>`).join('')}
+      </div>
 
       ${statuses.length ? `
-        <div style="font-size:11px;font-weight:700;color:var(--text);margin-bottom:5px">Statut</div>
-        <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px">
-          ${statuses.map(s => `<label style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer">
-            <input type="checkbox" value="${_esc(s)}" class="vf-status" ${chkS(s)}> ${_esc(s)}</label>`).join('')}
+        <div class="todo-vd-section-label">Statut</div>
+        <div class="todo-vd-checkrow wrap">
+          ${statuses.map(s => {
+            const n = _todoStatusName(s); const c = _todoStatusColor(s);
+            return `<label class="todo-vd-check">
+              <input type="checkbox" value="${_esc(n)}" class="vf-status" ${chkS(s)}>
+              <span class="todo-vd-check-label"><span class="todo-vd-dot" style="background:${c}"></span>${_esc(n)}</span>
+            </label>`;
+          }).join('')}
         </div>` : ''}
 
       ${types.length ? `
-        <div style="font-size:11px;font-weight:700;color:var(--text);margin-bottom:5px">Type</div>
-        <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px">
-          ${types.map(t => `<label style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer">
-            <input type="checkbox" value="${_esc(t)}" class="vf-type" ${chkT(t)}> ${_esc(t)}</label>`).join('')}
+        <div class="todo-vd-section-label">Type</div>
+        <div class="todo-vd-checkrow wrap">
+          ${types.map(t => {
+            const n = _todoTypeName(t); const c = _todoTypeColor(t);
+            return `<label class="todo-vd-check">
+              <input type="checkbox" value="${_esc(n)}" class="vf-type" ${chkT(t)}>
+              <span class="todo-vd-check-label"><span class="todo-vd-dot" style="background:${c}"></span>${_esc(n)}</span>
+            </label>`;
+          }).join('')}
         </div>` : ''}
 
-      <label style="display:flex;align-items:center;gap:8px;font-size:12px;cursor:pointer;margin-bottom:14px">
-        <input type="checkbox" id="vfIncomplete" ${f.showOnlyIncomplete ? 'checked' : ''}>
-        Masquer les tâches terminées
+      <div class="todo-vd-section-label">Date d'échéance</div>
+      <div class="todo-vd-radio-row">
+        ${[['all','Tout'],['today',"Aujourd'hui"],['week','Cette semaine'],['month','Ce mois']].map(([v,l]) =>
+          `<label class="todo-vd-radio">
+            <input type="radio" name="vfDate" value="${v}" ${dateFilter===v?'checked':''}>${l}
+          </label>`).join('')}
+      </div>
+      <label class="todo-vd-check" style="margin-top:6px">
+        <input type="checkbox" id="vfShowNoDate" ${showNoDate?'checked':''}>
+        <span style="font-size:12px;color:var(--text)">Afficher les tâches sans date</span>
+      </label>
+
+      <div style="height:1px;background:var(--border);margin:14px 0"></div>
+      <label class="todo-vd-check">
+        <input type="checkbox" id="vfIncomplete" ${f.showOnlyIncomplete?'checked':''}>
+        <span style="font-size:12px;color:var(--text)">Masquer les tâches terminées</span>
       </label>
 
       <div class="todo-dialog-actions">
         <button class="todo-dialog-cancel" onclick="_todoCloseDialog()">Annuler</button>
-        <button class="todo-dialog-ok" onclick="_todoSubmitViewDialog('${viewId || ''}')">
+        <button class="todo-dialog-ok" onclick="_todoSubmitViewDialog('${viewId||''}')">
           ${existing ? 'Enregistrer' : 'Créer'}
         </button>
       </div>
@@ -684,7 +927,9 @@ function _todoOpenViewDialog(viewId) {
 
   document.body.appendChild(overlay);
   overlay.addEventListener('click', e => { if (e.target === overlay) _todoCloseDialog(); });
-  document.getElementById('todoViewNameInput').focus();
+  const ni = document.getElementById('todoViewNameInput');
+  ni.focus();
+  ni.addEventListener('keydown', e => { if (e.key === 'Enter') _todoSubmitViewDialog(viewId||''); if (e.key === 'Escape') _todoCloseDialog(); });
 }
 
 function _todoSubmitViewDialog(viewId) {
@@ -692,16 +937,20 @@ function _todoSubmitViewDialog(viewId) {
   if (!name) { document.getElementById('todoViewNameInput')?.focus(); return; }
 
   const getChecked = cls => [...document.querySelectorAll(`.${cls}:checked`)].map(el => el.value);
+  const dateFilter = document.querySelector('input[name="vfDate"]:checked')?.value || 'all';
   const filters = {
     priority:           getChecked('vf-priority'),
     status:             getChecked('vf-status'),
     type:               getChecked('vf-type'),
-    showOnlyIncomplete: document.getElementById('vfIncomplete')?.checked || false
+    showOnlyIncomplete: document.getElementById('vfIncomplete')?.checked || false,
+    dateFilter:         dateFilter !== 'all' ? dateFilter : undefined,
+    showNoDate:         document.getElementById('vfShowNoDate')?.checked || undefined
   };
-  /* Nettoyer les filtres vides */
-  if (!filters.priority.length) delete filters.priority;
-  if (!filters.status.length)   delete filters.status;
-  if (!filters.type.length)     delete filters.type;
+  if (!filters.priority.length)       delete filters.priority;
+  if (!filters.status.length)         delete filters.status;
+  if (!filters.type.length)           delete filters.type;
+  if (!filters.dateFilter)            delete filters.dateFilter;
+  if (filters.showNoDate === undefined) delete filters.showNoDate;
 
   if (viewId) {
     _todoUpdateView(viewId, { name, filters });

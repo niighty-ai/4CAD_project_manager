@@ -5,17 +5,34 @@
    ═══════════════════════════════════════════ */
 
 let _todoModalTaskId = null;
+let _tmActiveSubId   = null; /* null = parent, sinon id sous-tâche active (Option A) */
 
 /* ── Ouverture ── */
 function _todoOpenModal(taskId) {
   _todoModalTaskId = taskId;
+  _tmActiveSubId   = null;
   _todoRenderModal();
 }
 
-/* ── Fermeture ── */
+/* ── Fermeture (avec validation Type + Statut obligatoires) ── */
 function _todoCloseModal() {
+  const task = _todoData.tasks.find(t => t.id === _todoModalTaskId);
+  if (task) {
+    const typeName   = typeof task.type   === 'object' ? task.type?.name   : task.type;
+    const statusName = typeof task.status === 'object' ? task.status?.name : task.status;
+    if (!typeName || !statusName) {
+      const missing = [!typeName && 'Type', !statusName && 'Statut'].filter(Boolean).join(' et ');
+      _todoShowToast(`⚠ ${missing} obligatoire(s) — veuillez renseigner avant de fermer`);
+      /* Mise en évidence visuelle */
+      document.querySelectorAll('.tm-required-missing').forEach(el => el.classList.remove('tm-required-missing'));
+      if (!typeName)   document.getElementById('tmPropType')?.classList.add('tm-required-missing');
+      if (!statusName) document.getElementById('tmPropStatus')?.classList.add('tm-required-missing');
+      return;
+    }
+  }
   document.getElementById('todoModalOverlay')?.remove();
   _todoModalTaskId = null;
+  _tmActiveSubId   = null;
 }
 
 /* ── Rendu complet de la modale ── */
@@ -141,30 +158,49 @@ function _tmSaveDesc() {
   _todoUpdateTask(_todoModalTaskId, { description: val });
 }
 
-/* ── Sous-tâches ── */
+/* ── Sous-tâches (Option A : clic bascule colonne droite + commentaires) ── */
 function _tmRenderSubtasks() {
   const el = document.getElementById('tmSubtasks');
   if (!el) return;
   const subs = _todoData.tasks.filter(t => t.parentId === _todoModalTaskId);
   if (!subs.length) { el.innerHTML = ''; return; }
-  el.innerHTML = subs.map(st => `
-    <div class="todo-subtask-item ${st.completed ? 'done' : ''}" data-sub-id="${st.id}">
+  el.innerHTML = subs.map(st => {
+    const isActive = st.id === _tmActiveSubId;
+    return `
+    <div class="todo-subtask-item ${st.completed ? 'done' : ''} ${isActive ? 'tm-sub-active' : ''}"
+         data-sub-id="${st.id}">
       <div class="todo-check ${(st.priority||'p4').toLowerCase()} ${st.completed ? 'checked' : ''}"
            style="width:15px;height:15px;border-width:1.5px"
-           onclick="_tmToggleSubtask('${st.id}')">
+           onclick="event.stopPropagation();_tmToggleSubtask('${st.id}')">
         <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
           <polyline points="20 6 9 17 4 12"/>
         </svg>
       </div>
       <input type="text" value="${_esc(st.title)}"
+             onclick="event.stopPropagation()"
              onblur="_tmSaveSubtask('${st.id}',this.value)"
              onkeydown="if(event.key==='Enter')this.blur();if(event.key==='Escape')this.blur()">
-      <div class="todo-subtask-del" onclick="_tmDeleteSubtask('${st.id}')">
+      <div class="todo-subtask-del" onclick="event.stopPropagation();_tmDeleteSubtask('${st.id}')">
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
           <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
         </svg>
       </div>
-    </div>`).join('');
+      <!-- Clic sur la ligne → bascule vers la sous-tâche -->
+      <div class="tm-sub-select" title="Voir les propriétés"
+           onclick="_tmSelectSub('${st.id}')">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="9 18 15 12 9 6"/>
+        </svg>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function _tmSelectSub(subId) {
+  _tmActiveSubId = (_tmActiveSubId === subId) ? null : subId;
+  _tmRenderSubtasks();
+  _tmRenderRight();
+  _tmRenderComments();
 }
 
 function _tmAddSubtask() {
@@ -196,11 +232,12 @@ function _tmDeleteSubtask(subId) {
   _todoRenderTaskList();
 }
 
-/* ── Commentaires ── */
+/* ── Commentaires (bascule parent/sous-tâche selon _tmActiveSubId) ── */
 function _tmRenderComments() {
   const el = document.getElementById('tmComments');
   if (!el) return;
-  const task = _todoData.tasks.find(t => t.id === _todoModalTaskId);
+  const activeId = _tmActiveSubId || _todoModalTaskId;
+  const task     = _todoData.tasks.find(t => t.id === activeId);
   const comments = task?.comments || [];
   if (!comments.length) { el.innerHTML = ''; return; }
 
@@ -236,7 +273,8 @@ function _tmSubmitComment() {
   if (!input) return;
   const text = input.value.trim();
   if (!text) return;
-  _todoAddComment(_todoModalTaskId, text);
+  const activeId = _tmActiveSubId || _todoModalTaskId;
+  _todoAddComment(activeId, text);
   input.value = '';
   _tmAutoResize(input);
   _tmRenderComments();
@@ -244,7 +282,8 @@ function _tmSubmitComment() {
 }
 
 function _tmEditComment(commentId) {
-  const task = _todoData.tasks.find(t => t.id === _todoModalTaskId);
+  const activeId = _tmActiveSubId || _todoModalTaskId;
+  const task = _todoData.tasks.find(t => t.id === activeId);
   const c    = (task?.comments || []).find(c => c.id === commentId);
   if (!c) return;
 
@@ -262,7 +301,8 @@ function _tmEditComment(commentId) {
 
   const save = () => {
     const val = ta.value.trim();
-    if (val && val !== original) _todoEditComment(_todoModalTaskId, commentId, val);
+    const activeId = _tmActiveSubId || _todoModalTaskId;
+    if (val && val !== original) _todoEditComment(activeId, commentId, val);
     _tmRenderComments();
   };
   ta.addEventListener('blur', save);
@@ -274,24 +314,31 @@ function _tmEditComment(commentId) {
 
 function _tmDeleteComment(commentId) {
   if (!confirm('Supprimer ce commentaire ?')) return;
-  _todoDeleteComment(_todoModalTaskId, commentId);
+  const activeId = _tmActiveSubId || _todoModalTaskId;
+  _todoDeleteComment(activeId, commentId);
   _tmRenderComments();
   _todoRenderTaskList();
 }
 
 /* ══════════════════════════════════════════
    COLONNE DROITE — propriétés (2/2)
+   Option A : bascule sur la sous-tâche active
    ══════════════════════════════════════════ */
 function _tmRenderRight() {
   const el = document.getElementById('tmRight');
   if (!el) return;
-  const task = _todoData.tasks.find(t => t.id === _todoModalTaskId);
-  if (!task) return;
 
-  const folders   = _todoData.folders;
-  const types     = _todoData.settings.taskTypes;
-  const statuses  = _todoData.settings.taskStatuses;
-  const recTypes  = [
+  /* Tâche affichée : sous-tâche active ou parent */
+  const activeId = _tmActiveSubId || _todoModalTaskId;
+  const task     = _todoData.tasks.find(t => t.id === activeId);
+  if (!task) return;
+  const isSub    = !!_tmActiveSubId;
+
+  const parent   = isSub ? _todoData.tasks.find(t => t.id === _todoModalTaskId) : null;
+  const folders  = _todoData.folders;
+  const types    = _todoData.settings.taskTypes;
+  const statuses = _todoData.settings.taskStatuses;
+  const recTypes = [
     { val:'none',    label:'Pas de récurrence' },
     { val:'daily',   label:'Tous les jours' },
     { val:'weekly',  label:'Toutes les semaines' },
@@ -299,9 +346,56 @@ function _tmRenderRight() {
     { val:'yearly',  label:'Tous les ans' }
   ];
 
+  /* Helpers couleur/nom (compat string legacy) */
+  const tName  = t => typeof t === 'object' ? (t?.name  || '') : (t  || '');
+  const tColor = t => typeof t === 'object' ? (t?.color || '#546e7a') : '#546e7a';
+  const curTypeName   = tName(task.type);
+  const curStatusName = tName(task.status);
+  const curTypeObj    = types.find(t => tName(t) === curTypeName);
+  const curStatusObj  = statuses.find(s => tName(s) === curStatusName);
+  const curTypeColor  = curTypeObj   ? tColor(curTypeObj)   : '#546e7a';
+  const curStatusColor= curStatusObj ? tColor(curStatusObj) : '#546e7a';
+
   const assigneeNames = (task.assignees || []).map(a => a.name || a);
 
+  /* Bandeau retour si sous-tâche active */
+  const breadcrumb = isSub ? `
+    <div class="tm-sub-breadcrumb">
+      <span class="tm-sub-back" onclick="_tmSelectSub('${_tmActiveSubId}')">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <polyline points="15 18 9 12 15 6"/>
+        </svg>
+        ${_esc(parent?.title || 'Tâche parente')}
+      </span>
+      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <polyline points="9 18 15 12 9 6"/>
+      </svg>
+      <span style="color:var(--text);font-weight:600">${_esc(task.title)}</span>
+    </div>` : '';
+
+  /* Récurrence sous-tâche : toggle followsParent */
+  const recurrenceBlock = isSub ? `
+    <div class="todo-prop">
+      <div class="todo-prop-label">Récurrence</div>
+      <label class="tm-follows-toggle">
+        <input type="checkbox" ${task.followsParent ? 'checked' : ''}
+               onchange="_tmSetFollowsParent(this.checked)">
+        <span>${task.followsParent ? 'Suit la récurrence parente' : 'Unique à cette itération'}</span>
+      </label>
+    </div>` : `
+    <div class="todo-prop">
+      <div class="todo-prop-label">Récurrence</div>
+      <div class="todo-prop-value" style="padding:4px 8px">
+        <select onchange="_tmSetRecurrence(this.value)">
+          ${recTypes.map(r => `<option value="${r.val}"
+            ${(task.recurrence?.type || 'none') === r.val ? 'selected' : ''}>${r.label}</option>`).join('')}
+        </select>
+      </div>
+    </div>`;
+
   el.innerHTML = `
+    ${breadcrumb}
+
     <!-- Priorité -->
     <div class="todo-prop">
       <div class="todo-prop-label">Priorité</div>
@@ -312,32 +406,40 @@ function _tmRenderRight() {
       </div>
     </div>
 
-    <!-- Statut -->
-    <div class="todo-prop">
+    <!-- Type (OBLIGATOIRE, en premier) -->
+    <div class="todo-prop" id="tmPropType">
       <div class="todo-prop-label">
-        Statut
-        <span style="margin-left:auto;cursor:pointer;color:var(--accent);font-size:9px"
-              onclick="_tmOpenTagsDialog('status')">Gérer</span>
-      </div>
-      <div class="todo-prop-value">
-        <select onchange="_tmSetStatus(this.value)">
-          <option value="">— Aucun —</option>
-          ${statuses.map(s => `<option value="${_esc(s)}" ${task.status === s ? 'selected' : ''}>${_esc(s)}</option>`).join('')}
-        </select>
-      </div>
-    </div>
-
-    <!-- Type -->
-    <div class="todo-prop">
-      <div class="todo-prop-label">
-        Type
+        Type <span class="tm-required-star">*</span>
         <span style="margin-left:auto;cursor:pointer;color:var(--accent);font-size:9px"
               onclick="_tmOpenTagsDialog('type')">Gérer</span>
       </div>
       <div class="todo-prop-value">
+        ${curTypeName ? `<span class="tm-color-dot" style="background:${curTypeColor}"></span>` : ''}
         <select onchange="_tmSetType(this.value)">
           <option value="">— Aucun —</option>
-          ${types.map(t => `<option value="${_esc(t)}" ${task.type === t ? 'selected' : ''}>${_esc(t)}</option>`).join('')}
+          ${types.map(t => {
+            const n = tName(t);
+            return `<option value="${_esc(n)}" ${curTypeName === n ? 'selected' : ''}>${_esc(n)}</option>`;
+          }).join('')}
+        </select>
+      </div>
+    </div>
+
+    <!-- Statut (OBLIGATOIRE, en second) -->
+    <div class="todo-prop" id="tmPropStatus">
+      <div class="todo-prop-label">
+        Statut <span class="tm-required-star">*</span>
+        <span style="margin-left:auto;cursor:pointer;color:var(--accent);font-size:9px"
+              onclick="_tmOpenTagsDialog('status')">Gérer</span>
+      </div>
+      <div class="todo-prop-value">
+        ${curStatusName ? `<span class="tm-color-dot" style="background:${curStatusColor}"></span>` : ''}
+        <select onchange="_tmSetStatus(this.value)">
+          <option value="">— Aucun —</option>
+          ${statuses.map(s => {
+            const n = tName(s);
+            return `<option value="${_esc(n)}" ${curStatusName === n ? 'selected' : ''}>${_esc(n)}</option>`;
+          }).join('')}
         </select>
       </div>
     </div>
@@ -351,16 +453,7 @@ function _tmRenderRight() {
       </div>
     </div>
 
-    <!-- Récurrence -->
-    <div class="todo-prop">
-      <div class="todo-prop-label">Récurrence</div>
-      <div class="todo-prop-value" style="padding:4px 8px">
-        <select onchange="_tmSetRecurrence(this.value)">
-          ${recTypes.map(r => `<option value="${r.val}"
-            ${(task.recurrence?.type || 'none') === r.val ? 'selected' : ''}>${r.label}</option>`).join('')}
-        </select>
-      </div>
-    </div>
+    ${recurrenceBlock}
 
     <!-- Responsables -->
     <div class="todo-prop">
@@ -378,8 +471,7 @@ function _tmRenderRight() {
       </div>
       <div style="position:relative;margin-top:4px">
         <input class="todo-dialog-input" id="tmAssigneeInput"
-               placeholder="Ajouter un responsable…"
-               autocomplete="off"
+               placeholder="Ajouter un responsable…" autocomplete="off"
                style="margin:0;font-size:11px;padding:5px 8px"
                oninput="_tmAssigneeSearch(this.value)"
                onkeydown="_tmAssigneeKey(event)">
@@ -387,7 +479,8 @@ function _tmRenderRight() {
       </div>
     </div>
 
-    <!-- Dossier -->
+    ${!isSub ? `
+    <!-- Dossier (parent seulement) -->
     <div class="todo-prop">
       <div class="todo-prop-label">Dossier</div>
       <div class="todo-prop-value">
@@ -398,7 +491,7 @@ function _tmRenderRight() {
       </div>
     </div>
 
-    <!-- Partage -->
+    <!-- Partage (parent seulement) -->
     <div class="todo-prop">
       <div class="todo-prop-label">Partager avec</div>
       <div class="todo-share-list" id="tmShareList">
@@ -414,39 +507,53 @@ function _tmRenderRight() {
           </div>`).join('')}
       </div>
       <div style="display:flex;gap:6px;margin-top:6px">
-        <input class="todo-dialog-input" id="tmShareInput"
-               placeholder="Email utilisateur…"
+        <input class="todo-dialog-input" id="tmShareInput" placeholder="Email utilisateur…"
                style="margin:0;font-size:11px;padding:5px 8px;flex:1"
                onkeydown="if(event.key==='Enter')_tmShareSubmit()">
         <button class="todo-dialog-ok" style="padding:5px 10px;font-size:11px;white-space:nowrap"
                 onclick="_tmShareSubmit()">Partager</button>
       </div>
-    </div>`;
+    </div>` : ''}`;
 }
 
-/* ── Setters propriétés ── */
+/* ── Setters propriétés (ciblent _tmActiveSubId ou parent) ── */
 function _tmSetPriority(p) {
-  _todoUpdateTask(_todoModalTaskId, { priority: p });
+  const id = _tmActiveSubId || _todoModalTaskId;
+  _todoUpdateTask(id, { priority: p });
   _todoRenderTaskList();
   _tmRenderRight();
 }
 function _tmSetStatus(s) {
-  _todoUpdateTask(_todoModalTaskId, { status: s });
+  const id = _tmActiveSubId || _todoModalTaskId;
+  _todoUpdateTask(id, { status: s });
+  document.getElementById('tmPropStatus')?.classList.remove('tm-required-missing');
   _todoRenderTaskList();
+  _tmRenderRight();
 }
 function _tmSetType(t) {
-  _todoUpdateTask(_todoModalTaskId, { type: t });
+  const id = _tmActiveSubId || _todoModalTaskId;
+  _todoUpdateTask(id, { type: t });
+  document.getElementById('tmPropType')?.classList.remove('tm-required-missing');
   _todoRenderTaskList();
+  _tmRenderRight();
 }
 function _tmSetDueDate(val) {
-  _todoUpdateTask(_todoModalTaskId, { dueDate: val ? new Date(val).toISOString() : null });
+  const id = _tmActiveSubId || _todoModalTaskId;
+  _todoUpdateTask(id, { dueDate: val ? new Date(val).toISOString() : null });
   _todoRenderTaskList();
 }
 function _tmSetRecurrence(val) {
-  const task = _todoData.tasks.find(t => t.id === _todoModalTaskId);
+  const id   = _tmActiveSubId || _todoModalTaskId;
+  const task = _todoData.tasks.find(t => t.id === id);
   const rec  = { type: val, interval: task?.recurrence?.interval || 1 };
-  _todoUpdateTask(_todoModalTaskId, { recurrence: rec });
+  _todoUpdateTask(id, { recurrence: rec });
   _todoRenderTaskList();
+}
+function _tmSetFollowsParent(val) {
+  if (_tmActiveSubId) {
+    _todoUpdateTask(_tmActiveSubId, { followsParent: val });
+    _tmRenderRight();
+  }
 }
 function _tmSetFolder(folderId) {
   _todoUpdateTask(_todoModalTaskId, { folderId: folderId || null });
@@ -460,7 +567,8 @@ function _tmAssigneeSearch(val) {
   if (!drop) return;
   const q = val.trim().toLowerCase();
   if (!q) { drop.style.display = 'none'; return; }
-  const task   = _todoData.tasks.find(t => t.id === _todoModalTaskId);
+  const activeId = _tmActiveSubId || _todoModalTaskId;
+  const task   = _todoData.tasks.find(t => t.id === activeId);
   const already= (task?.assignees || []).map(a => (a.name || a).toLowerCase());
   const matches= _todoGetResources().filter(n => n.toLowerCase().includes(q) && !already.includes(n.toLowerCase()));
   if (!matches.length) { drop.style.display = 'none'; return; }
@@ -482,12 +590,13 @@ function _tmAssigneeKey(e) {
 }
 
 function _tmPickAssignee(name) {
-  const task = _todoData.tasks.find(t => t.id === _todoModalTaskId);
+  const activeId = _tmActiveSubId || _todoModalTaskId;
+  const task = _todoData.tasks.find(t => t.id === activeId);
   if (!task) return;
   const assignees = task.assignees || [];
   if (assignees.find(a => (a.name || a) === name)) return;
   assignees.push({ name });
-  _todoUpdateTask(_todoModalTaskId, { assignees });
+  _todoUpdateTask(activeId, { assignees });
   document.getElementById('tmAssigneeInput').value = '';
   document.getElementById('tmAssigneeDropdown').style.display = 'none';
   _todoRenderTaskList();
@@ -508,10 +617,11 @@ function _tmPickAssignee(name) {
 }
 
 function _tmRemoveAssignee(name) {
-  const task = _todoData.tasks.find(t => t.id === _todoModalTaskId);
+  const activeId = _tmActiveSubId || _todoModalTaskId;
+  const task = _todoData.tasks.find(t => t.id === activeId);
   if (!task) return;
   task.assignees = (task.assignees || []).filter(a => (a.name || a) !== name);
-  _todoUpdateTask(_todoModalTaskId, { assignees: task.assignees });
+  _todoUpdateTask(activeId, { assignees: task.assignees });
   _todoRenderTaskList();
   _tmRenderRight();
 }
@@ -531,13 +641,18 @@ function _tmUnshare(uid) {
   _tmRenderRight();
 }
 
-/* ── Dialog gestion types / statuts ── */
+/* ── Palette couleurs pour types/statuts ── */
+const _TM_TAG_COLORS = [
+  '#EC7206','#e53935','#8e24aa','#1e88e5','#43a047',
+  '#fb8c00','#6d4c41','#546e7a','#00897b','#f06292'
+];
+let _tmTagPickedColor = _TM_TAG_COLORS[0];
+
+/* ── Dialog gestion types / statuts (avec sélecteur de couleur) ── */
 function _tmOpenTagsDialog(kind) {
-  const isType   = kind === 'type';
-  const list     = isType ? _todoData.settings.taskTypes : _todoData.settings.taskStatuses;
-  const label    = isType ? 'Types de tâches' : 'Statuts';
-  const addFn    = isType ? _todoAddType : _todoAddStatus;
-  const removeFn = isType ? _todoRemoveType : _todoRemoveStatus;
+  const isType = kind === 'type';
+  const label  = isType ? 'Types de tâches' : 'Statuts';
+  _tmTagPickedColor = _TM_TAG_COLORS[0];
 
   document.getElementById('todoDialogOverlay')?.remove();
   const overlay = document.createElement('div');
@@ -545,23 +660,16 @@ function _tmOpenTagsDialog(kind) {
   overlay.id = 'todoDialogOverlay';
   overlay.onclick = e => { if (e.target === overlay) { _todoCloseDialog(); _tmRenderRight(); } };
 
-  const renderList = () => {
-    const cur = isType ? _todoData.settings.taskTypes : _todoData.settings.taskStatuses;
-    return cur.map(item => `
-      <div class="todo-tag-item">
-        <span>${_esc(item)}</span>
-        <div class="todo-tag-del" onclick="_tmTagRemove('${kind}','${_esc(item)}')">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-          </svg>
-        </div>
-      </div>`).join('');
-  };
-
   overlay.innerHTML = `
-    <div class="todo-dialog">
+    <div class="todo-dialog" style="width:340px">
       <div class="todo-dialog-title">${label}</div>
-      <div class="todo-tags-list" id="tmTagsList">${renderList()}</div>
+      <div class="todo-tags-list" id="tmTagsList">${_tmTagsListHtml(kind)}</div>
+      <div style="display:flex;gap:6px;align-items:center;margin-bottom:6px">
+        ${_TM_TAG_COLORS.map(c => `
+          <div class="tm-tag-color-opt ${c === _tmTagPickedColor ? 'selected' : ''}"
+               style="background:${c}" data-color="${c}"
+               onclick="_tmPickTagColor(this,'${c}')"></div>`).join('')}
+      </div>
       <div style="display:flex;gap:8px">
         <input class="todo-dialog-input" id="tmTagInput"
                placeholder="Nouveau…" style="margin:0;flex:1"
@@ -578,41 +686,43 @@ function _tmOpenTagsDialog(kind) {
   document.getElementById('tmTagInput').focus();
 }
 
-function _tmTagAdd(kind) {
-  const input = document.getElementById('tmTagInput');
-  if (!input?.value.trim()) return;
-  if (kind === 'type') _todoAddType(input.value);
-  else _todoAddStatus(input.value);
-  input.value = '';
-  const list = document.getElementById('tmTagsList');
-  if (list) {
-    const cur = kind === 'type' ? _todoData.settings.taskTypes : _todoData.settings.taskStatuses;
-    list.innerHTML = cur.map(item => `
+function _tmPickTagColor(el, color) {
+  _tmTagPickedColor = color;
+  el.closest('div').querySelectorAll('.tm-tag-color-opt').forEach(c => c.classList.remove('selected'));
+  el.classList.add('selected');
+}
+
+function _tmTagsListHtml(kind) {
+  const cur = kind === 'type' ? _todoData.settings.taskTypes : _todoData.settings.taskStatuses;
+  return cur.map(item => {
+    const name  = typeof item === 'object' ? (item.name  || '') : item;
+    const color = typeof item === 'object' ? (item.color || '#546e7a') : '#546e7a';
+    return `
       <div class="todo-tag-item">
-        <span>${_esc(item)}</span>
-        <div class="todo-tag-del" onclick="_tmTagRemove('${kind}','${_esc(item)}')">
+        <span class="todo-tag-dot" style="background:${color}"></span>
+        <span>${_esc(name)}</span>
+        <div class="todo-tag-del" onclick="_tmTagRemove('${kind}','${_esc(name)}')">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
             <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
           </svg>
         </div>
-      </div>`).join('');
-  }
+      </div>`;
+  }).join('');
+}
+
+function _tmTagAdd(kind) {
+  const input = document.getElementById('tmTagInput');
+  if (!input?.value.trim()) return;
+  if (kind === 'type') _todoAddType(input.value, _tmTagPickedColor);
+  else                 _todoAddStatus(input.value, _tmTagPickedColor);
+  input.value = '';
+  const list = document.getElementById('tmTagsList');
+  if (list) list.innerHTML = _tmTagsListHtml(kind);
 }
 
 function _tmTagRemove(kind, name) {
   if (kind === 'type') _todoRemoveType(name);
-  else _todoRemoveStatus(name);
+  else                 _todoRemoveStatus(name);
   const list = document.getElementById('tmTagsList');
-  if (list) {
-    const cur = kind === 'type' ? _todoData.settings.taskTypes : _todoData.settings.taskStatuses;
-    list.innerHTML = cur.map(item => `
-      <div class="todo-tag-item">
-        <span>${_esc(item)}</span>
-        <div class="todo-tag-del" onclick="_tmTagRemove('${kind}','${_esc(item)}')">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-          </svg>
-        </div>
-      </div>`).join('');
-  }
+  if (list) list.innerHTML = _tmTagsListHtml(kind);
 }
