@@ -198,13 +198,19 @@ function _todoDeleteView(viewId) {
 function _todoCreateTask(title, folderId, parentId) {
   const now = new Date().toISOString();
   const siblings = _todoData.tasks.filter(t => t.folderId === folderId && t.parentId === (parentId || null));
+  /* Type par défaut : parent pour sous-tâche, sinon premier de la liste */
+  const _tn = t => typeof t === 'object' ? (t?.name || '') : (t || '');
+  const parentTask = parentId ? _todoData.tasks.find(t => t.id === parentId) : null;
+  const defaultType = parentTask
+    ? _tn(parentTask.type)
+    : _tn(_todoData.settings.taskTypes[0]);
   const task = {
     id: _todoId(),
     folderId:   folderId || null,
     parentId:   parentId || null,
     title:      title.trim(),
     description:'',
-    type:       '',
+    type:       defaultType,
     priority:   'P4',
     status:     _todoData.settings.taskStatuses[0] || '',
     assignees:  [],
