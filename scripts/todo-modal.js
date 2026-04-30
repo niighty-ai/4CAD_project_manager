@@ -638,13 +638,18 @@ function _tmUnshare(uid) {
   _tmRenderRight();
 }
 
-/* ── Dialog gestion types / statuts ── */
+/* ── Palette couleurs pour types/statuts ── */
+const _TM_TAG_COLORS = [
+  '#EC7206','#e53935','#8e24aa','#1e88e5','#43a047',
+  '#fb8c00','#6d4c41','#546e7a','#00897b','#f06292'
+];
+let _tmTagPickedColor = _TM_TAG_COLORS[0];
+
+/* ── Dialog gestion types / statuts (avec sélecteur de couleur) ── */
 function _tmOpenTagsDialog(kind) {
-  const isType   = kind === 'type';
-  const list     = isType ? _todoData.settings.taskTypes : _todoData.settings.taskStatuses;
-  const label    = isType ? 'Types de tâches' : 'Statuts';
-  const addFn    = isType ? _todoAddType : _todoAddStatus;
-  const removeFn = isType ? _todoRemoveType : _todoRemoveStatus;
+  const isType = kind === 'type';
+  const label  = isType ? 'Types de tâches' : 'Statuts';
+  _tmTagPickedColor = _TM_TAG_COLORS[0];
 
   document.getElementById('todoDialogOverlay')?.remove();
   const overlay = document.createElement('div');
@@ -652,23 +657,16 @@ function _tmOpenTagsDialog(kind) {
   overlay.id = 'todoDialogOverlay';
   overlay.onclick = e => { if (e.target === overlay) { _todoCloseDialog(); _tmRenderRight(); } };
 
-  const renderList = () => {
-    const cur = isType ? _todoData.settings.taskTypes : _todoData.settings.taskStatuses;
-    return cur.map(item => `
-      <div class="todo-tag-item">
-        <span>${_esc(item)}</span>
-        <div class="todo-tag-del" onclick="_tmTagRemove('${kind}','${_esc(item)}')">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-          </svg>
-        </div>
-      </div>`).join('');
-  };
-
   overlay.innerHTML = `
-    <div class="todo-dialog">
+    <div class="todo-dialog" style="width:340px">
       <div class="todo-dialog-title">${label}</div>
-      <div class="todo-tags-list" id="tmTagsList">${renderList()}</div>
+      <div class="todo-tags-list" id="tmTagsList">${_tmTagsListHtml(kind)}</div>
+      <div style="display:flex;gap:6px;align-items:center;margin-bottom:6px">
+        ${_TM_TAG_COLORS.map(c => `
+          <div class="tm-tag-color-opt ${c === _tmTagPickedColor ? 'selected' : ''}"
+               style="background:${c}" data-color="${c}"
+               onclick="_tmPickTagColor(this,'${c}')"></div>`).join('')}
+      </div>
       <div style="display:flex;gap:8px">
         <input class="todo-dialog-input" id="tmTagInput"
                placeholder="Nouveau…" style="margin:0;flex:1"
@@ -685,41 +683,43 @@ function _tmOpenTagsDialog(kind) {
   document.getElementById('tmTagInput').focus();
 }
 
-function _tmTagAdd(kind) {
-  const input = document.getElementById('tmTagInput');
-  if (!input?.value.trim()) return;
-  if (kind === 'type') _todoAddType(input.value);
-  else _todoAddStatus(input.value);
-  input.value = '';
-  const list = document.getElementById('tmTagsList');
-  if (list) {
-    const cur = kind === 'type' ? _todoData.settings.taskTypes : _todoData.settings.taskStatuses;
-    list.innerHTML = cur.map(item => `
+function _tmPickTagColor(el, color) {
+  _tmTagPickedColor = color;
+  el.closest('div').querySelectorAll('.tm-tag-color-opt').forEach(c => c.classList.remove('selected'));
+  el.classList.add('selected');
+}
+
+function _tmTagsListHtml(kind) {
+  const cur = kind === 'type' ? _todoData.settings.taskTypes : _todoData.settings.taskStatuses;
+  return cur.map(item => {
+    const name  = typeof item === 'object' ? (item.name  || '') : item;
+    const color = typeof item === 'object' ? (item.color || '#546e7a') : '#546e7a';
+    return `
       <div class="todo-tag-item">
-        <span>${_esc(item)}</span>
-        <div class="todo-tag-del" onclick="_tmTagRemove('${kind}','${_esc(item)}')">
+        <span class="todo-tag-dot" style="background:${color}"></span>
+        <span>${_esc(name)}</span>
+        <div class="todo-tag-del" onclick="_tmTagRemove('${kind}','${_esc(name)}')">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
             <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
           </svg>
         </div>
-      </div>`).join('');
-  }
+      </div>`;
+  }).join('');
+}
+
+function _tmTagAdd(kind) {
+  const input = document.getElementById('tmTagInput');
+  if (!input?.value.trim()) return;
+  if (kind === 'type') _todoAddType(input.value, _tmTagPickedColor);
+  else                 _todoAddStatus(input.value, _tmTagPickedColor);
+  input.value = '';
+  const list = document.getElementById('tmTagsList');
+  if (list) list.innerHTML = _tmTagsListHtml(kind);
 }
 
 function _tmTagRemove(kind, name) {
   if (kind === 'type') _todoRemoveType(name);
-  else _todoRemoveStatus(name);
+  else                 _todoRemoveStatus(name);
   const list = document.getElementById('tmTagsList');
-  if (list) {
-    const cur = kind === 'type' ? _todoData.settings.taskTypes : _todoData.settings.taskStatuses;
-    list.innerHTML = cur.map(item => `
-      <div class="todo-tag-item">
-        <span>${_esc(item)}</span>
-        <div class="todo-tag-del" onclick="_tmTagRemove('${kind}','${_esc(item)}')">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-          </svg>
-        </div>
-      </div>`).join('');
-  }
+  if (list) list.innerHTML = _tmTagsListHtml(kind);
 }
