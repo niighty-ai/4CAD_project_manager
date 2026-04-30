@@ -929,11 +929,21 @@ function _todoOpenFolderDialog(folderId) {
   overlay.className = 'todo-dialog-overlay';
   overlay.id = 'todoDialogOverlay';
 
+  /* Liste de clients GHO pour l'autocomplétion */
+  const _ghoClients = [...new Set([
+    ...(typeof userWalletClients !== 'undefined' ? [...userWalletClients] : []),
+    ...(typeof portfolio        !== 'undefined' ? portfolio.map(p => p.client || '').filter(Boolean) : [])
+  ])].sort();
+
   overlay.innerHTML = `
     <div class="todo-dialog">
       <div class="todo-dialog-title">${title}</div>
       <input class="todo-dialog-input" id="todoDialogInput"
+             list="todoFolderClientList"
              placeholder="Nom du dossier" value="${_esc(existing?.name || '')}">
+      <datalist id="todoFolderClientList">
+        ${_ghoClients.map(c => `<option value="${_esc(c)}">`).join('')}
+      </datalist>
       <div class="todo-folder-colors" id="todoFolderColors">
         ${_FOLDER_COLORS.map(c => `
           <div class="todo-folder-color-opt ${c === selColor ? 'selected' : ''}"

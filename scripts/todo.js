@@ -126,6 +126,10 @@ function _startTodoLoad(userId) {
       }
       _todoLoaded = true;
       _todoCleanupOldCompleted();
+      /* Créer "Mes tâches" si aucun dossier n'existe */
+      if (!_todoData.folders.length) {
+        _todoCreateFolder('Mes tâches', '#546e7a');
+      }
       if (currentView === 'todo') _todoRender();
     });
   }
