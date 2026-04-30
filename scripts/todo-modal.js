@@ -4,8 +4,9 @@
    Colonne droite : toutes les propriétés
    ═══════════════════════════════════════════ */
 
-let _todoModalTaskId = null;
-let _tmActiveSubId   = null; /* null = parent, sinon id sous-tâche active (Option A) */
+let _todoModalTaskId  = null;
+let _tmActiveSubId    = null; /* null = parent, sinon id sous-tâche active (Option A) */
+let _tmLinkPopupOpen  = false;
 
 /* ── Ouverture ── */
 function _todoOpenModal(taskId) {
@@ -61,27 +62,47 @@ function _todoRenderModal() {
       <div class="todo-modal-left">
         <div class="todo-modal-left-body">
 
-          <!-- Titre -->
-          <textarea class="todo-modal-title-input" id="tmTitle"
-            rows="1" placeholder="Titre de la tâche…"
-            oninput="_tmAutoResize(this)"
-            onfocus="_tmBackToParent()"
-            onblur="_tmSaveTitle()">${_esc(task.title)}</textarea>
+          <!-- Titre (vue rendue / édition bascule) -->
+          <div class="tm-title-wrap">
+            <div class="tm-title-view" id="tmTitleView"
+                 onclick="_tmEditTitle(event)">${task.title ? _todoLinkify(task.title) : '<span class="tm-placeholder">Titre de la tâche…</span>'}</div>
+            <div class="tm-title-edit" id="tmTitleEdit" style="display:none">
+              <textarea class="todo-modal-title-input" id="tmTitle"
+                rows="1" placeholder="Titre de la tâche…"
+                oninput="_tmAutoResize(this)"
+                onblur="_tmSaveTitle()"
+                onkeydown="if(event.key==='Escape')this.blur()">${_esc(task.title)}</textarea>
+              <button class="tm-link-btn" title="Insérer un lien"
+                      onmousedown="event.preventDefault()"
+                      onclick="_tmInsertLink('tmTitle',this)">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="display:block">
+                  <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
+                  <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
+                </svg>
+              </button>
+            </div>
+          </div>
 
-          <!-- Description -->
-          <div style="position:relative">
-            <textarea class="todo-modal-desc" id="tmDesc"
-              rows="3" placeholder="Ajouter une description…"
-              oninput="_tmAutoResize(this)"
-              onfocus="_tmBackToParent()"
-              onblur="_tmSaveDesc()">${_esc(task.description || '')}</textarea>
-            <button class="tm-link-btn" title="Insérer un lien"
-                    onclick="_tmInsertLink('tmDesc',this)">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-                <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
-                <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
-              </svg>
-            </button>
+          <!-- Description (vue rendue / édition bascule) -->
+          <div class="tm-desc-wrap">
+            <div class="tm-desc-view" id="tmDescView"
+                 onclick="_tmEditDesc(event)">${task.description ? _todoLinkify(task.description) : '<span class="tm-placeholder">Ajouter une description…</span>'}</div>
+            <div class="tm-desc-edit" id="tmDescEdit" style="display:none">
+              <div style="position:relative">
+                <textarea class="todo-modal-desc" id="tmDesc"
+                  rows="3" placeholder="Ajouter une description…"
+                  oninput="_tmAutoResize(this)"
+                  onblur="_tmSaveDesc()">${_esc(task.description || '')}</textarea>
+                <button class="tm-link-btn tm-link-btn-abs" title="Insérer un lien"
+                        onmousedown="event.preventDefault()"
+                        onclick="_tmInsertLink('tmDesc',this)">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="display:block">
+                    <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
+                    <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
+                  </svg>
+                </button>
+              </div>
+            </div>
           </div>
 
           <!-- Sous-tâches -->
@@ -122,8 +143,9 @@ function _todoRenderModal() {
                 </div>
                 <div style="display:flex;justify-content:flex-end;align-items:center;gap:6px;margin-top:6px">
                   <button class="tm-link-btn" title="Insérer un lien"
+                          onmousedown="event.preventDefault()"
                           onclick="_tmInsertLink('tmCommentInput',this)">
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="display:block">
                       <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
                       <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
                     </svg>
@@ -170,18 +192,67 @@ function _tmAutoResize(el) {
   el.style.height = el.scrollHeight + 'px';
 }
 
+/* ── Bascule vue/édition pour le titre ── */
+function _tmEditTitle(e) {
+  if (e?.target?.tagName === 'A') return; // lien cliqué → ne pas passer en édition
+  _tmBackToParent();
+  document.getElementById('tmTitleView').style.display = 'none';
+  const editEl = document.getElementById('tmTitleEdit');
+  editEl.style.display = 'flex';
+  const ta = document.getElementById('tmTitle');
+  _tmAutoResize(ta);
+  ta.focus();
+  ta.setSelectionRange(ta.value.length, ta.value.length);
+}
+
+/* ── Bascule vue/édition pour la description ── */
+function _tmEditDesc(e) {
+  if (e?.target?.tagName === 'A') return;
+  _tmBackToParent();
+  document.getElementById('tmDescView').style.display = 'none';
+  const editEl = document.getElementById('tmDescEdit');
+  editEl.style.display = '';
+  const ta = document.getElementById('tmDesc');
+  _tmAutoResize(ta);
+  ta.focus();
+}
+
 /* ── Sauvegardes titre / description ── */
 function _tmSaveTitle() {
-  const val = document.getElementById('tmTitle')?.value.trim();
-  if (val && val !== (_todoData.tasks.find(t => t.id === _todoModalTaskId)?.title || '')) {
-    _todoUpdateTask(_todoModalTaskId, { title: val });
-    _todoRenderTaskList();
-    _todoRenderSidebar();
+  if (_tmLinkPopupOpen) return; // popup lien ouvert → ne pas quitter l'édition
+  const ta = document.getElementById('tmTitle');
+  if (!ta) return;
+  const val = ta.value.trim();
+  if (val) {
+    const existing = _todoData.tasks.find(t => t.id === _todoModalTaskId);
+    if (existing && val !== existing.title) {
+      _todoUpdateTask(_todoModalTaskId, { title: val });
+      _todoRenderTaskList();
+      _todoRenderSidebar();
+    }
+  }
+  const displayVal = val || (_todoData.tasks.find(t => t.id === _todoModalTaskId)?.title || '');
+  const viewEl = document.getElementById('tmTitleView');
+  const editEl = document.getElementById('tmTitleEdit');
+  if (viewEl && editEl) {
+    viewEl.innerHTML = displayVal ? _todoLinkify(displayVal) : '<span class="tm-placeholder">Titre de la tâche…</span>';
+    editEl.style.display = 'none';
+    viewEl.style.display = '';
   }
 }
 function _tmSaveDesc() {
-  const val = document.getElementById('tmDesc')?.value || '';
+  if (_tmLinkPopupOpen) return;
+  const ta = document.getElementById('tmDesc');
+  if (!ta) return;
+  const val = ta.value || '';
   _todoUpdateTask(_todoModalTaskId, { description: val });
+  const viewEl = document.getElementById('tmDescView');
+  const editEl = document.getElementById('tmDescEdit');
+  if (viewEl && editEl) {
+    viewEl.innerHTML = val ? _todoLinkify(val) : '<span class="tm-placeholder">Ajouter une description…</span>';
+    editEl.style.display = 'none';
+    viewEl.style.display = '';
+  }
 }
 
 /* ── Sous-tâches (Option A : clic sur la ligne bascule droite + commentaires) ── */
@@ -887,6 +958,7 @@ function _tmTagRemove(kind, name) {
 /* ── Insertion de lien [texte](url) dans un textarea ── */
 function _tmInsertLink(textareaId, btnEl) {
   document.getElementById('tmLinkPopup')?.remove();
+  _tmLinkPopupOpen = true;
   const ta = document.getElementById(textareaId);
   const sel = ta ? ta.value.substring(ta.selectionStart, ta.selectionEnd) : '';
 
@@ -903,9 +975,9 @@ function _tmInsertLink(textareaId, btnEl) {
     <input id="tmLinkUrl" placeholder="https://…"
            style="width:100%;box-sizing:border-box;margin-bottom:8px;padding:5px 8px;font-size:12px;
                   background:var(--surface2);border:1px solid var(--border);border-radius:5px;color:var(--text);outline:none"
-           onkeydown="if(event.key==='Enter')_tmConfirmLink('${textareaId}');if(event.key==='Escape')document.getElementById('tmLinkPopup')?.remove()">
+           onkeydown="if(event.key==='Enter')_tmConfirmLink('${textareaId}');if(event.key==='Escape'){_tmLinkPopupOpen=false;document.getElementById('tmLinkPopup')?.remove();}">
     <div style="display:flex;gap:6px;justify-content:flex-end">
-      <button onclick="document.getElementById('tmLinkPopup').remove()"
+      <button onclick="_tmLinkPopupOpen=false;document.getElementById('tmLinkPopup').remove()"
               style="padding:4px 10px;font-size:11px;border-radius:5px;border:1px solid var(--border);
                      background:transparent;color:var(--text);cursor:pointer">Annuler</button>
       <button onclick="_tmConfirmLink('${textareaId}')"
@@ -926,7 +998,11 @@ function _tmInsertLink(textareaId, btnEl) {
     document.addEventListener('click', function close(e) {
       if (!popup.contains(e.target) && e.target !== btnEl) {
         popup.remove();
+        _tmLinkPopupOpen = false;
         document.removeEventListener('click', close, true);
+        /* Refocus textarea si toujours en mode édition */
+        const taEl = document.getElementById(textareaId);
+        if (taEl && taEl.offsetParent !== null) taEl.focus();
       }
     }, true);
   }, 0);
@@ -943,6 +1019,8 @@ function _tmConfirmLink(textareaId) {
   const end     = ta.selectionEnd;
   ta.value = ta.value.substring(0, start) + snippet + ta.value.substring(end);
   ta.selectionStart = ta.selectionEnd = start + snippet.length;
-  ta.focus();
+  _tmAutoResize(ta);
   document.getElementById('tmLinkPopup')?.remove();
+  _tmLinkPopupOpen = false;
+  ta.focus();
 }
