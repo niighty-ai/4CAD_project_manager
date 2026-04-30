@@ -5,17 +5,34 @@
    ═══════════════════════════════════════════ */
 
 let _todoModalTaskId = null;
+let _tmActiveSubId   = null; /* null = parent, sinon id sous-tâche active (Option A) */
 
 /* ── Ouverture ── */
 function _todoOpenModal(taskId) {
   _todoModalTaskId = taskId;
+  _tmActiveSubId   = null;
   _todoRenderModal();
 }
 
-/* ── Fermeture ── */
+/* ── Fermeture (avec validation Type + Statut obligatoires) ── */
 function _todoCloseModal() {
+  const task = _todoData.tasks.find(t => t.id === _todoModalTaskId);
+  if (task) {
+    const typeName   = typeof task.type   === 'object' ? task.type?.name   : task.type;
+    const statusName = typeof task.status === 'object' ? task.status?.name : task.status;
+    if (!typeName || !statusName) {
+      const missing = [!typeName && 'Type', !statusName && 'Statut'].filter(Boolean).join(' et ');
+      _todoShowToast(`⚠ ${missing} obligatoire(s) — veuillez renseigner avant de fermer`);
+      /* Mise en évidence visuelle */
+      document.querySelectorAll('.tm-required-missing').forEach(el => el.classList.remove('tm-required-missing'));
+      if (!typeName)   document.getElementById('tmPropType')?.classList.add('tm-required-missing');
+      if (!statusName) document.getElementById('tmPropStatus')?.classList.add('tm-required-missing');
+      return;
+    }
+  }
   document.getElementById('todoModalOverlay')?.remove();
   _todoModalTaskId = null;
+  _tmActiveSubId   = null;
 }
 
 /* ── Rendu complet de la modale ── */
@@ -141,30 +158,49 @@ function _tmSaveDesc() {
   _todoUpdateTask(_todoModalTaskId, { description: val });
 }
 
-/* ── Sous-tâches ── */
+/* ── Sous-tâches (Option A : clic bascule colonne droite + commentaires) ── */
 function _tmRenderSubtasks() {
   const el = document.getElementById('tmSubtasks');
   if (!el) return;
   const subs = _todoData.tasks.filter(t => t.parentId === _todoModalTaskId);
   if (!subs.length) { el.innerHTML = ''; return; }
-  el.innerHTML = subs.map(st => `
-    <div class="todo-subtask-item ${st.completed ? 'done' : ''}" data-sub-id="${st.id}">
+  el.innerHTML = subs.map(st => {
+    const isActive = st.id === _tmActiveSubId;
+    return `
+    <div class="todo-subtask-item ${st.completed ? 'done' : ''} ${isActive ? 'tm-sub-active' : ''}"
+         data-sub-id="${st.id}">
       <div class="todo-check ${(st.priority||'p4').toLowerCase()} ${st.completed ? 'checked' : ''}"
            style="width:15px;height:15px;border-width:1.5px"
-           onclick="_tmToggleSubtask('${st.id}')">
+           onclick="event.stopPropagation();_tmToggleSubtask('${st.id}')">
         <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
           <polyline points="20 6 9 17 4 12"/>
         </svg>
       </div>
       <input type="text" value="${_esc(st.title)}"
+             onclick="event.stopPropagation()"
              onblur="_tmSaveSubtask('${st.id}',this.value)"
              onkeydown="if(event.key==='Enter')this.blur();if(event.key==='Escape')this.blur()">
-      <div class="todo-subtask-del" onclick="_tmDeleteSubtask('${st.id}')">
+      <div class="todo-subtask-del" onclick="event.stopPropagation();_tmDeleteSubtask('${st.id}')">
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
           <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
         </svg>
       </div>
-    </div>`).join('');
+      <!-- Clic sur la ligne → bascule vers la sous-tâche -->
+      <div class="tm-sub-select" title="Voir les propriétés"
+           onclick="_tmSelectSub('${st.id}')">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="9 18 15 12 9 6"/>
+        </svg>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function _tmSelectSub(subId) {
+  _tmActiveSubId = (_tmActiveSubId === subId) ? null : subId;
+  _tmRenderSubtasks();
+  _tmRenderRight();
+  _tmRenderComments();
 }
 
 function _tmAddSubtask() {
@@ -196,11 +232,12 @@ function _tmDeleteSubtask(subId) {
   _todoRenderTaskList();
 }
 
-/* ── Commentaires ── */
+/* ── Commentaires (bascule parent/sous-tâche selon _tmActiveSubId) ── */
 function _tmRenderComments() {
   const el = document.getElementById('tmComments');
   if (!el) return;
-  const task = _todoData.tasks.find(t => t.id === _todoModalTaskId);
+  const activeId = _tmActiveSubId || _todoModalTaskId;
+  const task     = _todoData.tasks.find(t => t.id === activeId);
   const comments = task?.comments || [];
   if (!comments.length) { el.innerHTML = ''; return; }
 
@@ -236,7 +273,8 @@ function _tmSubmitComment() {
   if (!input) return;
   const text = input.value.trim();
   if (!text) return;
-  _todoAddComment(_todoModalTaskId, text);
+  const activeId = _tmActiveSubId || _todoModalTaskId;
+  _todoAddComment(activeId, text);
   input.value = '';
   _tmAutoResize(input);
   _tmRenderComments();
@@ -244,7 +282,8 @@ function _tmSubmitComment() {
 }
 
 function _tmEditComment(commentId) {
-  const task = _todoData.tasks.find(t => t.id === _todoModalTaskId);
+  const activeId = _tmActiveSubId || _todoModalTaskId;
+  const task = _todoData.tasks.find(t => t.id === activeId);
   const c    = (task?.comments || []).find(c => c.id === commentId);
   if (!c) return;
 
@@ -262,7 +301,8 @@ function _tmEditComment(commentId) {
 
   const save = () => {
     const val = ta.value.trim();
-    if (val && val !== original) _todoEditComment(_todoModalTaskId, commentId, val);
+    const activeId = _tmActiveSubId || _todoModalTaskId;
+    if (val && val !== original) _todoEditComment(activeId, commentId, val);
     _tmRenderComments();
   };
   ta.addEventListener('blur', save);
@@ -274,7 +314,8 @@ function _tmEditComment(commentId) {
 
 function _tmDeleteComment(commentId) {
   if (!confirm('Supprimer ce commentaire ?')) return;
-  _todoDeleteComment(_todoModalTaskId, commentId);
+  const activeId = _tmActiveSubId || _todoModalTaskId;
+  _todoDeleteComment(activeId, commentId);
   _tmRenderComments();
   _todoRenderTaskList();
 }
