@@ -171,9 +171,9 @@ function _todoRenderSidebar() {
            draggable="true"
            onclick="_todoSelectFolder('${f.id}')"
            ondragstart="_todoFolderDragStart(event,'${f.id}',${idx})"
-           ondragover="_todoFolderDragOver(event,${idx})"
+           ondragover="_todoTaskDragId ? (event.preventDefault(),event.currentTarget.classList.add('drag-over-folder')) : _todoFolderDragOver(event,${idx})"
            ondragleave="_todoFolderDragLeave(event)"
-           ondrop="_todoFolderDrop(event,${idx})">
+           ondrop="_todoTaskDragId ? _todoDropToFolder(event,'${f.id}') : _todoFolderDrop(event,${idx})">
         <div class="todo-folder-dot" style="background:${f.color || '#EC7206'}"></div>
         <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${_esc(f.name)}</span>
         <span class="todo-sidebar-count">${cnt}</span>
@@ -565,6 +565,11 @@ function _todoTaskRowHtml(task, isSub) {
             <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
           </svg>
         </div>
+        ${!isSub ? `<div class="todo-task-action-btn" title="Dupliquer" onclick="event.stopPropagation();_todoDuplicateTask('${task.id}')">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+          </svg>
+        </div>` : ''}
         <div class="todo-task-action-btn danger" title="Supprimer" onclick="event.stopPropagation();_todoConfirmDeleteTask('${task.id}')">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
@@ -739,6 +744,43 @@ function _todoTaskDrop(e, toId) {
   _todoTaskDragId = null;
   _todoSave();
   _todoRenderTaskList();
+}
+
+/* Drop d'une tâche sur un dossier (sidebar) ou sur l'inbox (folderId=null) */
+function _todoDropToFolder(e, folderId) {
+  e.preventDefault();
+  document.querySelectorAll('.todo-sidebar-item').forEach(el => el.classList.remove('drag-over-folder'));
+  if (!_todoTaskDragId) return;
+  const task = _todoData.tasks.find(t => t.id === _todoTaskDragId);
+  if (!task) { _todoTaskDragId = null; return; }
+  _todoUpdateTask(_todoTaskDragId, { folderId: folderId || null });
+  /* Déplacer aussi les sous-tâches */
+  _todoData.tasks.filter(t => t.parentId === _todoTaskDragId)
+    .forEach(st => _todoUpdateTask(st.id, { folderId: folderId || null }));
+  _todoTaskDragId = null;
+  _todoRenderSidebar();
+  _todoRenderTaskList();
+  _todoShowToast('Tâche déplacée');
+}
+
+/* Dupliquer une tâche racine avec ses sous-tâches */
+function _todoDuplicateTask(id) {
+  const orig = _todoData.tasks.find(t => t.id === id);
+  if (!orig || orig.parentId) return;
+  const copy = _todoCreateTask(orig.title + ' (copie)', orig.folderId, null);
+  ['description','type','priority','status','dueDate','recurrence'].forEach(f => {
+    if (orig[f] !== undefined) copy[f] = orig[f];
+  });
+  _todoData.tasks.filter(t => t.parentId === id).forEach(st => {
+    const sc = _todoCreateTask(st.title, copy.folderId, copy.id);
+    ['description','type','priority','status','followsParent'].forEach(f => {
+      if (st[f] !== undefined) sc[f] = st[f];
+    });
+  });
+  _todoSave();
+  _todoRenderTaskList();
+  _todoRenderSidebar();
+  _todoShowToast('Tâche dupliquée');
 }
 
 /* ── Événements globaux (une seule fois) ── */
