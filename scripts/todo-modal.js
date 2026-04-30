@@ -567,7 +567,8 @@ function _tmAssigneeSearch(val) {
   if (!drop) return;
   const q = val.trim().toLowerCase();
   if (!q) { drop.style.display = 'none'; return; }
-  const task   = _todoData.tasks.find(t => t.id === _todoModalTaskId);
+  const activeId = _tmActiveSubId || _todoModalTaskId;
+  const task   = _todoData.tasks.find(t => t.id === activeId);
   const already= (task?.assignees || []).map(a => (a.name || a).toLowerCase());
   const matches= _todoGetResources().filter(n => n.toLowerCase().includes(q) && !already.includes(n.toLowerCase()));
   if (!matches.length) { drop.style.display = 'none'; return; }
@@ -589,12 +590,14 @@ function _tmAssigneeKey(e) {
 }
 
 function _tmPickAssignee(name) {
-  const task = _todoData.tasks.find(t => t.id === _todoModalTaskId);
+  const activeId = _tmActiveSubId || _todoModalTaskId;
+  const task = _todoData.tasks.find(t => t.id === activeId);
   if (!task) return;
   const assignees = task.assignees || [];
   if (assignees.find(a => (a.name || a) === name)) return;
   assignees.push({ name });
-  _todoUpdateTask(_todoModalTaskId, { assignees });
+  const activeId = _tmActiveSubId || _todoModalTaskId;
+  _todoUpdateTask(activeId, { assignees });
   document.getElementById('tmAssigneeInput').value = '';
   document.getElementById('tmAssigneeDropdown').style.display = 'none';
   _todoRenderTaskList();
@@ -615,10 +618,11 @@ function _tmPickAssignee(name) {
 }
 
 function _tmRemoveAssignee(name) {
-  const task = _todoData.tasks.find(t => t.id === _todoModalTaskId);
+  const activeId = _tmActiveSubId || _todoModalTaskId;
+  const task = _todoData.tasks.find(t => t.id === activeId);
   if (!task) return;
   task.assignees = (task.assignees || []).filter(a => (a.name || a) !== name);
-  _todoUpdateTask(_todoModalTaskId, { assignees: task.assignees });
+  _todoUpdateTask(activeId, { assignees: task.assignees });
   _todoRenderTaskList();
   _tmRenderRight();
 }
