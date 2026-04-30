@@ -212,11 +212,12 @@ function _todoCreateTask(title, folderId, parentId) {
     recurrence: { type: 'none', interval: 1 },
     order:      siblings.length,
     comments:   [],
-    completed:  false,
-    completedAt:null,
-    sharedWith: [],
-    createdAt:  now,
-    updatedAt:  now
+    completed:    false,
+    completedAt:  null,
+    sharedWith:   [],
+    followsParent: parentId ? false : undefined, /* sous-tâche : false par défaut */
+    createdAt:    now,
+    updatedAt:    now
   };
   _todoData.tasks.push(task);
   _todoSave();
