@@ -698,10 +698,16 @@ function _tmTagsListHtml(kind) {
     const name  = typeof item === 'object' ? (item.name  || '') : item;
     const color = typeof item === 'object' ? (item.color || '#546e7a') : '#546e7a';
     return `
-      <div class="todo-tag-item">
-        <span class="todo-tag-dot" style="background:${color}"></span>
-        <span>${_esc(name)}</span>
-        <div class="todo-tag-del" onclick="_tmTagRemove('${kind}','${_esc(name)}')">
+      <div class="todo-tag-item" data-tag-name="${_esc(name)}" data-tag-kind="${kind}">
+        <span class="todo-tag-dot" style="background:${color};display:inline-block;width:12px;height:12px;min-width:12px;border-radius:50%"></span>
+        <span class="todo-tag-name" style="flex:1">${_esc(name)}</span>
+        <div class="todo-tag-edit" title="Modifier" onclick="_tmTagEditOpen('${kind}','${_esc(name)}','${color}')">
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+          </svg>
+        </div>
+        <div class="todo-tag-del" title="Supprimer" onclick="_tmTagRemove('${kind}','${_esc(name)}')">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
             <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
           </svg>
@@ -710,19 +716,105 @@ function _tmTagsListHtml(kind) {
   }).join('');
 }
 
+/* Ouvre un mini-formulaire d'édition inline dans la ligne du tag */
+function _tmTagEditOpen(kind, name, color) {
+  /* Fermer tout éventuel éditeur déjà ouvert */
+  document.querySelector('.tm-tag-edit-form')?.closest('.todo-tag-item')
+    ?.replaceWith(document.createRange().createContextualFragment(
+      _tmTagsListHtml(kind).split('</div>').slice(0,1).join('') /* fallback — on re-render */
+    ));
+  const list = document.getElementById('tmTagsList');
+  if (!list) return;
+  list.innerHTML = _tmTagsListHtml(kind); /* reset propre */
+
+  const row = [...list.querySelectorAll('.todo-tag-item')]
+    .find(el => el.dataset.tagName === name);
+  if (!row) return;
+
+  row.innerHTML = `
+    <div class="tm-tag-edit-form" style="display:flex;gap:6px;align-items:center;width:100%">
+      <span class="todo-tag-dot tm-edit-dot" style="background:${color};display:inline-block;
+            width:14px;height:14px;min-width:14px;border-radius:50%;cursor:pointer"
+            onclick="_tmTagEditCyclePicker(this)"></span>
+      <input class="todo-dialog-input tm-tag-name-input" value="${_esc(name)}"
+             style="margin:0;flex:1;font-size:12px;padding:4px 8px"
+             onkeydown="if(event.key==='Enter')_tmTagEditSave('${kind}','${_esc(name)}');
+                        if(event.key==='Escape'){_tmTagRefresh('${kind}');}">
+      <div class="tm-color-picker-row" id="tmEditColorPicker" style="display:none;position:absolute;
+           background:var(--surface);border:1px solid var(--border);border-radius:7px;
+           padding:6px;box-shadow:0 4px 16px var(--shadow);z-index:1300;flex-wrap:wrap;gap:5px;width:160px">
+        ${_TM_TAG_COLORS.map(c => `
+          <div style="width:16px;height:16px;border-radius:50%;background:${c};cursor:pointer;
+               border:2px solid ${c === color ? 'var(--text)' : 'transparent'};flex-shrink:0"
+               onclick="event.stopPropagation();_tmTagEditPickColor(this,'${c}')"></div>`).join('')}
+      </div>
+      <button class="todo-dialog-ok" style="padding:4px 10px;font-size:11px"
+              onclick="_tmTagEditSave('${kind}','${_esc(name)}')">OK</button>
+      <button class="todo-dialog-cancel" style="padding:4px 8px;font-size:11px"
+              onclick="_tmTagRefresh('${kind}')">✕</button>
+    </div>`;
+  row.querySelector('.tm-tag-name-input')?.focus();
+  row.querySelector('.tm-tag-name-input')?.select();
+  /* Stocker la couleur courante de l'éditeur */
+  row.dataset.editColor = color;
+}
+
+function _tmTagEditCyclePicker(dotEl) {
+  const picker = document.getElementById('tmEditColorPicker');
+  if (!picker) return;
+  const rect = dotEl.getBoundingClientRect();
+  picker.style.display = picker.style.display === 'none' ? 'flex' : 'none';
+  picker.style.top  = (rect.bottom + 4) + 'px';
+  picker.style.left = rect.left + 'px';
+  if (picker.style.display !== 'none') {
+    const close = e => { if (!picker.contains(e.target) && e.target !== dotEl) { picker.style.display = 'none'; document.removeEventListener('click', close, true); }};
+    setTimeout(() => document.addEventListener('click', close, true), 0);
+  }
+}
+
+function _tmTagEditPickColor(swatchEl, color) {
+  const row = swatchEl.closest('.todo-tag-item');
+  if (!row) return;
+  row.dataset.editColor = color;
+  const dot = row.querySelector('.tm-edit-dot');
+  if (dot) dot.style.background = color;
+  const picker = document.getElementById('tmEditColorPicker');
+  if (picker) {
+    picker.querySelectorAll('div').forEach(d => d.style.borderColor = 'transparent');
+    swatchEl.style.borderColor = 'var(--text)';
+    picker.style.display = 'none';
+  }
+}
+
+function _tmTagEditSave(kind, oldName) {
+  const list = document.getElementById('tmTagsList');
+  if (!list) return;
+  const row      = [...list.querySelectorAll('.todo-tag-item')].find(el => el.dataset.tagName === oldName);
+  const newName  = row?.querySelector('.tm-tag-name-input')?.value.trim();
+  const newColor = row?.dataset.editColor || _TM_TAG_COLORS[0];
+  if (!newName) return;
+  if (kind === 'type')   _todoUpdateType(oldName, newName, newColor);
+  else                   _todoUpdateStatus(oldName, newName, newColor);
+  _tmTagRefresh(kind);
+  _tmRenderRight();
+}
+
+function _tmTagRefresh(kind) {
+  const list = document.getElementById('tmTagsList');
+  if (list) list.innerHTML = _tmTagsListHtml(kind);
+}
+
 function _tmTagAdd(kind) {
   const input = document.getElementById('tmTagInput');
   if (!input?.value.trim()) return;
   if (kind === 'type') _todoAddType(input.value, _tmTagPickedColor);
   else                 _todoAddStatus(input.value, _tmTagPickedColor);
   input.value = '';
-  const list = document.getElementById('tmTagsList');
-  if (list) list.innerHTML = _tmTagsListHtml(kind);
+  _tmTagRefresh(kind);
 }
 
 function _tmTagRemove(kind, name) {
   if (kind === 'type') _todoRemoveType(name);
   else                 _todoRemoveStatus(name);
-  const list = document.getElementById('tmTagsList');
-  if (list) list.innerHTML = _tmTagsListHtml(kind);
+  _tmTagRefresh(kind);
 }

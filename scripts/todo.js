@@ -418,6 +418,33 @@ function _todoRemoveStatus(name) {
   _todoSave();
 }
 
+/* Mise à jour (renommage + couleur) d'un type ou statut existant */
+function _todoUpdateType(oldName, newName, color) {
+  const idx = _todoData.settings.taskTypes.findIndex(t =>
+    (typeof t === 'object' ? t.name : t) === oldName
+  );
+  if (idx === -1) return;
+  _todoData.settings.taskTypes[idx] = { name: newName.trim(), color };
+  /* Mettre à jour les tâches qui utilisaient l'ancien nom */
+  _todoData.tasks.forEach(t => {
+    const n = typeof t.type === 'object' ? t.type?.name : t.type;
+    if (n === oldName) t.type = newName.trim();
+  });
+  _todoSave();
+}
+function _todoUpdateStatus(oldName, newName, color) {
+  const idx = _todoData.settings.taskStatuses.findIndex(s =>
+    (typeof s === 'object' ? s.name : s) === oldName
+  );
+  if (idx === -1) return;
+  _todoData.settings.taskStatuses[idx] = { name: newName.trim(), color };
+  _todoData.tasks.forEach(t => {
+    const n = typeof t.status === 'object' ? t.status?.name : t.status;
+    if (n === oldName) t.status = newName.trim();
+  });
+  _todoSave();
+}
+
 /* ── Ressources disponibles (depuis le portfolio) ─────────────────────────── */
 function _todoGetResources() {
   const names = new Set();
