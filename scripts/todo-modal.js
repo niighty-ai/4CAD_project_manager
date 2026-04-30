@@ -263,7 +263,7 @@ function _tmRenderComments() {
             <span class="todo-comment-date">${_todoFmt(c.createdAt)}</span>
             ${c.updatedAt ? `<span class="todo-comment-edited">(modifié)</span>` : ''}
           </div>
-          <div class="todo-comment-text" id="ctxt_${c.id}">${_esc(c.text)}</div>
+          <div class="todo-comment-text" id="ctxt_${c.id}">${_todoLinkify(c.text)}</div>
           ${isOwn ? `
             <div class="todo-comment-actions">
               <span class="todo-comment-action" onclick="_tmEditComment('${c.id}')">Modifier</span>

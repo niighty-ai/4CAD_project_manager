@@ -239,6 +239,13 @@ function _todoFolderDrop(e, toIdx) {
 function _esc(str) {
   return String(str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
+/* Détecte les URLs dans du texte déjà échappé et les rend cliquables */
+function _todoLinkify(text) {
+  return _esc(text).replace(
+    /(https?:\/\/[^\s<>"']+)/g,
+    '<a href="$1" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()" style="color:var(--accent);word-break:break-all;text-decoration:underline">$1</a>'
+  );
+}
 
 /* ══════════════════════════════════════════
    LISTE DE TÂCHES (2/3)
@@ -532,7 +539,7 @@ function _todoTaskRowHtml(task, isSub) {
         </svg>
       </div>
       <div class="todo-task-content" onclick="${isSub ? `_todoOpenModalSub('${task.id}','${task.parentId}')` : `_todoOpenModal('${task.id}')`}">
-        <div class="todo-task-title">${_esc(task.title)}</div>
+        <div class="todo-task-title">${_todoLinkify(task.title)}</div>
         ${meta ? `<div class="todo-task-meta">${meta}</div>` : ''}
       </div>
       <div class="todo-task-actions">
