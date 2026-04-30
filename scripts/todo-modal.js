@@ -14,6 +14,13 @@ function _todoOpenModal(taskId) {
   _todoRenderModal();
 }
 
+/* Ouvre le modal du parent et sélectionne la sous-tâche directement */
+function _todoOpenModalSub(subId, parentId) {
+  _todoModalTaskId = parentId;
+  _tmActiveSubId   = subId;
+  _todoRenderModal();
+}
+
 /* ── Fermeture (avec validation Type + Statut obligatoires) ── */
 function _todoCloseModal() {
   const task = _todoData.tasks.find(t => t.id === _todoModalTaskId);
