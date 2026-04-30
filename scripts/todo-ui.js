@@ -931,12 +931,6 @@ function _todoOpenViewDialog(viewId) {
         <span style="font-size:12px;color:var(--text)">Afficher les tâches sans date</span>
       </label>
 
-      <div style="height:1px;background:var(--border);margin:14px 0"></div>
-      <label class="todo-vd-check">
-        <input type="checkbox" id="vfIncomplete" ${f.showOnlyIncomplete?'checked':''}>
-        <span style="font-size:12px;color:var(--text)">Masquer les tâches terminées</span>
-      </label>
-
       <div class="todo-dialog-actions">
         <button class="todo-dialog-cancel" onclick="_todoCloseDialog()">Annuler</button>
         <button class="todo-dialog-ok" onclick="_todoSubmitViewDialog('${viewId||''}')">
@@ -962,7 +956,6 @@ function _todoSubmitViewDialog(viewId) {
     priority:           getChecked('vf-priority'),
     status:             getChecked('vf-status'),
     type:               getChecked('vf-type'),
-    showOnlyIncomplete: document.getElementById('vfIncomplete')?.checked || false,
     dateFilter:         dateFilter !== 'all' ? dateFilter : undefined,
     showNoDate:         document.getElementById('vfShowNoDate')?.checked || undefined
   };
