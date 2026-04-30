@@ -67,10 +67,11 @@ function _todoRenderSidebar() {
   const el = document.getElementById('todoSidebar');
   if (!el) return;
 
-  const allCount = _todoAllTasks().filter(t => !t.parentId && !t.completed).length;
+  const allCount    = _todoAllTasks().filter(t => !t.parentId && !t.completed).length;
+  const inboxCount  = _todoData.tasks.filter(t => !t.parentId && !t.folderId && !t.completed).length;
 
   let html = `
-    <!-- Vue globale -->
+    <!-- Vue globale + Boîte de réception -->
     <div class="todo-sidebar-section" style="margin-top:4px;">
       <div class="todo-sidebar-item ${_todoSelectedFolderId === null ? 'active' : ''}"
            onclick="_todoSelectFolder(null)">
@@ -79,6 +80,18 @@ function _todoRenderSidebar() {
         </svg>
         Toutes les tâches
         <span class="todo-sidebar-count">${allCount}</span>
+      </div>
+      <div class="todo-sidebar-item ${_todoSelectedFolderId === 'inbox' ? 'active' : ''}"
+           onclick="_todoSelectFolder('inbox')"
+           ondragover="event.preventDefault();event.currentTarget.classList.add('drag-over-folder')"
+           ondragleave="event.currentTarget.classList.remove('drag-over-folder')"
+           ondrop="_todoDropToFolder(event,null)">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/>
+          <path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/>
+        </svg>
+        Boîte de réception
+        <span class="todo-sidebar-count">${inboxCount}</span>
       </div>
     </div>`;
 
@@ -264,7 +277,10 @@ function _todoRenderTaskList() {
   let filters   = null;
   let baseTasks = _todoAllTasks();
 
-  if (_todoSelectedFolderId && _todoSelectedFolderId.startsWith('view:')) {
+  if (_todoSelectedFolderId === 'inbox') {
+    title     = 'Boîte de réception';
+    baseTasks = _todoData.tasks.filter(t => !t.folderId);
+  } else if (_todoSelectedFolderId && _todoSelectedFolderId.startsWith('view:')) {
     const vid  = _todoSelectedFolderId.slice(5);
     const view = _todoData.views.find(v => v.id === vid);
     title   = view ? view.name : 'Vue';
@@ -564,8 +580,10 @@ function _todoAddBarKey(e) {
   const input = e.target;
   const title = input.value.trim();
   if (!title) return;
-  const folderId = (_todoSelectedFolderId && !_todoSelectedFolderId.startsWith('view:'))
-    ? _todoSelectedFolderId : (_todoData.folders[0]?.id || null);
+  const _isSpecialCtx = !_todoSelectedFolderId ||
+    _todoSelectedFolderId === 'inbox' ||
+    _todoSelectedFolderId.startsWith('view:');
+  const folderId = _isSpecialCtx ? null : _todoSelectedFolderId;
   const task = _todoCreateTask(title, folderId, null);
   input.value = '';
   _todoRenderTaskList();
