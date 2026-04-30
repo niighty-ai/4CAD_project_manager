@@ -247,9 +247,14 @@ function _todoRenderTaskList() {
   const main = document.getElementById('todoMain');
   if (!main) return;
 
-  /* Titre de la section courante */
-  let title = 'Toutes les tâches';
-  let filters = null;
+  const ctx           = _todoViewCtx();
+  const prefs         = _todoGetViewPrefs(ctx);
+  const sort          = prefs.sort          || { field: 'order', dir: 'asc' };
+  const group         = prefs.group         || 'none';
+  const hideCompleted = prefs.hideCompleted !== false; /* true par défaut */
+
+  let title     = 'Toutes les tâches';
+  let filters   = null;
   let baseTasks = _todoAllTasks();
 
   if (_todoSelectedFolderId && _todoSelectedFolderId.startsWith('view:')) {
@@ -259,40 +264,72 @@ function _todoRenderTaskList() {
     filters = view ? view.filters : {};
   } else if (_todoSelectedFolderId) {
     const folder = _todoData.folders.find(f => f.id === _todoSelectedFolderId);
-    title = folder ? folder.name : 'Dossier';
+    title     = folder ? folder.name : 'Dossier';
     baseTasks = _todoData.tasks.filter(t => t.folderId === _todoSelectedFolderId);
   }
 
-  /* Appliquer filtres vue + tri */
-  if (filters) baseTasks = _todoApplyViewFilters(baseTasks, filters);
-  const rootTasks    = baseTasks.filter(t => !t.parentId);
-  const sortedTasks  = _todoSortTasks(rootTasks);
+  if (filters)        baseTasks = _todoApplyViewFilters(baseTasks, filters);
+  if (hideCompleted)  baseTasks = baseTasks.filter(t => !t.completed);
 
-  /* Noms des champs de tri */
-  const sortLabels = {
+  const rootTasks   = baseTasks.filter(t => !t.parentId);
+  const sortedTasks = _todoSortTasksBy(rootTasks, sort);
+
+  const sortLabels  = {
     order:'Manuel', priority:'Priorité', dueDate:'Échéance',
     title:'Nom', status:'Statut', type:'Type', created:'Création'
   };
+  const groupLabels = { none:'Aucun', type:'Type', status:'Statut', priority:'Priorité' };
 
   main.innerHTML = `
     <div class="todo-main-header">
       <div class="todo-main-title">${_esc(title)}</div>
+
+      <button class="todo-sort-btn ${hideCompleted ? 'active' : ''}"
+              title="${hideCompleted ? 'Afficher terminées' : 'Masquer terminées'}"
+              onclick="_todoToggleHideCompleted()">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          ${hideCompleted
+            ? '<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/>'
+            : '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>'}
+        </svg>
+        ${hideCompleted ? 'Masquer terminées' : 'Afficher terminées'}
+      </button>
+
       <div style="position:relative">
-        <button class="todo-sort-btn ${_todoSortConfig.field !== 'order' ? 'active' : ''}" onclick="_todoToggleSortMenu(this)">
+        <button class="todo-sort-btn ${group !== 'none' ? 'active' : ''}" onclick="_todoToggleGroupMenu(this)">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="15" y2="12"/><line x1="3" y1="18" x2="9" y2="18"/>
+            <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
+            <rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>
           </svg>
-          Trier : ${sortLabels[_todoSortConfig.field] || 'Manuel'}
+          Grouper : ${groupLabels[group] || 'Aucun'}
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <polyline points="6 9 12 15 18 9"/>
+          </svg>
+        </button>
+        <div class="todo-sort-menu" id="todoGroupMenu">
+          ${Object.entries(groupLabels).map(([k, l]) => `
+            <div class="todo-sort-option ${group === k ? 'active' : ''}"
+                 onclick="_todoSetGroup('${k}')">${l}</div>`).join('')}
+        </div>
+      </div>
+
+      <div style="position:relative">
+        <button class="todo-sort-btn ${sort.field !== 'order' ? 'active' : ''}" onclick="_todoToggleSortMenu(this)">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="15" y2="12"/>
+            <line x1="3" y1="18" x2="9" y2="18"/>
+          </svg>
+          Trier : ${sortLabels[sort.field] || 'Manuel'}
           <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
             <polyline points="6 9 12 15 18 9"/>
           </svg>
         </button>
         <div class="todo-sort-menu" id="todoSortMenu">
           ${Object.entries(sortLabels).map(([f, l]) => `
-            <div class="todo-sort-option ${_todoSortConfig.field === f ? 'active' : ''}"
+            <div class="todo-sort-option ${sort.field === f ? 'active' : ''}"
                  onclick="_todoSetSort('${f}')">
               ${l}
-              ${_todoSortConfig.field === f ? `<span class="sort-dir">${_todoSortConfig.dir === 'asc' ? '↑' : '↓'}</span>` : ''}
+              ${sort.field === f ? `<span class="sort-dir">${sort.dir === 'asc' ? '↑' : '↓'}</span>` : ''}
             </div>`).join('')}
         </div>
       </div>
@@ -301,7 +338,7 @@ function _todoRenderTaskList() {
 
   const body = document.getElementById('todoBody');
 
-  if (sortedTasks.length === 0 && baseTasks.filter(t => t.parentId).length === 0) {
+  if (sortedTasks.length === 0) {
     body.innerHTML = `
       <div class="todo-empty">
         <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
@@ -310,29 +347,86 @@ function _todoRenderTaskList() {
         <div class="todo-empty-title">Aucune tâche</div>
         <div class="todo-empty-sub">Ajoutez votre première tâche ci-dessous</div>
       </div>`;
-  } else {
-    let listHtml = '';
+  } else if (group === 'none') {
+    let html = '';
     sortedTasks.forEach(task => {
-      listHtml += _todoTaskRowHtml(task, false);
-      /* Sous-tâches */
-      const subs = _todoSortTasks(baseTasks.filter(t => t.parentId === task.id));
-      subs.forEach(st => { listHtml += _todoTaskRowHtml(st, true); });
+      html += _todoTaskRowHtml(task, false);
+      _todoSortTasksBy(baseTasks.filter(t => t.parentId === task.id), sort)
+        .forEach(st => { html += _todoTaskRowHtml(st, true); });
     });
-    body.innerHTML = `<div class="todo-task-list" id="todoTaskList">${listHtml}</div>`;
-    _todoAttachTaskEvents();
+    body.innerHTML = `<div class="todo-task-list" id="todoTaskList">${html}</div>`;
+  } else {
+    const groups = _todoGroupTasks(sortedTasks, group);
+    let html = '';
+    groups.forEach(({ label, color, tasks: gTasks }) => {
+      html += `<div class="todo-group">
+        <div class="todo-group-title">
+          ${color ? `<span class="todo-group-dot" style="background:${color}"></span>` : ''}
+          ${_esc(label)}<span class="todo-group-count">${gTasks.length}</span>
+        </div>`;
+      gTasks.forEach(task => {
+        html += _todoTaskRowHtml(task, false);
+        _todoSortTasksBy(baseTasks.filter(t => t.parentId === task.id), sort)
+          .forEach(st => { html += _todoTaskRowHtml(st, true); });
+      });
+      html += `</div>`;
+    });
+    body.innerHTML = `<div class="todo-task-list" id="todoTaskList">${html}</div>`;
   }
 
-  /* Barre d'ajout rapide */
-  const addBarHtml = `
+  _todoAttachTaskEvents();
+
+  body.insertAdjacentHTML('beforeend', `
     <div class="todo-add-bar" id="todoAddBar" onclick="document.getElementById('todoAddInput').focus()">
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
         <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
       </svg>
       <input id="todoAddInput" class="todo-add-input" placeholder="Ajouter une tâche…"
-             onkeydown="_todoAddBarKey(event)"
-             onclick="event.stopPropagation()">
-    </div>`;
-  body.insertAdjacentHTML('beforeend', addBarHtml);
+             onkeydown="_todoAddBarKey(event)" onclick="event.stopPropagation()">
+    </div>`);
+}
+
+/* ── Tri par config objet ── */
+function _todoSortTasksBy(tasks, sort) {
+  const field = sort?.field || 'order';
+  const dir   = sort?.dir   || 'asc';
+  const m     = dir === 'asc' ? 1 : -1;
+  return [...tasks].sort((a, b) => {
+    switch (field) {
+      case 'priority': return m * ((_PRIORITY_ORDER[a.priority]||3)-(_PRIORITY_ORDER[b.priority]||3));
+      case 'dueDate':  return m * ((a.dueDate ? new Date(a.dueDate) : new Date('9999')) - (b.dueDate ? new Date(b.dueDate) : new Date('9999')));
+      case 'title':    return m * a.title.localeCompare(b.title, 'fr');
+      case 'status':   return m * (_todoStatusName(a.status)||'').localeCompare(_todoStatusName(b.status)||'', 'fr');
+      case 'type':     return m * (_todoTypeName(a.type)||'').localeCompare(_todoTypeName(b.type)||'', 'fr');
+      case 'created':  return m * (new Date(a.createdAt) - new Date(b.createdAt));
+      default:         return m * ((a.order||0)-(b.order||0));
+    }
+  });
+}
+
+/* ── Groupement ── */
+function _todoGroupTasks(tasks, groupBy) {
+  const map = new Map();
+  const pColors = { P1:'#db4035', P2:'#ff9a14', P3:'#4073ff', P4:'#888' };
+  tasks.forEach(task => {
+    let key, label, color;
+    if (groupBy === 'type') {
+      label = _todoTypeName(task.type) || '(Sans type)';
+      color = _todoTypeColor(_todoFindType(_todoTypeName(task.type)) || task.type);
+      key   = label;
+    } else if (groupBy === 'status') {
+      label = _todoStatusName(task.status) || '(Sans statut)';
+      color = _todoStatusColor(_todoFindStatus(_todoStatusName(task.status)) || task.status);
+      key   = label;
+    } else {
+      key   = task.priority || 'P4';
+      label = key;
+      color = pColors[key] || '#888';
+    }
+    if (!map.has(key)) map.set(key, { label, color, tasks: [] });
+    map.get(key).tasks.push(task);
+  });
+  return [...map.values()];
 }
 
 /* ── HTML d'une ligne de tâche ── */
