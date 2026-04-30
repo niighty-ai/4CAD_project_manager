@@ -74,12 +74,7 @@ function _todoRenderModal() {
                 onkeydown="if(event.key==='Escape')this.blur()">${_esc(task.title)}</textarea>
               <button class="tm-link-btn" title="Insérer un lien"
                       onmousedown="event.preventDefault()"
-                      onclick="_tmInsertLink('tmTitle',this)">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="display:block">
-                  <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
-                  <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
-                </svg>
-              </button>
+                      onclick="_tmInsertLink('tmTitle',this)"></button>
             </div>
           </div>
 
@@ -95,12 +90,7 @@ function _todoRenderModal() {
                   onblur="_tmSaveDesc()">${_esc(task.description || '')}</textarea>
                 <button class="tm-link-btn tm-link-btn-abs" title="Insérer un lien"
                         onmousedown="event.preventDefault()"
-                        onclick="_tmInsertLink('tmDesc',this)">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="display:block">
-                    <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
-                    <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
-                  </svg>
-                </button>
+                        onclick="_tmInsertLink('tmDesc',this)"></button>
               </div>
             </div>
           </div>
@@ -144,12 +134,7 @@ function _todoRenderModal() {
                 <div style="display:flex;justify-content:flex-end;align-items:center;gap:6px;margin-top:6px">
                   <button class="tm-link-btn" title="Insérer un lien"
                           onmousedown="event.preventDefault()"
-                          onclick="_tmInsertLink('tmCommentInput',this)">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="display:block">
-                      <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
-                      <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
-                    </svg>
-                  </button>
+                          onclick="_tmInsertLink('tmCommentInput',this)"></button>
                   <button class="todo-comment-submit" onclick="_tmSubmitComment()">Envoyer</button>
                 </div>
               </div>

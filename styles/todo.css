@@ -686,19 +686,21 @@
 .todo-comment-submit:hover { background: var(--accent-dark); }
 .todo-comment-submit:disabled { opacity: .5; cursor: default; }
 
-/* Bouton insertion lien */
+/* Bouton insertion lien — icône rendue via background-image (évite les problèmes currentColor) */
 .tm-link-btn {
   width: 26px; height: 26px;
-  display: flex; align-items: center; justify-content: center;
   border: 1px solid var(--border);
   border-radius: 5px;
-  background: var(--surface);
-  color: var(--text);
+  background-color: var(--surface);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23546e7a' stroke-width='2.5' stroke-linecap='round'%3E%3Cpath d='M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71'/%3E%3Cpath d='M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: 14px 14px;
   cursor: pointer;
   flex-shrink: 0;
-  transition: background .1s, color .1s, border-color .1s;
+  transition: background-color .1s, border-color .1s;
 }
-.tm-link-btn:hover { background: var(--surface2); color: var(--accent); border-color: var(--accent); }
+.tm-link-btn:hover { background-color: var(--surface2); border-color: var(--accent); }
 /* Variante positionnée absolument (coin bas-droit de la desc) */
 .tm-link-btn-abs {
   position: absolute;
