@@ -648,6 +648,26 @@
 .todo-comment-submit:hover { background: var(--accent-dark); }
 .todo-comment-submit:disabled { opacity: .5; cursor: default; }
 
+/* Bouton insertion lien (description + commentaires) */
+.tm-link-btn {
+  width: 26px; height: 26px;
+  display: flex; align-items: center; justify-content: center;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background .1s, color .1s, border-color .1s;
+}
+.tm-link-btn:hover { background: var(--surface2); color: var(--accent); border-color: var(--accent); }
+/* Positionnement dans la description (coin bas-droit) */
+.todo-modal-desc + .tm-link-btn,
+div:has(> .todo-modal-desc) > .tm-link-btn {
+  position: absolute;
+  bottom: 6px; right: 6px;
+}
+
 /* Colonne droite (propriétés) */
 .todo-modal-right {
   width: 240px;

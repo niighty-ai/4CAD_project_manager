@@ -69,11 +69,20 @@ function _todoRenderModal() {
             onblur="_tmSaveTitle()">${_esc(task.title)}</textarea>
 
           <!-- Description -->
-          <textarea class="todo-modal-desc" id="tmDesc"
-            rows="3" placeholder="Ajouter une description…"
-            oninput="_tmAutoResize(this)"
-            onfocus="_tmBackToParent()"
-            onblur="_tmSaveDesc()">${_esc(task.description || '')}</textarea>
+          <div style="position:relative">
+            <textarea class="todo-modal-desc" id="tmDesc"
+              rows="3" placeholder="Ajouter une description…"
+              oninput="_tmAutoResize(this)"
+              onfocus="_tmBackToParent()"
+              onblur="_tmSaveDesc()">${_esc(task.description || '')}</textarea>
+            <button class="tm-link-btn" title="Insérer un lien"
+                    onclick="_tmInsertLink('tmDesc',this)">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
+                <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
+              </svg>
+            </button>
+          </div>
 
           <!-- Sous-tâches -->
           <div class="todo-modal-section">
@@ -111,7 +120,14 @@ function _todoRenderModal() {
                     oninput="_tmAutoResize(this)"
                     onkeydown="_tmCommentKey(event)"></textarea>
                 </div>
-                <div style="display:flex;justify-content:flex-end;margin-top:6px">
+                <div style="display:flex;justify-content:flex-end;align-items:center;gap:6px;margin-top:6px">
+                  <button class="tm-link-btn" title="Insérer un lien"
+                          onclick="_tmInsertLink('tmCommentInput',this)">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                      <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
+                      <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
+                    </svg>
+                  </button>
                   <button class="todo-comment-submit" onclick="_tmSubmitComment()">Envoyer</button>
                 </div>
               </div>
@@ -866,4 +882,67 @@ function _tmTagRemove(kind, name) {
   if (kind === 'type') _todoRemoveType(name);
   else                 _todoRemoveStatus(name);
   _tmTagRefresh(kind);
+}
+
+/* ── Insertion de lien [texte](url) dans un textarea ── */
+function _tmInsertLink(textareaId, btnEl) {
+  document.getElementById('tmLinkPopup')?.remove();
+  const ta = document.getElementById(textareaId);
+  const sel = ta ? ta.value.substring(ta.selectionStart, ta.selectionEnd) : '';
+
+  const popup = document.createElement('div');
+  popup.id = 'tmLinkPopup';
+  popup.style.cssText = 'position:fixed;z-index:1500;background:var(--surface);' +
+    'border:1px solid var(--border);border-radius:8px;padding:12px;' +
+    'box-shadow:0 4px 20px var(--shadow);width:240px;';
+  popup.innerHTML = `
+    <div style="font-size:11px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--muted);margin-bottom:8px">Insérer un lien</div>
+    <input id="tmLinkText" value="${_esc(sel)}" placeholder="Texte affiché"
+           style="width:100%;box-sizing:border-box;margin-bottom:6px;padding:5px 8px;font-size:12px;
+                  background:var(--surface2);border:1px solid var(--border);border-radius:5px;color:var(--text);outline:none">
+    <input id="tmLinkUrl" placeholder="https://…"
+           style="width:100%;box-sizing:border-box;margin-bottom:8px;padding:5px 8px;font-size:12px;
+                  background:var(--surface2);border:1px solid var(--border);border-radius:5px;color:var(--text);outline:none"
+           onkeydown="if(event.key==='Enter')_tmConfirmLink('${textareaId}');if(event.key==='Escape')document.getElementById('tmLinkPopup')?.remove()">
+    <div style="display:flex;gap:6px;justify-content:flex-end">
+      <button onclick="document.getElementById('tmLinkPopup').remove()"
+              style="padding:4px 10px;font-size:11px;border-radius:5px;border:1px solid var(--border);
+                     background:transparent;color:var(--text);cursor:pointer">Annuler</button>
+      <button onclick="_tmConfirmLink('${textareaId}')"
+              style="padding:4px 10px;font-size:11px;border-radius:5px;border:none;
+                     background:var(--accent);color:#fff;cursor:pointer">Insérer</button>
+    </div>`;
+
+  document.body.appendChild(popup);
+  const rect = btnEl.getBoundingClientRect();
+  popup.style.bottom = (window.innerHeight - rect.top + 6) + 'px';
+  const left = Math.min(rect.left, window.innerWidth - 252);
+  popup.style.left = left + 'px';
+
+  const focusEl = sel ? document.getElementById('tmLinkUrl') : document.getElementById('tmLinkText');
+  focusEl?.focus();
+
+  setTimeout(() => {
+    document.addEventListener('click', function close(e) {
+      if (!popup.contains(e.target) && e.target !== btnEl) {
+        popup.remove();
+        document.removeEventListener('click', close, true);
+      }
+    }, true);
+  }, 0);
+}
+
+function _tmConfirmLink(textareaId) {
+  const ta      = document.getElementById(textareaId);
+  const text    = document.getElementById('tmLinkText')?.value.trim();
+  const url     = document.getElementById('tmLinkUrl')?.value.trim();
+  if (!ta || !url) { document.getElementById('tmLinkUrl')?.focus(); return; }
+  const label   = text || url;
+  const snippet = `[${label}](${url})`;
+  const start   = ta.selectionStart;
+  const end     = ta.selectionEnd;
+  ta.value = ta.value.substring(0, start) + snippet + ta.value.substring(end);
+  ta.selectionStart = ta.selectionEnd = start + snippet.length;
+  ta.focus();
+  document.getElementById('tmLinkPopup')?.remove();
 }
