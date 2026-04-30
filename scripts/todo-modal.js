@@ -158,7 +158,7 @@ function _tmSaveDesc() {
   _todoUpdateTask(_todoModalTaskId, { description: val });
 }
 
-/* ── Sous-tâches (Option A : clic bascule colonne droite + commentaires) ── */
+/* ── Sous-tâches (Option A : clic sur la ligne bascule droite + commentaires) ── */
 function _tmRenderSubtasks() {
   const el = document.getElementById('tmSubtasks');
   if (!el) return;
@@ -168,7 +168,8 @@ function _tmRenderSubtasks() {
     const isActive = st.id === _tmActiveSubId;
     return `
     <div class="todo-subtask-item ${st.completed ? 'done' : ''} ${isActive ? 'tm-sub-active' : ''}"
-         data-sub-id="${st.id}">
+         data-sub-id="${st.id}"
+         onclick="_tmSelectSub('${st.id}')">
       <div class="todo-check ${(st.priority||'p4').toLowerCase()} ${st.completed ? 'checked' : ''}"
            style="width:15px;height:15px;border-width:1.5px"
            onclick="event.stopPropagation();_tmToggleSubtask('${st.id}')">
@@ -178,18 +179,13 @@ function _tmRenderSubtasks() {
       </div>
       <input type="text" value="${_esc(st.title)}"
              onclick="event.stopPropagation()"
+             onfocus="event.stopPropagation()"
              onblur="_tmSaveSubtask('${st.id}',this.value)"
              onkeydown="if(event.key==='Enter')this.blur();if(event.key==='Escape')this.blur()">
-      <div class="todo-subtask-del" onclick="event.stopPropagation();_tmDeleteSubtask('${st.id}')">
+      <div class="todo-subtask-del" title="Supprimer"
+           onclick="event.stopPropagation();_tmDeleteSubtask('${st.id}')">
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
           <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-        </svg>
-      </div>
-      <!-- Clic sur la ligne → bascule vers la sous-tâche -->
-      <div class="tm-sub-select" title="Voir les propriétés"
-           onclick="_tmSelectSub('${st.id}')">
-        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <polyline points="9 18 15 12 9 6"/>
         </svg>
       </div>
     </div>`;
