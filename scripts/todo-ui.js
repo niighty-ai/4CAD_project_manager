@@ -303,6 +303,17 @@ function _todoRenderTaskList() {
   };
   const groupLabels = { none:'Aucun', type:'Type', status:'Statut', priority:'Priorité', folder:'Dossier' };
 
+  /* Normalise le groupe : toujours un tableau (peut être string legacy ou array) */
+  const _normGroups = raw => {
+    if (!raw || raw === 'none') return [];
+    if (Array.isArray(raw)) return raw.filter(g => g && g !== 'none');
+    return [raw];
+  };
+  const groupsArr = _normGroups(group);
+  const groupBtnLabel = groupsArr.length
+    ? groupsArr.map(g => groupLabels[g] || g).join(', ')
+    : 'Aucun';
+
   main.innerHTML = `
     <div class="todo-main-header">
       <div class="todo-main-title">${_esc(title)}</div>
@@ -319,20 +330,25 @@ function _todoRenderTaskList() {
       </button>
 
       <div style="position:relative">
-        <button class="todo-sort-btn ${group !== 'none' ? 'active' : ''}" onclick="_todoToggleGroupMenu(this)">
+        <button class="todo-sort-btn ${groupsArr.length ? 'active' : ''}" onclick="_todoToggleGroupMenu(this)">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
             <rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>
           </svg>
-          Grouper : ${groupLabels[group] || 'Aucun'}
+          Grouper : ${groupBtnLabel}
           <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
             <polyline points="6 9 12 15 18 9"/>
           </svg>
         </button>
         <div class="todo-sort-menu" id="todoGroupMenu">
-          ${Object.entries(groupLabels).map(([k, l]) => `
-            <div class="todo-sort-option ${group === k ? 'active' : ''}"
-                 onclick="_todoSetGroup('${k}')">${l}</div>`).join('')}
+          ${Object.entries(groupLabels).map(([k, l]) => {
+            const pos = groupsArr.indexOf(k); /* -1, 0 ou 1 */
+            const badge = pos === 0 ? '①' : pos === 1 ? '②' : '';
+            return `<div class="todo-sort-option ${pos >= 0 ? 'active' : ''}"
+                 onclick="_todoSetGroup('${k}')">
+              ${l}${badge ? ` <span class="todo-group-rank">${badge}</span>` : ''}
+            </div>`;
+          }).join('')}
         </div>
       </div>
 
@@ -370,7 +386,7 @@ function _todoRenderTaskList() {
         <div class="todo-empty-title">Aucune tâche</div>
         <div class="todo-empty-sub">Ajoutez votre première tâche ci-dessous</div>
       </div>`;
-  } else if (group === 'none') {
+  } else if (!groupsArr.length) {
     let html = '';
     sortedTasks.forEach(task => {
       html += _todoTaskRowHtml(task, false);
@@ -379,19 +395,37 @@ function _todoRenderTaskList() {
     });
     body.innerHTML = `<div class="todo-task-list" id="todoTaskList">${html}</div>`;
   } else {
-    const groups = _todoGroupTasks(sortedTasks, group);
+    const _renderTasksFlat = tasks => {
+      let h = '';
+      tasks.forEach(task => {
+        h += _todoTaskRowHtml(task, false);
+        _todoSortTasksBy(baseTasks.filter(t => t.parentId === task.id), sort)
+          .forEach(st => { h += _todoTaskRowHtml(st, true); });
+      });
+      return h;
+    };
+    const outerGroups = _todoGroupTasks(sortedTasks, groupsArr[0]);
     let html = '';
-    groups.forEach(({ label, color, tasks: gTasks }) => {
+    outerGroups.forEach(({ label, color, tasks: gTasks }) => {
       html += `<div class="todo-group">
         <div class="todo-group-title">
           ${color ? `<span class="todo-group-dot" style="background:${color}"></span>` : ''}
           ${_esc(label)}<span class="todo-group-count">${gTasks.length}</span>
         </div>`;
-      gTasks.forEach(task => {
-        html += _todoTaskRowHtml(task, false);
-        _todoSortTasksBy(baseTasks.filter(t => t.parentId === task.id), sort)
-          .forEach(st => { html += _todoTaskRowHtml(st, true); });
-      });
+      if (groupsArr.length >= 2) {
+        const inner = _todoGroupTasks(gTasks, groupsArr[1]);
+        inner.forEach(({ label: il, color: ic, tasks: it }) => {
+          html += `<div class="todo-group todo-group-inner">
+            <div class="todo-group-title todo-group-title-inner">
+              ${ic ? `<span class="todo-group-dot" style="background:${ic}"></span>` : ''}
+              ${_esc(il)}<span class="todo-group-count">${it.length}</span>
+            </div>
+            ${_renderTasksFlat(it)}
+          </div>`;
+        });
+      } else {
+        html += _renderTasksFlat(gTasks);
+      }
       html += `</div>`;
     });
     body.innerHTML = `<div class="todo-task-list" id="todoTaskList">${html}</div>`;
@@ -632,8 +666,23 @@ function _todoToggleGroupMenu(btn) {
   }
 }
 
-function _todoSetGroup(group) {
-  _todoSetViewPrefs(_todoViewCtx(), { group });
+function _todoSetGroup(key) {
+  const ctx  = _todoViewCtx();
+  const raw  = _todoGetViewPrefs(ctx).group;
+  let cur = !raw || raw === 'none' ? [] : Array.isArray(raw) ? raw.filter(g => g && g !== 'none') : [raw];
+  if (key === 'none') {
+    cur = [];
+  } else {
+    const idx = cur.indexOf(key);
+    if (idx >= 0) {
+      cur = cur.filter(g => g !== key); /* désélectionner */
+    } else if (cur.length < 2) {
+      cur = [...cur, key];              /* ajouter (max 2) */
+    } else {
+      cur = [cur[0], key];              /* remplacer le 2e */
+    }
+  }
+  _todoSetViewPrefs(ctx, { group: cur.length ? cur : 'none' });
   document.getElementById('todoGroupMenu')?.classList.remove('open');
   _todoRenderTaskList();
 }

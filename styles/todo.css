@@ -1045,6 +1045,23 @@
   background: var(--surface2);
   padding: 1px 6px; border-radius: 8px;
 }
+/* Sous-groupe (2e niveau) */
+.todo-group-inner {
+  margin-top: 10px;
+  margin-left: 16px;
+}
+.todo-group-title-inner {
+  font-size: 9px;
+  letter-spacing: 1px;
+  border-bottom-style: dashed;
+  opacity: .8;
+}
+/* Badge ① ② dans le menu de groupement */
+.todo-group-rank {
+  font-size: 13px;
+  margin-left: auto;
+  color: var(--accent);
+}
 
 /* ── Modal : bandeau sous-tâche active ── */
 .tm-sub-breadcrumb {
