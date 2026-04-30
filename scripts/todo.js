@@ -359,27 +359,37 @@ function _todoUnshareTask(taskId, targetUserId) {
   _todoSave();
 }
 
-/* ── Paramètres (types/statuts) ───────────────────────────────────────────── */
-function _todoAddType(name) {
+/* ── Paramètres (types/statuts) ── stockage {name,color} ou string legacy ── */
+function _todoAddType(name, color) {
   if (!name.trim()) return;
-  if (!_todoData.settings.taskTypes.includes(name.trim())) {
-    _todoData.settings.taskTypes.push(name.trim());
+  const exists = _todoData.settings.taskTypes.some(t =>
+    (typeof t === 'object' ? t.name : t) === name.trim()
+  );
+  if (!exists) {
+    _todoData.settings.taskTypes.push(color ? { name: name.trim(), color } : name.trim());
     _todoSave();
   }
 }
 function _todoRemoveType(name) {
-  _todoData.settings.taskTypes = _todoData.settings.taskTypes.filter(t => t !== name);
+  _todoData.settings.taskTypes = _todoData.settings.taskTypes.filter(t =>
+    (typeof t === 'object' ? t.name : t) !== name
+  );
   _todoSave();
 }
-function _todoAddStatus(name) {
+function _todoAddStatus(name, color) {
   if (!name.trim()) return;
-  if (!_todoData.settings.taskStatuses.includes(name.trim())) {
-    _todoData.settings.taskStatuses.push(name.trim());
+  const exists = _todoData.settings.taskStatuses.some(s =>
+    (typeof s === 'object' ? s.name : s) === name.trim()
+  );
+  if (!exists) {
+    _todoData.settings.taskStatuses.push(color ? { name: name.trim(), color } : name.trim());
     _todoSave();
   }
 }
 function _todoRemoveStatus(name) {
-  _todoData.settings.taskStatuses = _todoData.settings.taskStatuses.filter(s => s !== name);
+  _todoData.settings.taskStatuses = _todoData.settings.taskStatuses.filter(s =>
+    (typeof s === 'object' ? s.name : s) !== name
+  );
   _todoSave();
 }
 
@@ -427,14 +437,32 @@ function _todoSortTasks(tasks) {
 /* ── Filtre vues ──────────────────────────────────────────────────────────── */
 function _todoApplyViewFilters(tasks, filters) {
   if (!filters) return tasks;
+  const now = new Date();
   return tasks.filter(t => {
     if (filters.priority && filters.priority.length && !filters.priority.includes(t.priority)) return false;
-    if (filters.status   && filters.status.length   && !filters.status.includes(t.status))     return false;
-    if (filters.type     && filters.type.length     && !filters.type.includes(t.type))         return false;
-    if (filters.assignee && !( t.assignees || []).some(a => a.name === filters.assignee))       return false;
-    if (filters.dueBefore && t.dueDate && new Date(t.dueDate) > new Date(filters.dueBefore))   return false;
-    if (filters.dueAfter  && t.dueDate && new Date(t.dueDate) < new Date(filters.dueAfter))    return false;
-    if (filters.showOnlyIncomplete && t.completed)                                              return false;
+    if (filters.status && filters.status.length) {
+      const sn = typeof t.status === 'object' ? (t.status?.name || '') : (t.status || '');
+      if (!filters.status.includes(sn)) return false;
+    }
+    if (filters.type && filters.type.length) {
+      const tn = typeof t.type === 'object' ? (t.type?.name || '') : (t.type || '');
+      if (!filters.type.includes(tn)) return false;
+    }
+    if (filters.assignee && !(t.assignees || []).some(a => a.name === filters.assignee)) return false;
+    if (filters.showOnlyIncomplete && t.completed) return false;
+    if (filters.dateFilter && filters.dateFilter !== 'all') {
+      if (!t.dueDate) return !!filters.showNoDate;
+      const d = new Date(t.dueDate);
+      if (filters.dateFilter === 'today') {
+        if (d.toDateString() !== now.toDateString()) return false;
+      } else if (filters.dateFilter === 'week') {
+        const end = new Date(now); end.setDate(end.getDate() + 7);
+        if (d < now || d > end) return false;
+      } else if (filters.dateFilter === 'month') {
+        const end = new Date(now); end.setMonth(end.getMonth() + 1);
+        if (d < now || d > end) return false;
+      }
+    }
     return true;
   });
 }
