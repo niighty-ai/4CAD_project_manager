@@ -208,10 +208,9 @@ function _tmAddSubtask() {
   if (!task) return;
   const st = _todoCreateTask('Nouvelle sous-tâche', task.folderId, _todoModalTaskId);
   _tmRenderSubtasks();
-  /* Mettre le focus sur la nouvelle sous-tâche */
-  const input = document.querySelector(`[data-sub-id="${st.id}"] input`);
-  if (input) { input.focus(); input.select(); }
   _todoRenderTaskList();
+  /* Bascule immédiatement sur la sous-tâche pour forcer Type & Statut */
+  _tmSelectSub(st.id);
 }
 
 function _tmToggleSubtask(subId) {

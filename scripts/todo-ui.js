@@ -533,7 +533,7 @@ function _todoTaskRowHtml(task, isSub) {
     </div>`;
 }
 
-/* ── Ajout rapide ── */
+/* ── Ajout rapide — ouvre le modal pour forcer Type & Statut ── */
 function _todoAddBarKey(e) {
   if (e.key !== 'Enter') return;
   const input = e.target;
@@ -541,11 +541,13 @@ function _todoAddBarKey(e) {
   if (!title) return;
   const folderId = (_todoSelectedFolderId && !_todoSelectedFolderId.startsWith('view:'))
     ? _todoSelectedFolderId : (_todoData.folders[0]?.id || null);
-  _todoCreateTask(title, folderId, null);
+  const task = _todoCreateTask(title, folderId, null);
   input.value = '';
   _todoRenderTaskList();
   _todoRenderSidebar();
-  _todoShowToast('Tâche ajoutée');
+  /* Ouvre immédiatement le modal pour que l'utilisateur renseigne Type & Statut */
+  _todoOpenModal(task.id);
+  _todoShowToast('Tâche créée — renseignez Type et Statut');
 }
 
 /* ── Tri persisté ── */
