@@ -78,7 +78,7 @@ function _todoReadLS() {
   } catch(e) {}
 }
 
-/* ── Sauvegarde Firebase (debouncée 800 ms) ───────────────────────────────── */
+/* ── Sauvegarde Firebase (debouncée 200 ms) ───────────────────────────────── */
 function _todoSave() {
   _todoWriteLS();
   clearTimeout(_todoSaveTimer);
@@ -86,7 +86,7 @@ function _todoSave() {
     if (!currentUserId || typeof window._fbSetTodoData !== 'function') return;
     _todoSaveTs = Date.now();
     window._fbSetTodoData(currentUserId, _todoData).catch(e => console.warn('[todo] save error', e));
-  }, 800);
+  }, 200);
 }
 
 /* ── Chargement initial (appelé depuis app.js) ────────────────────────────── */
