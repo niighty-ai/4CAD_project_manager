@@ -56,10 +56,12 @@ function _todoRenderModal() {
 
   overlay.innerHTML = `
     <div class="todo-modal" onclick="event.stopPropagation()">
-      <button class="todo-modal-close" onclick="_todoCloseModal()" title="Fermer">&#x2715;</button>
 
       <!-- Colonne gauche -->
       <div class="todo-modal-left">
+        <div class="todo-modal-left-header">
+          <button class="todo-modal-x-btn" onclick="_todoCloseModal()" title="Fermer">&#x2715;</button>
+        </div>
         <div class="todo-modal-left-body">
 
           <!-- Titre (vue rendue / édition bascule) -->
@@ -248,6 +250,18 @@ function _tmRenderSubtasks() {
   if (!subs.length) { el.innerHTML = ''; return; }
   el.innerHTML = subs.map(st => {
     const isActive = st.id === _tmActiveSubId;
+    const inputId  = `tmSubInput_${st.id}`;
+    const titlePart = isActive
+      ? `<input type="text" id="${inputId}" value="${_esc(st.title)}"
+               onclick="event.stopPropagation()"
+               onfocus="_tmFocusSub('${st.id}')"
+               onblur="_tmSaveSubtask('${st.id}',this.value)"
+               onkeydown="if(event.key==='Enter')this.blur();if(event.key==='Escape')this.blur()">
+         <button class="tm-link-btn" title="Insérer un lien" style="flex-shrink:0"
+                 onmousedown="event.preventDefault()"
+                 onclick="event.stopPropagation();_tmInsertLink('${inputId}',this)"></button>`
+      : `<div class="tm-sub-title-view ${st.completed ? 'done' : ''}"
+              onclick="event.stopPropagation();_tmSelectSub('${st.id}')">${st.title ? _todoLinkify(st.title) : ''}</div>`;
     return `
     <div class="todo-subtask-item ${st.completed ? 'done' : ''} ${isActive ? 'tm-sub-active' : ''}"
          data-sub-id="${st.id}"
@@ -259,11 +273,7 @@ function _tmRenderSubtasks() {
           <polyline points="20 6 9 17 4 12"/>
         </svg>
       </div>
-      <input type="text" value="${_esc(st.title)}"
-             onclick="event.stopPropagation()"
-             onfocus="_tmFocusSub('${st.id}')"
-             onblur="_tmSaveSubtask('${st.id}',this.value)"
-             onkeydown="if(event.key==='Enter')this.blur();if(event.key==='Escape')this.blur()">
+      ${titlePart}
       <div class="todo-subtask-del" title="Supprimer"
            onclick="event.stopPropagation();_tmDeleteSubtask('${st.id}')">
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
@@ -311,6 +321,7 @@ function _tmToggleSubtask(subId) {
 }
 
 function _tmSaveSubtask(subId, val) {
+  if (_tmLinkPopupOpen) return;
   if (val.trim()) _todoUpdateTask(subId, { title: val.trim() });
   else _todoDeleteTask(subId);
   _tmRenderSubtasks();
