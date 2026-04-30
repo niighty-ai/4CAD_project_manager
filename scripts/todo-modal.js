@@ -179,7 +179,7 @@ function _tmRenderSubtasks() {
       </div>
       <input type="text" value="${_esc(st.title)}"
              onclick="event.stopPropagation()"
-             onfocus="event.stopPropagation()"
+             onfocus="_tmFocusSub('${st.id}')"
              onblur="_tmSaveSubtask('${st.id}',this.value)"
              onkeydown="if(event.key==='Enter')this.blur();if(event.key==='Escape')this.blur()">
       <div class="todo-subtask-del" title="Supprimer"
@@ -194,6 +194,13 @@ function _tmRenderSubtasks() {
 
 function _tmSelectSub(subId) {
   _tmActiveSubId = (_tmActiveSubId === subId) ? null : subId;
+  _tmRenderSubtasks();
+  _tmRenderRight();
+  _tmRenderComments();
+}
+function _tmFocusSub(subId) {
+  if (_tmActiveSubId === subId) return;
+  _tmActiveSubId = subId;
   _tmRenderSubtasks();
   _tmRenderRight();
   _tmRenderComments();
