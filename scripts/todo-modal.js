@@ -461,18 +461,20 @@ function _tmRenderRight() {
   const assigneeNames = (task.assignees || []).map(a => a.name || a);
 
   /* Bandeau retour si sous-tâche active */
+  /* Extrait le texte d'affichage en supprimant la syntaxe [texte](url) */
+  const _plain = s => _esc((s || '').replace(/\[([^\]]+)\]\(https?:\/\/[^)]+\)/g, '$1'));
   const breadcrumb = isSub ? `
     <div class="tm-sub-breadcrumb">
       <span class="tm-sub-back" onclick="_tmSelectSub('${_tmActiveSubId}')">
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
           <polyline points="15 18 9 12 15 6"/>
         </svg>
-        ${_esc(parent?.title || 'Tâche parente')}
+        ${_plain(parent?.title || 'Tâche parente')}
       </span>
       <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <polyline points="9 18 15 12 9 6"/>
       </svg>
-      <span style="color:var(--text);font-weight:600">${_esc(task.title)}</span>
+      <span style="color:var(--text);font-weight:600">${_plain(task.title)}</span>
     </div>` : '';
 
   /* Récurrence sous-tâche : select followsParent */
