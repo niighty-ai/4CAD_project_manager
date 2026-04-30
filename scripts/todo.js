@@ -262,14 +262,38 @@ function _todoCompleteTask(taskId) {
     task.completedAt = new Date().toISOString();
     /* Récurrence : créer la prochaine occurrence */
     if (task.recurrence && task.recurrence.type !== 'none') {
+      /* Compléter d'abord les sous-tâches non terminées avec followsParent:false */
+      const subtasks = _todoData.tasks.filter(t => t.parentId === taskId);
+      subtasks.forEach(st => {
+        if (!st.completed) {
+          st.completed   = true;
+          st.completedAt = new Date().toISOString();
+          st.updatedAt   = new Date().toISOString();
+        }
+      });
+
       const next = _todoCreateTask(task.title, task.folderId, task.parentId);
       next.description = task.description;
       next.type        = task.type;
       next.priority    = task.priority;
-      next.status      = _todoData.settings.taskStatuses[0] || '';
+      next.status      = _todoData.settings.taskStatuses[0]
+        ? (typeof _todoData.settings.taskStatuses[0] === 'object'
+            ? _todoData.settings.taskStatuses[0].name
+            : _todoData.settings.taskStatuses[0])
+        : '';
       next.assignees   = [...(task.assignees || [])];
       next.dueDate     = _todoNextOccurrence(task.dueDate, task.recurrence);
       next.recurrence  = { ...task.recurrence };
+
+      /* Dupliquer uniquement les sous-tâches avec followsParent:true */
+      subtasks.filter(st => st.followsParent === true).forEach(st => {
+        const newSt = _todoCreateTask(st.title, next.folderId, next.id);
+        newSt.type          = st.type;
+        newSt.priority      = st.priority;
+        newSt.assignees     = [...(st.assignees || [])];
+        newSt.followsParent = true;
+      });
+
       _todoShowToast('Nouvelle occurrence créée');
     }
   } else {
