@@ -278,7 +278,7 @@ function _todoRenderTaskList() {
     order:'Manuel', priority:'Priorité', dueDate:'Échéance',
     title:'Nom', status:'Statut', type:'Type', created:'Création'
   };
-  const groupLabels = { none:'Aucun', type:'Type', status:'Statut', priority:'Priorité' };
+  const groupLabels = { none:'Aucun', type:'Type', status:'Statut', priority:'Priorité', folder:'Dossier' };
 
   main.innerHTML = `
     <div class="todo-main-header">
@@ -418,6 +418,11 @@ function _todoGroupTasks(tasks, groupBy) {
       label = _todoStatusName(task.status) || '(Sans statut)';
       color = _todoStatusColor(_todoFindStatus(_todoStatusName(task.status)) || task.status);
       key   = label;
+    } else if (groupBy === 'folder') {
+      const folder = _todoData.folders.find(f => f.id === task.folderId);
+      label = folder ? folder.name : '(Sans dossier)';
+      color = folder ? (folder.color || '#888') : '#888';
+      key   = task.folderId || '__none__';
     } else {
       key   = task.priority || 'P4';
       label = key;
@@ -471,6 +476,18 @@ function _todoTaskRowHtml(task, isSub) {
     });
     if (task.assignees.length > 2) meta += `<span class="todo-pill todo-pill-assignee">+${task.assignees.length - 2}</span>`;
   }
+  /* Badge dossier dans la vue globale "Toutes les tâches" */
+  if (!_todoSelectedFolderId && task.folderId && !isSub) {
+    const folder = _todoData.folders.find(f => f.id === task.folderId);
+    if (folder) {
+      meta += `<span class="todo-pill todo-pill-folder" style="--c:${folder.color || '#888'}">
+        <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+        </svg>
+        ${_esc(folder.name)}</span>`;
+    }
+  }
+
   if (task.recurrence && task.recurrence.type !== 'none') {
     meta += `<span class="todo-recurrence-badge">
       <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
