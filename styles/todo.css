@@ -269,12 +269,11 @@
 }
 .todo-task-row.completed .todo-task-title { text-decoration: line-through; color: var(--muted); }
 
-/* Tâche en retard — Option B : fond teinté + bande gauche */
+/* Tâche en retard — Option B : fond teinté + bande gauche (inset = pas de décalage) */
 .todo-task-row.overdue-row {
   background: rgba(219, 64, 53, .05);
-  border-left: 3px solid #db4035;
-  padding-left: 8px;
-  border-radius: 0 7px 7px 0;
+  box-shadow: inset 3px 0 0 #db4035;
+  border-radius: 7px;
 }
 .todo-task-row.overdue-row:hover { background: rgba(219, 64, 53, .1); }
 
