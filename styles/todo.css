@@ -427,8 +427,24 @@
   max-height: 92vh;
   display: flex;
   overflow: hidden;
+  position: relative;
   animation: todoSlideUp .18s ease;
 }
+.todo-modal-close {
+  position: absolute;
+  top: 10px; right: 12px;
+  width: 26px; height: 26px;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 50%;
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  font-size: 18px; line-height: 1;
+  cursor: pointer;
+  z-index: 10;
+  transition: background .12s, color .12s;
+}
+.todo-modal-close:hover { background: var(--border); color: var(--text); }
 @keyframes todoSlideUp { from { transform: translateY(16px); opacity: 0 } to { transform: none; opacity: 1 } }
 
 /* Colonne gauche */

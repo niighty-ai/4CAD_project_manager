@@ -55,6 +55,7 @@ function _todoRenderModal() {
 
   overlay.innerHTML = `
     <div class="todo-modal" onclick="event.stopPropagation()">
+      <button class="todo-modal-close" onclick="_todoCloseModal()" title="Fermer">&#x2715;</button>
 
       <!-- Colonne gauche -->
       <div class="todo-modal-left">
