@@ -368,15 +368,16 @@ function _tmRenderRight() {
       <span style="color:var(--text);font-weight:600">${_esc(task.title)}</span>
     </div>` : '';
 
-  /* Récurrence sous-tâche : toggle followsParent */
+  /* Récurrence sous-tâche : select followsParent */
   const recurrenceBlock = isSub ? `
     <div class="todo-prop">
       <div class="todo-prop-label">Récurrence</div>
-      <label class="tm-follows-toggle">
-        <input type="checkbox" ${task.followsParent ? 'checked' : ''}
-               onchange="_tmSetFollowsParent(this.checked)">
-        <span>${task.followsParent ? 'Suit la récurrence parente' : 'Unique à cette itération'}</span>
-      </label>
+      <div class="todo-prop-value" style="padding:4px 8px">
+        <select onchange="_tmSetFollowsParent(this.value)">
+          <option value="true"  ${task.followsParent !== false ? 'selected' : ''}>Suit la récurrence parente</option>
+          <option value="false" ${task.followsParent === false ? 'selected' : ''}>Unique à cette itération</option>
+        </select>
+      </div>
     </div>` : `
     <div class="todo-prop">
       <div class="todo-prop-label">Récurrence</div>
@@ -546,7 +547,7 @@ function _tmSetRecurrence(val) {
 }
 function _tmSetFollowsParent(val) {
   if (_tmActiveSubId) {
-    _todoUpdateTask(_tmActiveSubId, { followsParent: val });
+    _todoUpdateTask(_tmActiveSubId, { followsParent: val === 'true' || val === true });
     _tmRenderRight();
   }
 }

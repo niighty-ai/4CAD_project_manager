@@ -215,7 +215,7 @@ function _todoCreateTask(title, folderId, parentId) {
     completed:    false,
     completedAt:  null,
     sharedWith:   [],
-    followsParent: parentId ? false : undefined, /* sous-tâche : false par défaut */
+    followsParent: parentId ? true : undefined, /* sous-tâche : suit la récurrence par défaut */
     createdAt:    now,
     updatedAt:    now
   };
