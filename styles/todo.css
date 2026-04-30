@@ -887,6 +887,20 @@
 .todo-tag-item:hover .todo-tag-del { opacity: 1; }
 .todo-tag-del:hover  { background: var(--border); color: #db4035; }
 
+/* ── Ligne d'ajout inline dans le dialog tags ── */
+.todo-tag-add-row {
+  display: flex; align-items: center; gap: 8px;
+  padding: 6px 8px; margin-top: 4px;
+  background: var(--surface2); border-radius: 6px;
+}
+.todo-tag-add-btn {
+  width: 22px; height: 22px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 50%; background: var(--accent);
+  color: #fff; font-size: 16px; line-height: 1; cursor: pointer;
+}
+.todo-tag-add-btn:hover { opacity: .85; }
+
 /* ── Dialog partage ── */
 .todo-share-input-wrap {
   display: flex; gap: 8px;

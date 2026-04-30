@@ -651,7 +651,34 @@ const _TM_TAG_COLORS = [
 ];
 let _tmTagPickedColor = _TM_TAG_COLORS[0];
 
-/* ── Dialog gestion types / statuts (avec sélecteur de couleur) ── */
+/* Popup flottante générique pour choisir une couleur */
+function _tmShowColorPanel(anchorEl, currentColor, onPick) {
+  document.getElementById('tmDotColorPanel')?.remove();
+  const panel = document.createElement('div');
+  panel.id = 'tmDotColorPanel';
+  panel.style.cssText = 'position:fixed;z-index:1400;background:var(--surface);' +
+    'border:1px solid var(--border);border-radius:8px;padding:8px;' +
+    'display:flex;flex-wrap:wrap;gap:5px;width:148px;box-shadow:0 4px 16px var(--shadow)';
+  _TM_TAG_COLORS.forEach(c => {
+    const sw = document.createElement('div');
+    sw.style.cssText = `width:18px;height:18px;border-radius:50%;background:${c};cursor:pointer;` +
+      `border:2.5px solid ${c === currentColor ? 'var(--text)' : 'transparent'};flex-shrink:0`;
+    sw.onclick = e => { e.stopPropagation(); onPick(c); panel.remove(); };
+    panel.appendChild(sw);
+  });
+  document.body.appendChild(panel);
+  const rect = anchorEl.getBoundingClientRect();
+  panel.style.top  = (rect.bottom + 4) + 'px';
+  panel.style.left = rect.left + 'px';
+  const close = e => {
+    if (!panel.contains(e.target) && e.target !== anchorEl) {
+      panel.remove(); document.removeEventListener('click', close, true);
+    }
+  };
+  setTimeout(() => document.addEventListener('click', close, true), 0);
+}
+
+/* ── Dialog gestion types / statuts ── */
 function _tmOpenTagsDialog(kind) {
   const isType = kind === 'type';
   const label  = isType ? 'Types de tâches' : 'Statuts';
@@ -667,18 +694,13 @@ function _tmOpenTagsDialog(kind) {
     <div class="todo-dialog" style="width:340px">
       <div class="todo-dialog-title">${label}</div>
       <div class="todo-tags-list" id="tmTagsList">${_tmTagsListHtml(kind)}</div>
-      <div style="display:flex;gap:6px;align-items:center;margin-bottom:6px">
-        ${_TM_TAG_COLORS.map(c => `
-          <div class="tm-tag-color-opt ${c === _tmTagPickedColor ? 'selected' : ''}"
-               style="background:${c}" data-color="${c}"
-               onclick="_tmPickTagColor(this,'${c}')"></div>`).join('')}
-      </div>
-      <div style="display:flex;gap:8px">
+      <div class="todo-tag-add-row">
+        <span class="todo-tag-dot" id="tmAddDot" style="background:${_tmTagPickedColor};cursor:pointer"
+              onclick="event.stopPropagation();_tmAddDotPick(this)"></span>
         <input class="todo-dialog-input" id="tmTagInput"
-               placeholder="Nouveau…" style="margin:0;flex:1"
+               placeholder="Nouveau…" style="margin:0;flex:1;font-size:12px"
                onkeydown="if(event.key==='Enter')_tmTagAdd('${kind}')">
-        <button class="todo-dialog-ok" style="padding:7px 12px"
-                onclick="_tmTagAdd('${kind}')">Ajouter</button>
+        <button class="todo-tag-add-btn" onclick="_tmTagAdd('${kind}')">+</button>
       </div>
       <div class="todo-dialog-actions">
         <button class="todo-dialog-ok" onclick="_todoCloseDialog();_tmRenderRight()">Fermer</button>
@@ -689,10 +711,11 @@ function _tmOpenTagsDialog(kind) {
   document.getElementById('tmTagInput').focus();
 }
 
-function _tmPickTagColor(el, color) {
-  _tmTagPickedColor = color;
-  el.closest('div').querySelectorAll('.tm-tag-color-opt').forEach(c => c.classList.remove('selected'));
-  el.classList.add('selected');
+function _tmAddDotPick(dotEl) {
+  _tmShowColorPanel(dotEl, _tmTagPickedColor, c => {
+    _tmTagPickedColor = c;
+    dotEl.style.background = c;
+  });
 }
 
 function _tmTagsListHtml(kind) {
@@ -703,7 +726,8 @@ function _tmTagsListHtml(kind) {
     return `
       <div class="todo-tag-item" data-tag-name="${_esc(name)}" data-tag-kind="${kind}"
            onclick="_tmTagEditOpen('${kind}','${_esc(name)}','${color}')">
-        <span class="todo-tag-dot" style="background:${color}"></span>
+        <span class="todo-tag-dot" style="background:${color};cursor:pointer"
+              onclick="event.stopPropagation();_tmDotColorPick('${kind}','${_esc(name)}','${color}',this)"></span>
         <span class="todo-tag-name">${_esc(name)}</span>
         <div class="todo-tag-del" title="Supprimer"
              onclick="event.stopPropagation();_tmTagRemove('${kind}','${_esc(name)}')">
@@ -801,6 +825,15 @@ function _tmTagEditSave(kind, oldName) {
 function _tmTagRefresh(kind) {
   const list = document.getElementById('tmTagsList');
   if (list) list.innerHTML = _tmTagsListHtml(kind);
+}
+
+function _tmDotColorPick(kind, name, currentColor, dotEl) {
+  _tmShowColorPanel(dotEl, currentColor, c => {
+    if (kind === 'type') _todoUpdateType(name, name, c);
+    else                 _todoUpdateStatus(name, name, c);
+    _tmTagRefresh(kind);
+    _tmRenderRight();
+  });
 }
 
 function _tmTagAdd(kind) {
