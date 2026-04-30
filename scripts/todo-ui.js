@@ -1,6 +1,30 @@
 /* ═══════════════════════════════════════════
-   todo-ui.js — Rendu sidebar + liste (1/3)
+   todo-ui.js — Rendu sidebar + liste (v2)
    ═══════════════════════════════════════════ */
+
+/* ── Helpers types/statuts (compat string legacy ou {name,color}) ── */
+function _todoTypeName(t)    { return typeof t === 'object' ? (t?.name  || '') : (t  || ''); }
+function _todoTypeColor(t)   { return typeof t === 'object' ? (t?.color || '#546e7a') : '#546e7a'; }
+function _todoStatusName(s)  { return typeof s === 'object' ? (s?.name  || '') : (s  || ''); }
+function _todoStatusColor(s) { return typeof s === 'object' ? (s?.color || '#546e7a') : '#546e7a'; }
+function _todoFindType(name) {
+  return _todoData.settings.taskTypes.find(t => _todoTypeName(t) === name) || null;
+}
+function _todoFindStatus(name) {
+  return _todoData.settings.taskStatuses.find(s => _todoStatusName(s) === name) || null;
+}
+
+/* ── Préférences de vue persistées ── */
+function _todoViewCtx() { return _todoSelectedFolderId || 'all'; }
+function _todoGetViewPrefs(ctx) {
+  return (_todoData.settings.viewPrefs || {})[ctx || 'all'] || {};
+}
+function _todoSetViewPrefs(ctx, updates) {
+  if (!_todoData.settings.viewPrefs) _todoData.settings.viewPrefs = {};
+  const key = ctx || 'all';
+  _todoData.settings.viewPrefs[key] = { ...(_todoData.settings.viewPrefs[key] || {}), ...updates };
+  _todoSave();
+}
 
 /* ── Point d'entrée (appelé par router.js) ── */
 function renderTodoView() {
