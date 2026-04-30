@@ -701,16 +701,12 @@ function _tmTagsListHtml(kind) {
     const name  = typeof item === 'object' ? (item.name  || '') : item;
     const color = typeof item === 'object' ? (item.color || '#546e7a') : '#546e7a';
     return `
-      <div class="todo-tag-item" data-tag-name="${_esc(name)}" data-tag-kind="${kind}">
-        <span class="todo-tag-dot" style="background:${color};display:inline-block;width:12px;height:12px;min-width:12px;border-radius:50%"></span>
-        <span class="todo-tag-name" style="flex:1">${_esc(name)}</span>
-        <div class="todo-tag-edit" title="Modifier" onclick="_tmTagEditOpen('${kind}','${_esc(name)}','${color}')">
-          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
-            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
-          </svg>
-        </div>
-        <div class="todo-tag-del" title="Supprimer" onclick="_tmTagRemove('${kind}','${_esc(name)}')">
+      <div class="todo-tag-item" data-tag-name="${_esc(name)}" data-tag-kind="${kind}"
+           onclick="_tmTagEditOpen('${kind}','${_esc(name)}','${color}')">
+        <span class="todo-tag-dot" style="background:${color}"></span>
+        <span class="todo-tag-name">${_esc(name)}</span>
+        <div class="todo-tag-del" title="Supprimer"
+             onclick="event.stopPropagation();_tmTagRemove('${kind}','${_esc(name)}')">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
             <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
           </svg>

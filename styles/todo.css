@@ -869,20 +869,21 @@
   padding: 6px 8px;
   background: var(--surface2);
   border-radius: 6px;
+  cursor: pointer;
+  transition: background .12s;
 }
-.todo-tag-item span {
+.todo-tag-item:hover { background: var(--border); }
+.todo-tag-item .todo-tag-name {
   flex: 1;
   font-size: 12px; color: var(--text);
 }
-.todo-tag-edit, .todo-tag-del {
+.todo-tag-del {
   width: 20px; height: 20px;
   display: flex; align-items: center; justify-content: center;
   border-radius: 4px; color: var(--muted); cursor: pointer;
   opacity: 0; transition: opacity .1s;
 }
-.todo-tag-item:hover .todo-tag-edit,
 .todo-tag-item:hover .todo-tag-del { opacity: 1; }
-.todo-tag-edit:hover { background: var(--border); color: var(--accent); }
 .todo-tag-del:hover  { background: var(--border); color: #db4035; }
 
 /* ── Dialog partage ── */
