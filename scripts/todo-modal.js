@@ -322,17 +322,23 @@ function _tmDeleteComment(commentId) {
 
 /* ══════════════════════════════════════════
    COLONNE DROITE — propriétés (2/2)
+   Option A : bascule sur la sous-tâche active
    ══════════════════════════════════════════ */
 function _tmRenderRight() {
   const el = document.getElementById('tmRight');
   if (!el) return;
-  const task = _todoData.tasks.find(t => t.id === _todoModalTaskId);
-  if (!task) return;
 
-  const folders   = _todoData.folders;
-  const types     = _todoData.settings.taskTypes;
-  const statuses  = _todoData.settings.taskStatuses;
-  const recTypes  = [
+  /* Tâche affichée : sous-tâche active ou parent */
+  const activeId = _tmActiveSubId || _todoModalTaskId;
+  const task     = _todoData.tasks.find(t => t.id === activeId);
+  if (!task) return;
+  const isSub    = !!_tmActiveSubId;
+
+  const parent   = isSub ? _todoData.tasks.find(t => t.id === _todoModalTaskId) : null;
+  const folders  = _todoData.folders;
+  const types    = _todoData.settings.taskTypes;
+  const statuses = _todoData.settings.taskStatuses;
+  const recTypes = [
     { val:'none',    label:'Pas de récurrence' },
     { val:'daily',   label:'Tous les jours' },
     { val:'weekly',  label:'Toutes les semaines' },
@@ -340,9 +346,56 @@ function _tmRenderRight() {
     { val:'yearly',  label:'Tous les ans' }
   ];
 
+  /* Helpers couleur/nom (compat string legacy) */
+  const tName  = t => typeof t === 'object' ? (t?.name  || '') : (t  || '');
+  const tColor = t => typeof t === 'object' ? (t?.color || '#546e7a') : '#546e7a';
+  const curTypeName   = tName(task.type);
+  const curStatusName = tName(task.status);
+  const curTypeObj    = types.find(t => tName(t) === curTypeName);
+  const curStatusObj  = statuses.find(s => tName(s) === curStatusName);
+  const curTypeColor  = curTypeObj   ? tColor(curTypeObj)   : '#546e7a';
+  const curStatusColor= curStatusObj ? tColor(curStatusObj) : '#546e7a';
+
   const assigneeNames = (task.assignees || []).map(a => a.name || a);
 
+  /* Bandeau retour si sous-tâche active */
+  const breadcrumb = isSub ? `
+    <div class="tm-sub-breadcrumb">
+      <span class="tm-sub-back" onclick="_tmSelectSub('${_tmActiveSubId}')">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <polyline points="15 18 9 12 15 6"/>
+        </svg>
+        ${_esc(parent?.title || 'Tâche parente')}
+      </span>
+      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <polyline points="9 18 15 12 9 6"/>
+      </svg>
+      <span style="color:var(--text);font-weight:600">${_esc(task.title)}</span>
+    </div>` : '';
+
+  /* Récurrence sous-tâche : toggle followsParent */
+  const recurrenceBlock = isSub ? `
+    <div class="todo-prop">
+      <div class="todo-prop-label">Récurrence</div>
+      <label class="tm-follows-toggle">
+        <input type="checkbox" ${task.followsParent ? 'checked' : ''}
+               onchange="_tmSetFollowsParent(this.checked)">
+        <span>${task.followsParent ? 'Suit la récurrence parente' : 'Unique à cette itération'}</span>
+      </label>
+    </div>` : `
+    <div class="todo-prop">
+      <div class="todo-prop-label">Récurrence</div>
+      <div class="todo-prop-value" style="padding:4px 8px">
+        <select onchange="_tmSetRecurrence(this.value)">
+          ${recTypes.map(r => `<option value="${r.val}"
+            ${(task.recurrence?.type || 'none') === r.val ? 'selected' : ''}>${r.label}</option>`).join('')}
+        </select>
+      </div>
+    </div>`;
+
   el.innerHTML = `
+    ${breadcrumb}
+
     <!-- Priorité -->
     <div class="todo-prop">
       <div class="todo-prop-label">Priorité</div>
@@ -353,32 +406,40 @@ function _tmRenderRight() {
       </div>
     </div>
 
-    <!-- Statut -->
-    <div class="todo-prop">
+    <!-- Type (OBLIGATOIRE, en premier) -->
+    <div class="todo-prop" id="tmPropType">
       <div class="todo-prop-label">
-        Statut
-        <span style="margin-left:auto;cursor:pointer;color:var(--accent);font-size:9px"
-              onclick="_tmOpenTagsDialog('status')">Gérer</span>
-      </div>
-      <div class="todo-prop-value">
-        <select onchange="_tmSetStatus(this.value)">
-          <option value="">— Aucun —</option>
-          ${statuses.map(s => `<option value="${_esc(s)}" ${task.status === s ? 'selected' : ''}>${_esc(s)}</option>`).join('')}
-        </select>
-      </div>
-    </div>
-
-    <!-- Type -->
-    <div class="todo-prop">
-      <div class="todo-prop-label">
-        Type
+        Type <span class="tm-required-star">*</span>
         <span style="margin-left:auto;cursor:pointer;color:var(--accent);font-size:9px"
               onclick="_tmOpenTagsDialog('type')">Gérer</span>
       </div>
       <div class="todo-prop-value">
+        ${curTypeName ? `<span class="tm-color-dot" style="background:${curTypeColor}"></span>` : ''}
         <select onchange="_tmSetType(this.value)">
           <option value="">— Aucun —</option>
-          ${types.map(t => `<option value="${_esc(t)}" ${task.type === t ? 'selected' : ''}>${_esc(t)}</option>`).join('')}
+          ${types.map(t => {
+            const n = tName(t);
+            return `<option value="${_esc(n)}" ${curTypeName === n ? 'selected' : ''}>${_esc(n)}</option>`;
+          }).join('')}
+        </select>
+      </div>
+    </div>
+
+    <!-- Statut (OBLIGATOIRE, en second) -->
+    <div class="todo-prop" id="tmPropStatus">
+      <div class="todo-prop-label">
+        Statut <span class="tm-required-star">*</span>
+        <span style="margin-left:auto;cursor:pointer;color:var(--accent);font-size:9px"
+              onclick="_tmOpenTagsDialog('status')">Gérer</span>
+      </div>
+      <div class="todo-prop-value">
+        ${curStatusName ? `<span class="tm-color-dot" style="background:${curStatusColor}"></span>` : ''}
+        <select onchange="_tmSetStatus(this.value)">
+          <option value="">— Aucun —</option>
+          ${statuses.map(s => {
+            const n = tName(s);
+            return `<option value="${_esc(n)}" ${curStatusName === n ? 'selected' : ''}>${_esc(n)}</option>`;
+          }).join('')}
         </select>
       </div>
     </div>
@@ -392,16 +453,7 @@ function _tmRenderRight() {
       </div>
     </div>
 
-    <!-- Récurrence -->
-    <div class="todo-prop">
-      <div class="todo-prop-label">Récurrence</div>
-      <div class="todo-prop-value" style="padding:4px 8px">
-        <select onchange="_tmSetRecurrence(this.value)">
-          ${recTypes.map(r => `<option value="${r.val}"
-            ${(task.recurrence?.type || 'none') === r.val ? 'selected' : ''}>${r.label}</option>`).join('')}
-        </select>
-      </div>
-    </div>
+    ${recurrenceBlock}
 
     <!-- Responsables -->
     <div class="todo-prop">
@@ -419,8 +471,7 @@ function _tmRenderRight() {
       </div>
       <div style="position:relative;margin-top:4px">
         <input class="todo-dialog-input" id="tmAssigneeInput"
-               placeholder="Ajouter un responsable…"
-               autocomplete="off"
+               placeholder="Ajouter un responsable…" autocomplete="off"
                style="margin:0;font-size:11px;padding:5px 8px"
                oninput="_tmAssigneeSearch(this.value)"
                onkeydown="_tmAssigneeKey(event)">
@@ -428,7 +479,8 @@ function _tmRenderRight() {
       </div>
     </div>
 
-    <!-- Dossier -->
+    ${!isSub ? `
+    <!-- Dossier (parent seulement) -->
     <div class="todo-prop">
       <div class="todo-prop-label">Dossier</div>
       <div class="todo-prop-value">
@@ -439,7 +491,7 @@ function _tmRenderRight() {
       </div>
     </div>
 
-    <!-- Partage -->
+    <!-- Partage (parent seulement) -->
     <div class="todo-prop">
       <div class="todo-prop-label">Partager avec</div>
       <div class="todo-share-list" id="tmShareList">
@@ -455,39 +507,53 @@ function _tmRenderRight() {
           </div>`).join('')}
       </div>
       <div style="display:flex;gap:6px;margin-top:6px">
-        <input class="todo-dialog-input" id="tmShareInput"
-               placeholder="Email utilisateur…"
+        <input class="todo-dialog-input" id="tmShareInput" placeholder="Email utilisateur…"
                style="margin:0;font-size:11px;padding:5px 8px;flex:1"
                onkeydown="if(event.key==='Enter')_tmShareSubmit()">
         <button class="todo-dialog-ok" style="padding:5px 10px;font-size:11px;white-space:nowrap"
                 onclick="_tmShareSubmit()">Partager</button>
       </div>
-    </div>`;
+    </div>` : ''}`;
 }
 
-/* ── Setters propriétés ── */
+/* ── Setters propriétés (ciblent _tmActiveSubId ou parent) ── */
 function _tmSetPriority(p) {
-  _todoUpdateTask(_todoModalTaskId, { priority: p });
+  const id = _tmActiveSubId || _todoModalTaskId;
+  _todoUpdateTask(id, { priority: p });
   _todoRenderTaskList();
   _tmRenderRight();
 }
 function _tmSetStatus(s) {
-  _todoUpdateTask(_todoModalTaskId, { status: s });
+  const id = _tmActiveSubId || _todoModalTaskId;
+  _todoUpdateTask(id, { status: s });
+  document.getElementById('tmPropStatus')?.classList.remove('tm-required-missing');
   _todoRenderTaskList();
+  _tmRenderRight();
 }
 function _tmSetType(t) {
-  _todoUpdateTask(_todoModalTaskId, { type: t });
+  const id = _tmActiveSubId || _todoModalTaskId;
+  _todoUpdateTask(id, { type: t });
+  document.getElementById('tmPropType')?.classList.remove('tm-required-missing');
   _todoRenderTaskList();
+  _tmRenderRight();
 }
 function _tmSetDueDate(val) {
-  _todoUpdateTask(_todoModalTaskId, { dueDate: val ? new Date(val).toISOString() : null });
+  const id = _tmActiveSubId || _todoModalTaskId;
+  _todoUpdateTask(id, { dueDate: val ? new Date(val).toISOString() : null });
   _todoRenderTaskList();
 }
 function _tmSetRecurrence(val) {
-  const task = _todoData.tasks.find(t => t.id === _todoModalTaskId);
+  const id   = _tmActiveSubId || _todoModalTaskId;
+  const task = _todoData.tasks.find(t => t.id === id);
   const rec  = { type: val, interval: task?.recurrence?.interval || 1 };
-  _todoUpdateTask(_todoModalTaskId, { recurrence: rec });
+  _todoUpdateTask(id, { recurrence: rec });
   _todoRenderTaskList();
+}
+function _tmSetFollowsParent(val) {
+  if (_tmActiveSubId) {
+    _todoUpdateTask(_tmActiveSubId, { followsParent: val });
+    _tmRenderRight();
+  }
 }
 function _tmSetFolder(folderId) {
   _todoUpdateTask(_todoModalTaskId, { folderId: folderId || null });
