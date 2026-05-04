@@ -1429,3 +1429,118 @@
   transition: background-color .1s, border-color .1s;
 }
 .todo-ai-trigger:hover { background-color: var(--surface2); border-color: var(--accent); }
+
+/* ══════════════════════════════════════════════════
+   Review modal IA — révision des tâches avant création
+   ══════════════════════════════════════════════════ */
+.todo-ai-review-modal {
+  background: var(--surface);
+  border-radius: 14px;
+  width: 680px;
+  max-width: calc(100vw - 32px);
+  max-height: 88vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 20px 60px var(--shadow);
+  overflow: hidden;
+}
+
+.ai-review-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 20px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface2);
+  flex-shrink: 0;
+}
+
+.ai-review-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 10px 16px;
+}
+.ai-review-list::-webkit-scrollbar { width: 4px; }
+.ai-review-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+.ai-review-footer {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 20px;
+  border-top: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+/* Carte tâche */
+.ai-review-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 8px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  margin-bottom: 8px;
+  background: var(--surface);
+  transition: opacity .15s;
+}
+.ai-review-card-excluded {
+  opacity: .4;
+}
+
+.ai-review-check {
+  flex-shrink: 0;
+  padding-top: 2px;
+  cursor: pointer;
+}
+.ai-review-check input[type=checkbox] { width: 15px; height: 15px; cursor: pointer; accent-color: var(--accent); }
+
+.ai-review-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.ai-review-title {
+  width: 100%;
+  box-sizing: border-box;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  background: transparent;
+  border: none;
+  outline: none;
+  padding: 0;
+  margin-bottom: 4px;
+  font-family: inherit;
+}
+.ai-review-title:hover { background: var(--surface2); border-radius: 4px; padding: 0 4px; margin: 0 -4px 4px; }
+.ai-review-title:focus { background: var(--surface2); border-radius: 4px; padding: 0 4px; margin: 0 -4px 4px; }
+
+.ai-review-desc {
+  font-size: 11px;
+  color: var(--muted);
+  margin-bottom: 6px;
+  line-height: 1.5;
+}
+
+.ai-review-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 4px;
+}
+
+/* Vignette vide (propriété non définie) */
+.ai-pill-empty {
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--muted);
+  background: transparent;
+  border: 1px dashed var(--border);
+  padding: 2px 8px;
+  border-radius: 20px;
+  cursor: pointer;
+  transition: border-color .12s, color .12s;
+}
+.ai-pill-empty:hover { border-color: var(--accent); color: var(--accent); filter: none; }
+
