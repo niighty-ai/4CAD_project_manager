@@ -153,10 +153,6 @@ async function _aiLoadModelSelector() {
   }
 }
 
-  document.body.appendChild(overlay);
-  setTimeout(() => document.getElementById('aiTranscript')?.focus(), 50);
-}
-
 /* ── Bascule entre les onglets ── */
 function _aiSwitchTab(mode) {
   _aiMode = mode;
