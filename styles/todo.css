@@ -1264,3 +1264,157 @@
   .todo-body { padding: 0 12px 40px; }
   .todo-main-header { padding: 14px 14px 8px; }
 }
+
+/* ═══════════════════════════════════════════
+   Modale Import IA (Gemini Flash)
+   ═══════════════════════════════════════════ */
+.todo-ai-overlay {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,.45);
+  z-index: 1300;
+  display: flex; align-items: center; justify-content: center;
+}
+.todo-ai-modal {
+  background: var(--surface);
+  border-radius: 12px;
+  box-shadow: 0 20px 60px var(--shadow);
+  width: 560px;
+  max-width: 95vw;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.todo-ai-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 18px 20px 0;
+  flex-shrink: 0;
+}
+.todo-ai-title {
+  font-size: 14px; font-weight: 700; color: var(--text);
+}
+.todo-ai-x {
+  width: 26px; height: 26px;
+  display: flex; align-items: center; justify-content: center;
+  background: transparent; border: none; border-radius: 50%;
+  color: var(--muted); font-size: 16px; cursor: pointer;
+  transition: background .1s, color .1s;
+}
+.todo-ai-x:hover { background: var(--border); color: var(--text); }
+
+/* Onglets */
+.todo-ai-tabs {
+  display: flex;
+  border-bottom: 1px solid var(--border);
+  margin: 14px 20px 0;
+  flex-shrink: 0;
+}
+.todo-ai-tab {
+  padding: 8px 14px;
+  font-size: 12px; font-weight: 600;
+  color: var(--muted); cursor: pointer;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  transition: color .1s, border-color .1s;
+}
+.todo-ai-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+/* Corps scrollable */
+.todo-ai-body {
+  overflow-y: auto;
+  padding: 16px 20px 20px;
+  display: flex; flex-direction: column; gap: 12px;
+}
+.todo-ai-body::-webkit-scrollbar { width: 4px; }
+.todo-ai-body::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+.todo-ai-label {
+  display: block;
+  font-size: 10px; font-weight: 700;
+  letter-spacing: .8px; text-transform: uppercase;
+  color: var(--muted); margin-bottom: 5px;
+}
+.todo-ai-textarea {
+  width: 100%; box-sizing: border-box;
+  min-height: 150px;
+  padding: 10px 12px;
+  font-size: 12px; line-height: 1.6; font-family: Arial, sans-serif;
+  color: var(--text); background: var(--surface2);
+  border: 1px solid var(--border); border-radius: 7px;
+  resize: vertical; outline: none;
+  transition: border-color .15s;
+}
+.todo-ai-textarea:focus { border-color: var(--accent); }
+
+.todo-ai-select {
+  width: 100%; box-sizing: border-box;
+  padding: 7px 10px; font-size: 12px;
+  color: var(--text); background: var(--surface2);
+  border: 1px solid var(--border); border-radius: 7px; outline: none;
+}
+
+/* Boutons */
+.todo-ai-btn {
+  padding: 8px 18px; font-size: 12px; font-weight: 600;
+  background: var(--accent); color: #fff;
+  border: none; border-radius: 7px; cursor: pointer;
+  transition: background .12s;
+}
+.todo-ai-btn:hover   { background: var(--accent-dark); }
+.todo-ai-btn:disabled { opacity: .5; cursor: default; }
+.todo-ai-btn-confirm { background: #2e7d32; }
+.todo-ai-btn-confirm:hover { background: #1b5e20; }
+
+.todo-ai-status {
+  font-size: 11px; color: var(--muted);
+}
+
+/* Résultats */
+.todo-ai-results-title {
+  font-size: 10px; font-weight: 700;
+  letter-spacing: .8px; text-transform: uppercase;
+  color: var(--muted); margin-bottom: 8px;
+}
+.todo-ai-task-row {
+  padding: 9px 12px;
+  border: 1px solid var(--border);
+  border-radius: 7px; margin-bottom: 6px;
+  background: var(--surface2);
+}
+.todo-ai-check-label {
+  display: flex; gap: 10px; align-items: flex-start; cursor: pointer;
+}
+.todo-ai-check-label input[type=checkbox] { margin-top: 3px; flex-shrink: 0; }
+.todo-ai-task-title { font-size: 12px; font-weight: 600; color: var(--text); }
+.todo-ai-task-desc  { font-size: 11px; color: var(--muted); margin-top: 2px; line-height: 1.5; }
+.todo-ai-task-meta  { font-size: 10px; color: var(--muted); margin-top: 3px; }
+
+.todo-ai-summary-edit {
+  width: 100%; box-sizing: border-box;
+  min-height: 100px;
+  padding: 10px 12px;
+  font-size: 12px; line-height: 1.6; font-family: Arial, sans-serif;
+  color: var(--text); background: var(--surface2);
+  border: 1px solid var(--border); border-radius: 7px;
+  resize: vertical; outline: none;
+  transition: border-color .15s;
+}
+.todo-ai-summary-edit:focus { border-color: var(--accent); }
+
+/* Ligne clé API */
+.todo-ai-key-row { font-size: 10px; color: var(--muted); }
+.todo-ai-key-link { color: var(--accent); cursor: pointer; text-decoration: underline; }
+
+/* Bouton IA dans le header de la liste de tâches */
+.todo-ai-trigger {
+  display: flex; align-items: center; gap: 5px;
+  padding: 5px 10px;
+  font-size: 11px; font-weight: 700;
+  color: var(--accent);
+  background: transparent;
+  border: 1.5px solid var(--accent);
+  border-radius: 6px; cursor: pointer;
+  white-space: nowrap;
+  transition: background .1s;
+}
+.todo-ai-trigger:hover { background: rgba(236,114,6,.08); }
