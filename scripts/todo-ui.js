@@ -322,13 +322,7 @@ function _todoRenderTaskList() {
     <div class="todo-main-header">
       <div class="todo-main-title">${_esc(title)}</div>
 
-      <button class="todo-ai-trigger" onclick="_todoOpenAiModal()" title="Importer un transcript de réunion">
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M12 2a10 10 0 0 1 10 10"/><path d="M12 2a10 10 0 1 0 1.93 19.8"/>
-          <path d="m9 12 2 2 4-4"/>
-        </svg>
-        IA
-      </button>
+      <button class="todo-ai-trigger" onclick="_todoOpenAiModal()" title="Importer un transcript de réunion">IA</button>
 
       <button class="todo-sort-btn ${hideCompleted ? 'active' : ''}"
               title="${hideCompleted ? 'Afficher terminées' : 'Masquer terminées'}"
