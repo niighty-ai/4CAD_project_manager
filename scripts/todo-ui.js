@@ -526,7 +526,7 @@ function _todoTaskRowHtml(task, isSub) {
         ${_esc(folder.name)}</span>`;
     }
   }
-  if (task.priority && task.priority !== 'P4') {
+  if (task.priority) {
     meta += `<span class="todo-pill todo-pill-priority ${pClass} todo-pill-clickable"
       onclick="event.stopPropagation();_todoPillEdit(event,'priority','${task.id}')">${_esc(task.priority)}</span>`;
   }
