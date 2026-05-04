@@ -59,12 +59,12 @@ async function _todoOpenAiModal() {
   overlay.innerHTML = `
     <div class="todo-ai-modal" onclick="event.stopPropagation()">
       <div class="todo-ai-header">
-        <div class="todo-ai-title">Import IA — Transcript de réunion</div>
+        <div class="todo-ai-title">Import IA</div>
         <button class="todo-ai-x" onclick="document.getElementById('todoAiOverlay').remove()">&#x2715;</button>
       </div>
       <div class="todo-ai-body">
         <div>
-          <label class="todo-ai-label">Transcript de réunion</label>
+          <label class="todo-ai-label">Texte à analyser</label>
           <textarea class="todo-ai-textarea" id="aiTranscript"
             placeholder="Collez votre transcript ici…"></textarea>
         </div>
