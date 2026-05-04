@@ -93,6 +93,10 @@ function _todoRenderModal() {
                 <button class="tm-link-btn tm-link-btn-abs" title="Insérer un lien"
                         onmousedown="event.preventDefault()"
                         onclick="_tmInsertLink('tmDesc',this)"></button>
+                <button class="tm-link-btn tm-link-btn-abs tm-ai-field-btn" title="Résumé IA"
+                        style="right:36px"
+                        onmousedown="event.preventDefault()"
+                        onclick="_aiOpenFieldPopup('tmDesc',this)">IA</button>
               </div>
             </div>
           </div>
@@ -137,6 +141,9 @@ function _todoRenderModal() {
                   <button class="tm-link-btn" title="Insérer un lien"
                           onmousedown="event.preventDefault()"
                           onclick="_tmInsertLink('tmCommentInput',this)"></button>
+                  <button class="tm-link-btn tm-ai-field-btn" title="Résumé IA"
+                          onmousedown="event.preventDefault()"
+                          onclick="_aiOpenFieldPopup('tmCommentInput',this)">IA</button>
                   <button class="todo-comment-submit" onclick="_tmSubmitComment()">Envoyer</button>
                 </div>
               </div>

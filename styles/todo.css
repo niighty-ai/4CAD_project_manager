@@ -724,6 +724,16 @@
   position: absolute;
   bottom: 6px; right: 6px;
 }
+/* Bouton IA inline (à côté du bouton lien) */
+.tm-ai-field-btn {
+  background-image: none;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: .5px;
+  color: var(--accent);
+  width: auto;
+  padding: 0 6px;
+}
 
 /* Colonne droite (propriétés) */
 .todo-modal-right {

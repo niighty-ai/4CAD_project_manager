@@ -21,7 +21,6 @@ const _aiUrl  = () =>
 /* Texte brut sans syntaxe [texte](url) */
 const _aiStrip = s => (s || '').replace(/\[([^\]]+)\]\(https?:\/\/[^)]+\)/g, '$1');
 
-let _aiMode = 'tasks';
 let _aiExtractedTasks = [];
 
 /* ── Récupère les modèles disponibles pour cette clé ── */
@@ -41,14 +40,12 @@ async function _aiFetchModels() {
     });
 }
 
-/* ── Ouverture de la modale ── */
+/* ── Ouverture de la modale (création de tâches uniquement) ── */
 async function _todoOpenAiModal() {
   document.getElementById('todoAiOverlay')?.remove();
-  _aiMode = 'tasks';
   _aiExtractedTasks = [];
 
   const folders = _todoData.folders || [];
-  const tasks   = (_todoData.tasks  || []).filter(t => !t.parentId);
 
   const overlay = document.createElement('div');
   overlay.id = 'todoAiOverlay';
@@ -63,11 +60,6 @@ async function _todoOpenAiModal() {
         <button class="todo-ai-x" onclick="document.getElementById('todoAiOverlay').remove()">&#x2715;</button>
       </div>
 
-      <div class="todo-ai-tabs">
-        <div class="todo-ai-tab active" id="aiTabTasks"    onclick="_aiSwitchTab('tasks')">Créer des tâches</div>
-        <div class="todo-ai-tab"        id="aiTabSummary"  onclick="_aiSwitchTab('summary')">Résumé en commentaire</div>
-      </div>
-
       <div class="todo-ai-body">
 
         <div>
@@ -76,19 +68,11 @@ async function _todoOpenAiModal() {
             placeholder="Collez votre transcript ici…"></textarea>
         </div>
 
-        <div id="aiOptTasks">
+        <div>
           <label class="todo-ai-label">Dossier de destination</label>
           <select class="todo-ai-select" id="aiFolder">
             <option value="">— Boîte de réception —</option>
             ${folders.map(f => `<option value="${f.id}">${_esc(f.name)}</option>`).join('')}
-          </select>
-        </div>
-
-        <div id="aiOptSummary" style="display:none">
-          <label class="todo-ai-label">Ajouter le résumé à la tâche</label>
-          <select class="todo-ai-select" id="aiTaskTarget">
-            <option value="">— Sélectionner une tâche —</option>
-            ${tasks.map(t => `<option value="${t.id}">${_esc(_aiStrip(t.title))}</option>`).join('')}
           </select>
         </div>
 
@@ -151,17 +135,6 @@ async function _aiLoadModelSelector() {
   }
 }
 
-/* ── Bascule entre les onglets ── */
-function _aiSwitchTab(mode) {
-  _aiMode = mode;
-  document.getElementById('aiTabTasks')?.classList.toggle('active',   mode === 'tasks');
-  document.getElementById('aiTabSummary')?.classList.toggle('active', mode === 'summary');
-  document.getElementById('aiOptTasks').style.display   = mode === 'tasks'   ? '' : 'none';
-  document.getElementById('aiOptSummary').style.display = mode === 'summary' ? '' : 'none';
-  document.getElementById('aiResults').style.display = 'none';
-  _aiSetStatus('');
-}
-
 function _aiSetStatus(msg, isError = false) {
   const el = document.getElementById('aiStatus');
   if (!el) return;
@@ -169,7 +142,7 @@ function _aiSetStatus(msg, isError = false) {
   el.style.color = isError ? '#db4035' : 'var(--muted)';
 }
 
-/* ── Lancement de l'analyse ── */
+/* ── Lancement de l'analyse (mode tâches) ── */
 async function _aiAnalyze() {
   const transcript = document.getElementById('aiTranscript')?.value.trim();
   if (!transcript) { _aiSetStatus('Collez un transcript avant d\'analyser.', true); return; }
@@ -180,8 +153,7 @@ async function _aiAnalyze() {
   _aiSetStatus('Analyse en cours…');
 
   try {
-    if (_aiMode === 'tasks') await _aiExtractTasks(transcript);
-    else                     await _aiSummarize(transcript);
+    await _aiExtractTasks(transcript);
   } catch (e) {
     _aiSetStatus('Erreur : ' + (e.message || 'Réponse invalide'), true);
   } finally {
@@ -233,33 +205,6 @@ ${transcript}`;
   document.getElementById('aiResults').style.display = '';
 }
 
-/* ── Résumé en commentaire ── */
-async function _aiSummarize(transcript) {
-  const prompt = `Tu es un assistant de gestion de projet. Fais un résumé concis en français de ce transcript de réunion.
-Utilise des tirets (-) pour structurer les points.
-Inclus : décisions prises, points clés abordés, actions identifiées, prochaines étapes.
-Retourne uniquement le texte du résumé, sans titre ni introduction.
-
-Transcript :
-${transcript}`;
-
-  const summary = await _aiCall(prompt);
-
-  const body = document.getElementById('aiResultsBody');
-  body.innerHTML = `<textarea class="todo-ai-summary-edit" id="aiSummaryText"
-    oninput="this.style.height='auto';this.style.height=Math.min(this.scrollHeight,300)+'px'"
-    >${_esc(summary)}</textarea>`;
-
-  setTimeout(() => {
-    const ta = document.getElementById('aiSummaryText');
-    if (ta) { ta.style.height = 'auto'; ta.style.height = Math.min(ta.scrollHeight, 300) + 'px'; }
-  }, 0);
-
-  document.getElementById('aiResultsTitle').textContent = 'Résumé (modifiable avant ajout) :';
-  document.getElementById('aiResults').style.display = '';
-  _aiSetStatus('Résumé généré');
-}
-
 /* ── Appel Gemini ── */
 async function _aiCall(prompt) {
   const res = await fetch(_aiUrl(), {
@@ -288,40 +233,27 @@ function _aiParseJson(text) {
   return JSON.parse(m ? m[1] : text.trim());
 }
 
-/* ── Confirmation ── */
+/* ── Confirmation (création de tâches) ── */
 function _aiConfirm() {
-  if (_aiMode === 'tasks') {
-    const folderId = document.getElementById('aiFolder')?.value || null;
-    const checked  = [...document.querySelectorAll('.ai-task-cb:checked')];
-    if (!checked.length) { _aiSetStatus('Cochez au moins une tâche.', true); return; }
+  const folderId = document.getElementById('aiFolder')?.value || null;
+  const checked  = [...document.querySelectorAll('.ai-task-cb:checked')];
+  if (!checked.length) { _aiSetStatus('Cochez au moins une tâche.', true); return; }
 
-    checked.forEach(cb => {
-      const t = _aiExtractedTasks[+cb.dataset.idx];
-      if (!t) return;
-      const created = _todoCreateTask(t.title, folderId || null);
-      const patch = {};
-      if (t.description)   patch.description = t.description;
-      if (t.dueDate)       patch.dueDate      = t.dueDate;
-      if (t.assignees?.length) patch.assignees = t.assignees.map(n => ({ name: n }));
-      if (Object.keys(patch).length) _todoUpdateTask(created.id, patch);
-    });
+  checked.forEach(cb => {
+    const t = _aiExtractedTasks[+cb.dataset.idx];
+    if (!t) return;
+    const created = _todoCreateTask(t.title, folderId || null);
+    const patch = {};
+    if (t.description)       patch.description = t.description;
+    if (t.dueDate)           patch.dueDate      = t.dueDate;
+    if (t.assignees?.length) patch.assignees    = t.assignees.map(n => ({ name: n }));
+    if (Object.keys(patch).length) _todoUpdateTask(created.id, patch);
+  });
 
-    _todoRenderTaskList();
-    _todoRenderSidebar();
-    _todoShowToast(`${checked.length} tâche(s) créée(s)`);
-    document.getElementById('todoAiOverlay')?.remove();
-
-  } else {
-    const taskId  = document.getElementById('aiTaskTarget')?.value;
-    const summary = document.getElementById('aiSummaryText')?.value.trim();
-    if (!taskId)  { _aiSetStatus('Sélectionnez une tâche de destination.', true); return; }
-    if (!summary) { _aiSetStatus('Le résumé est vide.', true); return; }
-
-    _todoAddComment(taskId, summary);
-    _todoRenderTaskList();
-    _todoShowToast('Résumé ajouté en commentaire');
-    document.getElementById('todoAiOverlay')?.remove();
-  }
+  _todoRenderTaskList();
+  _todoRenderSidebar();
+  _todoShowToast(`${checked.length} tâche(s) créée(s)`);
+  document.getElementById('todoAiOverlay')?.remove();
 }
 
 /* ── Mise à jour de la clé API ── */
@@ -334,4 +266,150 @@ function _aiEditKey() {
     document.getElementById('aiModelSelect').innerHTML = '<option value="">Chargement…</option>';
     _aiLoadModelSelector();
   }
+}
+
+/* ══════════════════════════════════════════════════════
+   Popup IA inline — résumé de transcript dans un champ
+   (description ou zone commentaire de la modale tâche)
+   ══════════════════════════════════════════════════════ */
+
+async function _aiOpenFieldPopup(textareaId, btnEl) {
+  document.getElementById('tmAiFieldPopup')?.remove();
+  /* Réutilise _tmLinkPopupOpen pour bloquer les sauvegardes auto pendant que le popup est ouvert */
+  _tmLinkPopupOpen = true;
+
+  const popup = document.createElement('div');
+  popup.id = 'tmAiFieldPopup';
+  popup.style.cssText =
+    'position:fixed;z-index:1500;background:var(--surface);' +
+    'border:1px solid var(--border);border-radius:8px;padding:12px;' +
+    'box-shadow:0 4px 20px var(--shadow);width:300px;';
+
+  popup.innerHTML = `
+    <div style="font-size:11px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;
+                color:var(--muted);margin-bottom:8px">Résumé IA</div>
+    <textarea id="aiFpTranscript" rows="5"
+              placeholder="Collez votre transcript ici…"
+              style="width:100%;box-sizing:border-box;resize:vertical;padding:6px 8px;font-size:11px;
+                     background:var(--surface2);border:1px solid var(--border);border-radius:5px;
+                     color:var(--text);outline:none;font-family:inherit;margin-bottom:6px;
+                     display:block"></textarea>
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+      <button id="aiFpAnalyzeBtn"
+              onmousedown="event.stopPropagation()"
+              onclick="_aiFpAnalyze('${textareaId}')"
+              style="padding:4px 10px;font-size:11px;border-radius:5px;border:none;
+                     background:var(--accent);color:#fff;cursor:pointer">Analyser</button>
+      <span id="aiFpStatus" style="font-size:10px;color:var(--muted)"></span>
+    </div>
+    <div id="aiFpResultWrap" style="display:none;margin-bottom:6px">
+      <textarea id="aiFpResult" rows="4"
+                style="width:100%;box-sizing:border-box;resize:vertical;padding:6px 8px;font-size:11px;
+                       background:var(--surface2);border:1px solid var(--border);border-radius:5px;
+                       color:var(--text);outline:none;font-family:inherit;display:block"></textarea>
+    </div>
+    <div style="display:flex;gap:6px;justify-content:flex-end">
+      <button onmousedown="event.stopPropagation()"
+              onclick="_tmLinkPopupOpen=false;document.getElementById('tmAiFieldPopup')?.remove()"
+              style="padding:4px 10px;font-size:11px;border-radius:5px;border:1px solid var(--border);
+                     background:transparent;color:var(--text);cursor:pointer">Annuler</button>
+      <button id="aiFpInsertBtn"
+              onmousedown="event.stopPropagation()"
+              onclick="_aiFpInsert('${textareaId}')"
+              disabled
+              style="padding:4px 10px;font-size:11px;border-radius:5px;border:none;
+                     background:var(--accent);color:#fff;cursor:pointer;opacity:.5">Insérer</button>
+    </div>`;
+
+  document.body.appendChild(popup);
+
+  /* Positionnement au-dessus ou en dessous du bouton */
+  const rect   = btnEl.getBoundingClientRect();
+  const popupH = popup.offsetHeight;
+  const left   = Math.max(4, Math.min(rect.left, window.innerWidth - 316));
+  popup.style.left = left + 'px';
+  if (rect.top - popupH - 6 >= 0) {
+    popup.style.bottom = (window.innerHeight - rect.top + 6) + 'px';
+  } else {
+    popup.style.top = (rect.bottom + 6) + 'px';
+  }
+
+  document.getElementById('aiFpTranscript')?.focus();
+
+  setTimeout(() => {
+    document.addEventListener('click', function close(e) {
+      const p = document.getElementById('tmAiFieldPopup');
+      if (!p) { document.removeEventListener('click', close, true); return; }
+      if (!p.contains(e.target) && e.target !== btnEl) {
+        p.remove();
+        _tmLinkPopupOpen = false;
+        document.removeEventListener('click', close, true);
+        const taEl = document.getElementById(textareaId);
+        if (taEl && taEl.offsetParent !== null) taEl.focus();
+      }
+    }, true);
+  }, 0);
+}
+
+async function _aiFpAnalyze(textareaId) {
+  const transcript = document.getElementById('aiFpTranscript')?.value.trim();
+  const status     = document.getElementById('aiFpStatus');
+  if (!transcript) {
+    status.textContent = 'Collez un transcript.';
+    status.style.color = '#db4035';
+    return;
+  }
+
+  const btn = document.getElementById('aiFpAnalyzeBtn');
+  btn.disabled = true;
+  status.textContent = 'Analyse…';
+  status.style.color = 'var(--muted)';
+
+  try {
+    const prompt = `Tu es un assistant de gestion de projet. Fais un résumé concis en français de ce transcript de réunion.
+Utilise des tirets (-) pour structurer les points.
+Inclus : décisions prises, points clés abordés, actions identifiées, prochaines étapes.
+Retourne uniquement le texte du résumé, sans titre ni introduction.
+
+Transcript :
+${transcript}`;
+
+    const summary = await _aiCall(prompt);
+
+    const result = document.getElementById('aiFpResult');
+    if (result) {
+      result.value = summary;
+      result.style.height = 'auto';
+      result.style.height = Math.min(result.scrollHeight, 200) + 'px';
+    }
+    document.getElementById('aiFpResultWrap').style.display = '';
+
+    const insertBtn = document.getElementById('aiFpInsertBtn');
+    if (insertBtn) { insertBtn.disabled = false; insertBtn.style.opacity = '1'; }
+
+    status.textContent = 'Résumé prêt';
+    status.style.color = 'var(--muted)';
+  } catch (e) {
+    status.textContent = 'Erreur : ' + (e.message || 'Réponse invalide');
+    status.style.color = '#db4035';
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+function _aiFpInsert(textareaId) {
+  const ta      = document.getElementById(textareaId);
+  const summary = document.getElementById('aiFpResult')?.value.trim();
+  if (!ta || !summary) return;
+
+  const start = ta.selectionStart ?? ta.value.length;
+  const end   = ta.selectionEnd   ?? ta.value.length;
+  const sep   = (start > 0 && ta.value[start - 1] !== '\n') ? '\n' : '';
+  ta.value = ta.value.substring(0, start) + sep + summary + ta.value.substring(end);
+  ta.selectionStart = ta.selectionEnd = start + sep.length + summary.length;
+  if (typeof _tmAutoResize === 'function') _tmAutoResize(ta);
+
+  document.getElementById('tmAiFieldPopup')?.remove();
+  _tmLinkPopupOpen = false;
+  ta.focus();
 }
