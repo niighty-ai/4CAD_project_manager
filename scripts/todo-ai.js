@@ -1,34 +1,24 @@
 /* ═══════════════════════════════════════════
-   todo-ai.js — Import IA via Google Gemini Flash
+   todo-ai.js — Import IA via Google Gemini
    Transcripts de réunion → tâches ou résumé
    ═══════════════════════════════════════════ */
 
 const _AI_KEY_LS   = 'todoGeminiKey';
 const _AI_MODEL_LS = 'todoGeminiModel';
 
-const _AI_MODELS = [
-  { id: 'gemini-1.5-flash-8b',            label: 'Gemini 1.5 Flash 8B (free tier)' },
-  { id: 'gemini-1.5-flash-latest',        label: 'Gemini 1.5 Flash' },
-  { id: 'gemini-2.0-flash-lite',          label: 'Gemini 2.0 Flash Lite' },
-  { id: 'gemini-2.0-flash',               label: 'Gemini 2.0 Flash' },
-  { id: 'gemini-2.5-flash-preview-04-17', label: 'Gemini 2.5 Flash Preview' },
-];
-
 function _aiKey() {
-  /* Toujours écraser si la clé stockée est l'ancienne révoquée */
   const stored = localStorage.getItem(_AI_KEY_LS);
-  const legacy = 'AIzaSyAlmN7ocL9sfNGkSCBH5yZTFSVHCTo2s2o';
-  if (!stored || stored === legacy) {
-    localStorage.setItem(_AI_KEY_LS, 'AIzaSyDYxmdPwvaP-mbBNnBBV78gIQvJ3m9x5nU');
-  }
-  return localStorage.getItem(_AI_KEY_LS);
+  /* Remplace les deux anciennes clés révoquées */
+  const revoked = ['AIzaSyAlmN7ocL9sfNGkSCBH5yZTFSVHCTo2s2o', 'AIzaSyDYxmdPwvaP-mbBNnBBV78gIQvJ3m9x5nU'];
+  if (!stored || revoked.includes(stored)) localStorage.removeItem(_AI_KEY_LS);
+  return localStorage.getItem(_AI_KEY_LS) || '';
 }
-function _aiModel() {
-  return localStorage.getItem(_AI_MODEL_LS) || _AI_MODELS[0].id;
-}
+function _aiModel() { return localStorage.getItem(_AI_MODEL_LS) || ''; }
 
-const _aiUrl = () =>
-  `https://generativelanguage.googleapis.com/v1beta/models/${_aiModel()}:generateContent?key=${_aiKey()}`;
+const _aiBase = () =>
+  `https://generativelanguage.googleapis.com/v1beta`;
+const _aiUrl  = () =>
+  `${_aiBase()}/models/${_aiModel()}:generateContent?key=${_aiKey()}`;
 
 /* Texte brut sans syntaxe [texte](url) */
 const _aiStrip = s => (s || '').replace(/\[([^\]]+)\]\(https?:\/\/[^)]+\)/g, '$1');
@@ -36,8 +26,25 @@ const _aiStrip = s => (s || '').replace(/\[([^\]]+)\]\(https?:\/\/[^)]+\)/g, '$1
 let _aiMode = 'tasks';
 let _aiExtractedTasks = [];
 
+/* ── Récupère les modèles disponibles pour cette clé ── */
+async function _aiFetchModels() {
+  const key = _aiKey();
+  if (!key) return [];
+  const res = await fetch(`${_aiBase()}/models?key=${key}`);
+  if (!res.ok) return [];
+  const json = await res.json();
+  return (json.models || [])
+    .filter(m => m.supportedGenerationMethods?.includes('generateContent'))
+    .map(m => ({ id: m.name.replace('models/', ''), label: m.displayName || m.name.replace('models/', '') }))
+    /* Priorité aux modèles flash (légers, gratuits) */
+    .sort((a, b) => {
+      const score = id => id.includes('flash') ? 0 : id.includes('pro') ? 1 : 2;
+      return score(a.id) - score(b.id);
+    });
+}
+
 /* ── Ouverture de la modale ── */
-function _todoOpenAiModal() {
+async function _todoOpenAiModal() {
   document.getElementById('todoAiOverlay')?.remove();
   _aiMode = 'tasks';
   _aiExtractedTasks = [];
@@ -103,9 +110,9 @@ function _todoOpenAiModal() {
         </div>
 
         <div class="todo-ai-key-row">
-          <select id="aiModelSelect" onchange="localStorage.setItem('todoGeminiModel',this.value)"
+          <select id="aiModelSelect" onchange="localStorage.setItem('${_AI_MODEL_LS}',this.value)"
                   style="font-size:10px;padding:2px 4px;border:1px solid var(--border);border-radius:4px;background:var(--surface2);color:var(--muted)">
-            ${_AI_MODELS.map(m => `<option value="${m.id}" ${_aiModel()===m.id?'selected':''}>${m.label}</option>`).join('')}
+            <option value="">Chargement des modèles…</option>
           </select>
           &middot;
           <span class="todo-ai-key-link" onclick="_aiEditKey()">Modifier la clé API</span>
@@ -113,6 +120,38 @@ function _todoOpenAiModal() {
 
       </div>
     </div>`;
+
+  document.body.appendChild(overlay);
+  setTimeout(() => document.getElementById('aiTranscript')?.focus(), 50);
+
+  /* Charge la liste des modèles disponibles */
+  if (!_aiKey()) {
+    _aiSetStatus('Clé API manquante — cliquez sur "Modifier la clé API"', true);
+    return;
+  }
+  _aiLoadModelSelector();
+}
+
+async function _aiLoadModelSelector() {
+  const select = document.getElementById('aiModelSelect');
+  if (!select) return;
+  try {
+    const models = await _aiFetchModels();
+    if (!models.length) {
+      select.innerHTML = '<option value="">Aucun modèle disponible</option>';
+      _aiSetStatus('Vérifiez votre clé API', true);
+      return;
+    }
+    const saved = _aiModel();
+    select.innerHTML = models.map(m =>
+      `<option value="${m.id}" ${(saved || models[0].id) === m.id ? 'selected' : ''}>${m.label}</option>`
+    ).join('');
+    /* Mémorise le premier modèle si aucun sauvegardé */
+    if (!saved) localStorage.setItem(_AI_MODEL_LS, models[0].id);
+  } catch {
+    select.innerHTML = '<option value="">Erreur de chargement</option>';
+  }
+}
 
   document.body.appendChild(overlay);
   setTimeout(() => document.getElementById('aiTranscript')?.focus(), 50);
