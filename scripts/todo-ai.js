@@ -13,7 +13,7 @@ function _aiKey() {
   if (!stored || revoked.includes(stored)) localStorage.removeItem(_AI_KEY_LS);
   return localStorage.getItem(_AI_KEY_LS) || '';
 }
-function _aiModel() { return localStorage.getItem(_AI_MODEL_LS) || ''; }
+function _aiModel() { return localStorage.getItem(_AI_MODEL_LS) || 'gemini-flash-lite-latest'; }
 
 const _aiBase = () =>
   `https://generativelanguage.googleapis.com/v1beta`;
