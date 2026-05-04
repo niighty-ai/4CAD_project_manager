@@ -282,51 +282,52 @@ async function _aiOpenFieldPopup(textareaId, btnEl) {
   popup.id = 'tmAiFieldPopup';
   popup.style.cssText =
     'position:fixed;z-index:1500;background:var(--surface);' +
-    'border:1px solid var(--border);border-radius:8px;padding:12px;' +
-    'box-shadow:0 4px 20px var(--shadow);width:300px;';
+    'border:1px solid var(--border);border-radius:8px;padding:14px;' +
+    'box-shadow:0 4px 20px var(--shadow);width:520px;max-width:calc(100vw - 24px);';
 
   popup.innerHTML = `
     <div style="font-size:11px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;
                 color:var(--muted);margin-bottom:8px">Résumé IA</div>
-    <textarea id="aiFpTranscript" rows="5"
+    <textarea id="aiFpTranscript" rows="12"
               placeholder="Collez votre transcript ici…"
-              style="width:100%;box-sizing:border-box;resize:vertical;padding:6px 8px;font-size:11px;
+              style="width:100%;box-sizing:border-box;resize:vertical;padding:8px 10px;font-size:12px;
                      background:var(--surface2);border:1px solid var(--border);border-radius:5px;
-                     color:var(--text);outline:none;font-family:inherit;margin-bottom:6px;
-                     display:block"></textarea>
-    <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+                     color:var(--text);outline:none;font-family:inherit;margin-bottom:8px;
+                     display:block;min-height:160px"></textarea>
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
       <button id="aiFpAnalyzeBtn"
               onmousedown="event.stopPropagation()"
               onclick="_aiFpAnalyze('${textareaId}')"
-              style="padding:4px 10px;font-size:11px;border-radius:5px;border:none;
+              style="padding:5px 14px;font-size:12px;border-radius:5px;border:none;
                      background:var(--accent);color:#fff;cursor:pointer">Analyser</button>
-      <span id="aiFpStatus" style="font-size:10px;color:var(--muted)"></span>
+      <span id="aiFpStatus" style="font-size:11px;color:var(--muted)"></span>
     </div>
-    <div id="aiFpResultWrap" style="display:none;margin-bottom:6px">
-      <textarea id="aiFpResult" rows="4"
-                style="width:100%;box-sizing:border-box;resize:vertical;padding:6px 8px;font-size:11px;
+    <div id="aiFpResultWrap" style="display:none;margin-bottom:8px">
+      <textarea id="aiFpResult" rows="6"
+                style="width:100%;box-sizing:border-box;resize:vertical;padding:8px 10px;font-size:12px;
                        background:var(--surface2);border:1px solid var(--border);border-radius:5px;
-                       color:var(--text);outline:none;font-family:inherit;display:block"></textarea>
+                       color:var(--text);outline:none;font-family:inherit;display:block;min-height:100px"></textarea>
     </div>
     <div style="display:flex;gap:6px;justify-content:flex-end">
       <button onmousedown="event.stopPropagation()"
               onclick="_tmLinkPopupOpen=false;document.getElementById('tmAiFieldPopup')?.remove()"
-              style="padding:4px 10px;font-size:11px;border-radius:5px;border:1px solid var(--border);
+              style="padding:5px 12px;font-size:12px;border-radius:5px;border:1px solid var(--border);
                      background:transparent;color:var(--text);cursor:pointer">Annuler</button>
       <button id="aiFpInsertBtn"
               onmousedown="event.stopPropagation()"
               onclick="_aiFpInsert('${textareaId}')"
               disabled
-              style="padding:4px 10px;font-size:11px;border-radius:5px;border:none;
+              style="padding:5px 12px;font-size:12px;border-radius:5px;border:none;
                      background:var(--accent);color:#fff;cursor:pointer;opacity:.5">Insérer</button>
     </div>`;
 
   document.body.appendChild(popup);
 
   /* Positionnement au-dessus ou en dessous du bouton */
-  const rect   = btnEl.getBoundingClientRect();
-  const popupH = popup.offsetHeight;
-  const left   = Math.max(4, Math.min(rect.left, window.innerWidth - 316));
+  const rect    = btnEl.getBoundingClientRect();
+  const popupW  = popup.offsetWidth;
+  const popupH  = popup.offsetHeight;
+  const left    = Math.max(4, Math.min(rect.left, window.innerWidth - popupW - 8));
   popup.style.left = left + 'px';
   if (rect.top - popupH - 6 >= 0) {
     popup.style.bottom = (window.innerHeight - rect.top + 6) + 'px';
@@ -380,7 +381,7 @@ ${transcript}`;
     if (result) {
       result.value = summary;
       result.style.height = 'auto';
-      result.style.height = Math.min(result.scrollHeight, 200) + 'px';
+      result.style.height = Math.min(result.scrollHeight, 400) + 'px';
     }
     document.getElementById('aiFpResultWrap').style.display = '';
 
