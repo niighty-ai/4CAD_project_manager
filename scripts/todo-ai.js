@@ -7,10 +7,8 @@ const _AI_KEY_LS   = 'todoGeminiKey';
 const _AI_MODEL_LS = 'todoGeminiModel';
 
 function _aiKey() {
-  const stored = localStorage.getItem(_AI_KEY_LS);
-  /* Remplace les deux anciennes clés révoquées */
-  const revoked = ['AIzaSyAlmN7ocL9sfNGkSCBH5yZTFSVHCTo2s2o', 'AIzaSyDYxmdPwvaP-mbBNnBBV78gIQvJ3m9x5nU'];
-  if (!stored || revoked.includes(stored)) localStorage.removeItem(_AI_KEY_LS);
+  /* Priorité : config.local.js (gitignored) > localStorage */
+  if (window._GEMINI_KEY) return window._GEMINI_KEY;
   return localStorage.getItem(_AI_KEY_LS) || '';
 }
 function _aiModel() { return localStorage.getItem(_AI_MODEL_LS) || 'gemini-flash-lite-latest'; }
