@@ -28,7 +28,7 @@ function _aiModel() {
 }
 
 const _aiUrl = () =>
-  `https://generativelanguage.googleapis.com/v1/models/${_aiModel()}:generateContent?key=${_aiKey()}`;
+  `https://generativelanguage.googleapis.com/v1beta/models/${_aiModel()}:generateContent?key=${_aiKey()}`;
 
 /* Texte brut sans syntaxe [texte](url) */
 const _aiStrip = s => (s || '').replace(/\[([^\]]+)\]\(https?:\/\/[^)]+\)/g, '$1');
