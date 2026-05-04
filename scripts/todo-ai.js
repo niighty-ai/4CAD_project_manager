@@ -157,9 +157,9 @@ ${transcript}`;
   _aiExtractedTasks = parsed.tasks.map(t => ({
     ...t,
     _included:   true,
-    _priority:   null,
-    _typeName:   null,
-    _statusName: null,
+    _priority:   'P4',
+    _typeName:   'Divers',
+    _statusName: 'Divers',
     _dueDate:    t.dueDate ? new Date(t.dueDate + 'T12:00:00').toISOString() : null
   }));
 
