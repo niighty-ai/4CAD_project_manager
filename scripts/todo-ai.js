@@ -3,7 +3,15 @@
    Transcripts de réunion → tâches ou résumé
    ═══════════════════════════════════════════ */
 
-const _AI_KEY_LS = 'todoGeminiKey';
+const _AI_KEY_LS   = 'todoGeminiKey';
+const _AI_MODEL_LS = 'todoGeminiModel';
+
+const _AI_MODELS = [
+  { id: 'gemini-2.0-flash-lite',          label: 'Gemini 2.0 Flash Lite (gratuit)' },
+  { id: 'gemini-2.0-flash',               label: 'Gemini 2.0 Flash' },
+  { id: 'gemini-1.5-flash-latest',        label: 'Gemini 1.5 Flash' },
+  { id: 'gemini-2.5-flash-preview-04-17', label: 'Gemini 2.5 Flash Preview' },
+];
 
 function _aiKey() {
   if (!localStorage.getItem(_AI_KEY_LS)) {
@@ -11,9 +19,12 @@ function _aiKey() {
   }
   return localStorage.getItem(_AI_KEY_LS);
 }
+function _aiModel() {
+  return localStorage.getItem(_AI_MODEL_LS) || _AI_MODELS[0].id;
+}
 
 const _aiUrl = () =>
-  `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${_aiKey()}`;
+  `https://generativelanguage.googleapis.com/v1beta/models/${_aiModel()}:generateContent?key=${_aiKey()}`;
 
 /* Texte brut sans syntaxe [texte](url) */
 const _aiStrip = s => (s || '').replace(/\[([^\]]+)\]\(https?:\/\/[^)]+\)/g, '$1');
@@ -88,7 +99,11 @@ function _todoOpenAiModal() {
         </div>
 
         <div class="todo-ai-key-row">
-          Gemini 2.0 Flash &middot;
+          <select id="aiModelSelect" onchange="localStorage.setItem('todoGeminiModel',this.value)"
+                  style="font-size:10px;padding:2px 4px;border:1px solid var(--border);border-radius:4px;background:var(--surface2);color:var(--muted)">
+            ${_AI_MODELS.map(m => `<option value="${m.id}" ${_aiModel()===m.id?'selected':''}>${m.label}</option>`).join('')}
+          </select>
+          &middot;
           <span class="todo-ai-key-link" onclick="_aiEditKey()">Modifier la clé API</span>
         </div>
 
