@@ -7,15 +7,19 @@ const _AI_KEY_LS   = 'todoGeminiKey';
 const _AI_MODEL_LS = 'todoGeminiModel';
 
 const _AI_MODELS = [
-  { id: 'gemini-2.0-flash-lite',          label: 'Gemini 2.0 Flash Lite (gratuit)' },
-  { id: 'gemini-2.0-flash',               label: 'Gemini 2.0 Flash' },
+  { id: 'gemini-1.5-flash-8b',            label: 'Gemini 1.5 Flash 8B (free tier)' },
   { id: 'gemini-1.5-flash-latest',        label: 'Gemini 1.5 Flash' },
+  { id: 'gemini-2.0-flash-lite',          label: 'Gemini 2.0 Flash Lite' },
+  { id: 'gemini-2.0-flash',               label: 'Gemini 2.0 Flash' },
   { id: 'gemini-2.5-flash-preview-04-17', label: 'Gemini 2.5 Flash Preview' },
 ];
 
 function _aiKey() {
-  if (!localStorage.getItem(_AI_KEY_LS)) {
-    localStorage.setItem(_AI_KEY_LS, 'AIzaSyAlmN7ocL9sfNGkSCBH5yZTFSVHCTo2s2o');
+  /* Toujours écraser si la clé stockée est l'ancienne révoquée */
+  const stored = localStorage.getItem(_AI_KEY_LS);
+  const legacy = 'AIzaSyAlmN7ocL9sfNGkSCBH5yZTFSVHCTo2s2o';
+  if (!stored || stored === legacy) {
+    localStorage.setItem(_AI_KEY_LS, 'AIzaSyDYxmdPwvaP-mbBNnBBV78gIQvJ3m9x5nU');
   }
   return localStorage.getItem(_AI_KEY_LS);
 }
@@ -24,7 +28,7 @@ function _aiModel() {
 }
 
 const _aiUrl = () =>
-  `https://generativelanguage.googleapis.com/v1beta/models/${_aiModel()}:generateContent?key=${_aiKey()}`;
+  `https://generativelanguage.googleapis.com/v1/models/${_aiModel()}:generateContent?key=${_aiKey()}`;
 
 /* Texte brut sans syntaxe [texte](url) */
 const _aiStrip = s => (s || '').replace(/\[([^\]]+)\]\(https?:\/\/[^)]+\)/g, '$1');
