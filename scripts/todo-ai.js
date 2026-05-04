@@ -13,7 +13,7 @@ function _aiKey() {
 }
 
 const _aiUrl = () =>
-  `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${_aiKey()}`;
+  `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${_aiKey()}`;
 
 /* Texte brut sans syntaxe [texte](url) */
 const _aiStrip = s => (s || '').replace(/\[([^\]]+)\]\(https?:\/\/[^)]+\)/g, '$1');
@@ -88,7 +88,7 @@ function _todoOpenAiModal() {
         </div>
 
         <div class="todo-ai-key-row">
-          Gemini 1.5 Flash &middot;
+          Gemini 2.0 Flash &middot;
           <span class="todo-ai-key-link" onclick="_aiEditKey()">Modifier la clé API</span>
         </div>
 
