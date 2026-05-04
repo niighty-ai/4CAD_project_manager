@@ -42,6 +42,14 @@ async function _todoOpenAiModal() {
   document.getElementById('todoAiOverlay')?.remove();
   _aiExtractedTasks = [];
 
+  /* Dossier courant (ignore vues virtuelles et boîte de réception) */
+  const _curFolder =
+    typeof _todoSelectedFolderId !== 'undefined' &&
+    _todoSelectedFolderId &&
+    !String(_todoSelectedFolderId).startsWith('view:') &&
+    _todoSelectedFolderId !== 'inbox'
+      ? _todoSelectedFolderId : null;
+
   const folders = _todoData.folders || [];
   const overlay = document.createElement('div');
   overlay.id = 'todoAiOverlay';
@@ -64,7 +72,7 @@ async function _todoOpenAiModal() {
           <label class="todo-ai-label">Dossier de destination</label>
           <select class="todo-ai-select" id="aiFolder">
             <option value="">— Boîte de réception —</option>
-            ${folders.map(f => `<option value="${f.id}">${_esc(f.name)}</option>`).join('')}
+            ${folders.map(f => `<option value="${f.id}" ${f.id === _curFolder ? 'selected' : ''}>${_esc(f.name)}</option>`).join('')}
           </select>
         </div>
         <div style="display:flex;align-items:center;gap:12px">
