@@ -172,8 +172,8 @@ Retourne UNIQUEMENT un objet JSON valide :
 Transcript :
 ${transcript}`;
 
-  const raw = await _aiCall(prompt, true);
-  const parsed = JSON.parse(raw);
+  const raw    = await _aiCall(prompt);
+  const parsed = _aiParseJson(raw);
   _aiExtractedTasks = parsed.tasks || [];
 
   if (!_aiExtractedTasks.length) {
@@ -210,7 +210,7 @@ Retourne uniquement le texte du résumé, sans titre ni introduction.
 Transcript :
 ${transcript}`;
 
-  const summary = await _aiCall(prompt, false);
+  const summary = await _aiCall(prompt);
 
   const body = document.getElementById('aiResultsBody');
   body.innerHTML = `<textarea class="todo-ai-summary-edit" id="aiSummaryText"
@@ -228,17 +228,14 @@ ${transcript}`;
 }
 
 /* ── Appel Gemini ── */
-async function _aiCall(prompt, jsonMode) {
-  const body = {
-    contents: [{ parts: [{ text: prompt }] }],
-    generationConfig: { temperature: 0.2 }
-  };
-  if (jsonMode) body.generationConfig.responseMimeType = 'application/json';
-
+async function _aiCall(prompt) {
   const res = await fetch(_aiUrl(), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body)
+    body: JSON.stringify({
+      contents: [{ parts: [{ text: prompt }] }],
+      generationConfig: { temperature: 0.2 }
+    })
   });
 
   if (!res.ok) {
@@ -250,6 +247,12 @@ async function _aiCall(prompt, jsonMode) {
   const text = json.candidates?.[0]?.content?.parts?.[0]?.text;
   if (!text) throw new Error('Réponse vide de Gemini');
   return text;
+}
+
+/* Extrait le JSON d'une réponse qui peut contenir des blocs ```json … ``` */
+function _aiParseJson(text) {
+  const m = text.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+  return JSON.parse(m ? m[1] : text.trim());
 }
 
 /* ── Confirmation ── */
