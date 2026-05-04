@@ -60,6 +60,7 @@ function _todoRenderModal() {
       <!-- Colonne gauche -->
       <div class="todo-modal-left">
         <div class="todo-modal-left-header">
+          ${_tmNavHtml(task.id)}
           <button class="todo-modal-x-btn" onclick="_todoCloseModal()" title="Fermer">&#x2715;</button>
         </div>
         <div class="todo-modal-left-body">
@@ -1034,4 +1035,48 @@ function _tmConfirmLink(textareaId) {
   document.getElementById('tmLinkPopup')?.remove();
   _tmLinkPopupOpen = false;
   ta.focus();
+}
+
+/* ── Navigation tâche précédente / suivante dans la vue courante ── */
+function _tmNavHtml(taskId) {
+  const ids = window._todoVisibleTaskIds || [];
+  const idx = ids.indexOf(taskId);
+  if (ids.length <= 1 || idx === -1) return '';   /* tâche hors vue ou seule */
+
+  const pos     = idx + 1;
+  const total   = ids.length;
+  const hasPrev = idx > 0;
+  const hasNext = idx < ids.length - 1;
+
+  const btnStyle = 'width:22px;height:22px;display:flex;align-items:center;justify-content:center;' +
+    'border:none;background:transparent;border-radius:50%;cursor:pointer;' +
+    'color:var(--muted);transition:background .12s,color .12s;flex-shrink:0;';
+
+  return `
+    <div class="tm-nav">
+      <button style="${btnStyle}${hasPrev?'':'opacity:.3;cursor:default;'}"
+              title="Tâche précédente"
+              onclick="${hasPrev ? `_tmNavGo(${idx - 1})` : ''}">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <polyline points="15 18 9 12 15 6"/>
+        </svg>
+      </button>
+      <span class="tm-nav-count">${pos}&thinsp;/&thinsp;${total}</span>
+      <button style="${btnStyle}${hasNext?'':'opacity:.3;cursor:default;'}"
+              title="Tâche suivante"
+              onclick="${hasNext ? `_tmNavGo(${idx + 1})` : ''}">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <polyline points="9 18 15 12 9 6"/>
+        </svg>
+      </button>
+    </div>`;
+}
+
+function _tmNavGo(idx) {
+  const ids = window._todoVisibleTaskIds || [];
+  const id  = ids[idx];
+  if (!id) return;
+  _todoModalTaskId = id;
+  _tmActiveSubId   = null;
+  _todoRenderModal();
 }

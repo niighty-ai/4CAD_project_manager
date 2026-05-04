@@ -300,6 +300,8 @@ function _todoRenderTaskList() {
 
   const rootTasks   = baseTasks.filter(t => !t.parentId);
   const sortedTasks = _todoSortTasksBy(rootTasks, sort);
+  /* Expose l'ordre courant pour la navigation dans la modale */
+  window._todoVisibleTaskIds = sortedTasks.map(t => t.id);
 
   const sortLabels  = {
     order:'Manuel', priority:'Priorité', dueDate:'Échéance',

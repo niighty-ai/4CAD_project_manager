@@ -441,9 +441,26 @@
 /* Bouton ✕ dans l'en-tête de la colonne gauche */
 .todo-modal-left-header {
   display: flex;
+  align-items: center;
   justify-content: flex-end;
+  gap: 6px;
   padding: 8px 10px 0;
   flex-shrink: 0;
+}
+.tm-nav {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin-right: auto;
+}
+.tm-nav button:hover { background: var(--border) !important; color: var(--text) !important; }
+.tm-nav-count {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+  min-width: 32px;
+  text-align: center;
+  letter-spacing: .3px;
 }
 .todo-modal-x-btn {
   width: 26px; height: 26px;
