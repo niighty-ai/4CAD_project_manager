@@ -43,20 +43,9 @@ function _todoCloseModal() {
   _tmActiveSubId   = null;
 }
 
-/* ── Rendu complet de la modale ── */
-function _todoRenderModal() {
-  document.getElementById('todoModalOverlay')?.remove();
-  const task = _todoData.tasks.find(t => t.id === _todoModalTaskId);
-  if (!task) return;
-
-  const overlay = document.createElement('div');
-  overlay.className = 'todo-modal-overlay';
-  overlay.id = 'todoModalOverlay';
-  overlay.onclick = e => { if (e.target === overlay) _todoCloseModal(); };
-
-  overlay.innerHTML = `
-    <div class="todo-modal" onclick="event.stopPropagation()">
-
+/* ── HTML interne de la modale (réutilisé par rendu initial et navigation) ── */
+function _tmModalHtml(task) {
+  return `
       <!-- Colonne gauche -->
       <div class="todo-modal-left">
         <div class="todo-modal-left-header">
@@ -65,7 +54,7 @@ function _todoRenderModal() {
         </div>
         <div class="todo-modal-left-body">
 
-          <!-- Titre (vue rendue / édition bascule) -->
+          <!-- Titre -->
           <div class="tm-title-wrap">
             <div class="tm-title-view" id="tmTitleView"
                  onclick="_tmEditTitle(event)">${task.title ? _todoLinkify(task.title) : '<span class="tm-placeholder">Titre de la tâche…</span>'}</div>
@@ -81,7 +70,7 @@ function _todoRenderModal() {
             </div>
           </div>
 
-          <!-- Description (vue rendue / édition bascule) -->
+          <!-- Description -->
           <div class="tm-desc-wrap">
             <div class="tm-desc-view" id="tmDescView"
                  onclick="_tmEditDesc(event)">${task.description ? _todoLinkify(task.description) : '<span class="tm-placeholder">Ajouter une description…</span>'}</div>
@@ -169,16 +158,31 @@ function _todoRenderModal() {
       </div><!-- /left -->
 
       <!-- Colonne droite (propriétés) -->
-      <div class="todo-modal-right" id="tmRight"></div>
+      <div class="todo-modal-right" id="tmRight"></div>`;
+}
 
-    </div><!-- /modal -->`;
+/* ── Rendu complet de la modale ── */
+function _todoRenderModal() {
+  const task = _todoData.tasks.find(t => t.id === _todoModalTaskId);
+  if (!task) { document.getElementById('todoModalOverlay')?.remove(); return; }
 
-  document.body.appendChild(overlay);
+  const existing = document.getElementById('todoModalOverlay');
+  if (existing) {
+    /* Mise à jour en place — pas de flash backdrop */
+    existing.querySelector('.todo-modal').innerHTML = _tmModalHtml(task);
+  } else {
+    const overlay = document.createElement('div');
+    overlay.className = 'todo-modal-overlay';
+    overlay.id = 'todoModalOverlay';
+    overlay.onclick = e => { if (e.target === overlay) _todoCloseModal(); };
+    overlay.innerHTML = `<div class="todo-modal" onclick="event.stopPropagation()">${_tmModalHtml(task)}</div>`;
+    document.body.appendChild(overlay);
+  }
+
   _tmRenderSubtasks();
   _tmRenderComments();
   _tmRenderRight();
-  /* Auto-resize des textarea initiaux */
-  overlay.querySelectorAll('textarea').forEach(_tmAutoResize);
+  document.getElementById('todoModalOverlay').querySelectorAll('textarea').forEach(_tmAutoResize);
 }
 
 /* ── Auto-resize textarea ── */
@@ -1041,31 +1045,27 @@ function _tmConfirmLink(textareaId) {
 function _tmNavHtml(taskId) {
   const ids = window._todoVisibleTaskIds || [];
   const idx = ids.indexOf(taskId);
-  if (ids.length <= 1 || idx === -1) return '';   /* tâche hors vue ou seule */
+  if (ids.length <= 1 || idx === -1) return '';
 
-  const pos     = idx + 1;
-  const total   = ids.length;
   const hasPrev = idx > 0;
   const hasNext = idx < ids.length - 1;
 
-  const btnStyle = 'width:22px;height:22px;display:flex;align-items:center;justify-content:center;' +
-    'border:none;background:transparent;border-radius:50%;cursor:pointer;' +
-    'color:var(--muted);transition:background .12s,color .12s;flex-shrink:0;';
-
   return `
     <div class="tm-nav">
-      <button style="${btnStyle}${hasPrev?'':'opacity:.3;cursor:default;'}"
+      <button class="tm-nav-btn${hasPrev ? '' : ' tm-nav-btn-off'}"
               title="Tâche précédente"
-              onclick="${hasPrev ? `_tmNavGo(${idx - 1})` : ''}">
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              ${hasPrev ? `onclick="_tmNavGo(${idx - 1})"` : 'disabled'}>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke-width="2.5"
+             stroke-linecap="round" stroke-linejoin="round">
           <polyline points="15 18 9 12 15 6"/>
         </svg>
       </button>
-      <span class="tm-nav-count">${pos}&thinsp;/&thinsp;${total}</span>
-      <button style="${btnStyle}${hasNext?'':'opacity:.3;cursor:default;'}"
+      <span class="tm-nav-count">${idx + 1}&thinsp;/&thinsp;${ids.length}</span>
+      <button class="tm-nav-btn${hasNext ? '' : ' tm-nav-btn-off'}"
               title="Tâche suivante"
-              onclick="${hasNext ? `_tmNavGo(${idx + 1})` : ''}">
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              ${hasNext ? `onclick="_tmNavGo(${idx + 1})"` : 'disabled'}>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke-width="2.5"
+             stroke-linecap="round" stroke-linejoin="round">
           <polyline points="9 18 15 12 9 6"/>
         </svg>
       </button>
