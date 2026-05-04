@@ -162,6 +162,7 @@ input[type="file"] {
   font-weight:700;
   font-family:Arial,sans-serif;
   color:var(--muted);
+  text-decoration:none;
   cursor:pointer;
   border:none;
   background:transparent;

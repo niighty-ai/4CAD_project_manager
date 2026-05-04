@@ -1,40 +1,32 @@
 /* ═══════════════════════════════════════════
    router.js — Navigation entre les vues de l'application
-   Vues disponibles : 'projets' | 'ressources' | 'calendrier'
+   Vues : 'projets' | 'ressources' | 'calendrier' | 'todo'
+   Hash routing : location.hash = '#<vue>'
    ═══════════════════════════════════════════ */
+
+const _VALID_VIEWS = ['projets', 'ressources', 'calendrier', 'todo'];
+
+function _hashView() {
+  const h = location.hash.replace(/^#/, '');
+  return _VALID_VIEWS.includes(h) ? h : 'projets';
+}
 
 let currentView = 'projets';
 
-function switchView(view) {
-  if (view === currentView) return;
-  /* Garde : modifications en cours → demander confirmation */
-  const _hasEdits = (typeof _ganttEdits !== 'undefined' && Object.keys(_ganttEdits).length > 0);
-  if (((typeof _tasksDirty !== 'undefined' && _tasksDirty) || _hasEdits)) {
-    if (typeof _showUnsavedChangesModal === 'function') {
-      _showUnsavedChangesModal(() => {
-        /* Ne pas pré-setter currentView ici : confirmUnsavedSwitch vide
-           _ganttEdits/_tasksDirty, donc la garde ne se re-déclenche pas,
-           et currentView est correctement mis à jour dans switchView. */
-        switchView(view);
-      });
-      return;
-    }
-  }
+function _applyView(view) {
+  if (!_VALID_VIEWS.includes(view)) view = 'projets';
   currentView = view;
 
-  /* Mise à jour des onglets header */
   document.querySelectorAll('.nav-tab').forEach(tab => {
     tab.classList.toggle('active', tab.dataset.view === view);
   });
 
-  /* Références aux conteneurs */
   const viewProjets    = document.getElementById('viewProjets');
   const viewRessources = document.getElementById('viewRessources');
   const viewCalendar   = document.getElementById('viewCalendar');
   const viewTodo       = document.getElementById('viewTodo');
   const navSidebar     = document.getElementById('navSidebar');
 
-  /* Masquer tout */
   viewProjets.style.display    = 'none';
   viewRessources.style.display = 'none';
   viewCalendar.style.display   = 'none';
@@ -43,17 +35,17 @@ function switchView(view) {
   if (view === 'projets') {
     viewProjets.style.display = '';
     navSidebar.style.display  = '';
-    renderAll();
+    if (typeof renderAll === 'function') renderAll();
 
   } else if (view === 'ressources') {
     viewRessources.style.display = '';
     navSidebar.style.display     = 'none';
-    renderResourcesView();
+    if (typeof renderResourcesView === 'function') renderResourcesView();
 
   } else if (view === 'calendrier') {
     viewCalendar.style.display = 'flex';
     navSidebar.style.display   = 'none';
-    renderCalendarView();
+    if (typeof renderCalendarView === 'function') renderCalendarView();
 
   } else if (view === 'todo') {
     if (viewTodo) viewTodo.style.display = 'flex';
@@ -61,3 +53,62 @@ function switchView(view) {
     if (typeof renderTodoView === 'function') renderTodoView();
   }
 }
+
+/* Guard for <a> link clicks — prevents navigation when unsaved changes exist */
+function _navClick(e, view) {
+  if (view === currentView) { e.preventDefault(); return; }
+  const _hasEdits = (typeof _ganttEdits !== 'undefined' && Object.keys(_ganttEdits).length > 0);
+  if ((typeof _tasksDirty !== 'undefined' && _tasksDirty) || _hasEdits) {
+    e.preventDefault();
+    if (typeof _showUnsavedChangesModal === 'function') {
+      _showUnsavedChangesModal(() => { location.hash = '#' + view; });
+    }
+  }
+  /* else: let <a href="#view"> navigate naturally → hashchange → _applyView */
+}
+
+/* Legacy: programmatic view switch (keeps working for any existing callers) */
+function switchView(view) {
+  if (view === currentView) return;
+  location.hash = '#' + view;
+}
+
+/* React to browser back/forward and programmatic hash changes */
+window.addEventListener('hashchange', () => _applyView(_hashView()));
+
+/* On initial page load: apply view from URL hash, DOM only (no render).
+   Firebase callbacks will trigger render once data is available. */
+document.addEventListener('DOMContentLoaded', () => {
+  const view = _hashView();
+  currentView = view;
+
+  document.querySelectorAll('.nav-tab').forEach(tab => {
+    tab.classList.toggle('active', tab.dataset.view === view);
+  });
+
+  const viewProjets    = document.getElementById('viewProjets');
+  const viewRessources = document.getElementById('viewRessources');
+  const viewCalendar   = document.getElementById('viewCalendar');
+  const viewTodo       = document.getElementById('viewTodo');
+  const navSidebar     = document.getElementById('navSidebar');
+  if (!viewProjets) return;
+
+  viewProjets.style.display    = 'none';
+  viewRessources.style.display = 'none';
+  viewCalendar.style.display   = 'none';
+  if (viewTodo) viewTodo.style.display = 'none';
+
+  if (view === 'projets') {
+    viewProjets.style.display = '';
+    if (navSidebar) navSidebar.style.display = '';
+  } else if (view === 'ressources') {
+    viewRessources.style.display = '';
+    if (navSidebar) navSidebar.style.display = 'none';
+  } else if (view === 'calendrier') {
+    viewCalendar.style.display = 'flex';
+    if (navSidebar) navSidebar.style.display = 'none';
+  } else if (view === 'todo') {
+    if (viewTodo) viewTodo.style.display = 'flex';
+    if (navSidebar) navSidebar.style.display = 'none';
+  }
+});
