@@ -331,6 +331,9 @@ function _aiEditKey() {
   const newKey = prompt('Clé API Google Gemini :', _aiKey());
   if (newKey !== null && newKey.trim()) {
     localStorage.setItem(_AI_KEY_LS, newKey.trim());
-    _aiSetStatus('Clé API mise à jour');
+    localStorage.removeItem(_AI_MODEL_LS); /* reset modèle pour recharger */
+    _aiSetStatus('Chargement des modèles…');
+    document.getElementById('aiModelSelect').innerHTML = '<option value="">Chargement…</option>';
+    _aiLoadModelSelector();
   }
 }
