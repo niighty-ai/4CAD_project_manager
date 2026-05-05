@@ -538,7 +538,15 @@ function _todoApplyViewFilters(tasks, filters) {
     if (filters.assignee && !(t.assignees || []).some(a => a.name === filters.assignee)) return false;
     if (filters.showOnlyIncomplete && t.completed) return false;
     if (filters.dateFilter && filters.dateFilter !== 'all') {
-      if (!t.dueDate) return !!filters.showNoDate;
+      if (!t.dueDate) {
+        if (filters.showNoDate) return true;
+        /* Sous-tâche sans date : visible si le parent a une date (il sera affiché) */
+        if (t.parentId) {
+          const parent = _todoData.tasks.find(p => p.id === t.parentId);
+          return !!(parent && parent.dueDate);
+        }
+        return false;
+      }
       const d = new Date(t.dueDate);
       if (filters.dateFilter === 'today') {
         if (d.toDateString() !== now.toDateString()) return false;
