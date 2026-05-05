@@ -1052,15 +1052,13 @@ function _tmNavHtml(taskId) {
 
   return `
     <div class="tm-nav">
-      <button class="tm-nav-btn tm-nav-prev${hasPrev ? '' : ' tm-nav-btn-off'}"
+      <button class="tm-nav-btn${hasPrev ? '' : ' tm-nav-btn-off'}"
               title="Tâche précédente"
-              ${hasPrev ? `onclick="_tmNavGo(${idx - 1})"` : 'disabled'}>
-      </button>
+              ${hasPrev ? `onclick="_tmNavGo(${idx - 1})"` : 'disabled'}>&#8249;</button>
       <span class="tm-nav-count">${idx + 1}&thinsp;/&thinsp;${ids.length}</span>
-      <button class="tm-nav-btn tm-nav-next${hasNext ? '' : ' tm-nav-btn-off'}"
+      <button class="tm-nav-btn${hasNext ? '' : ' tm-nav-btn-off'}"
               title="Tâche suivante"
-              ${hasNext ? `onclick="_tmNavGo(${idx + 1})"` : 'disabled'}>
-      </button>
+              ${hasNext ? `onclick="_tmNavGo(${idx + 1})"` : 'disabled'}>&#8250;</button>
     </div>`;
 }
 
