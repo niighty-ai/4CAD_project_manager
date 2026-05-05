@@ -458,6 +458,8 @@ async function _aiOpenFieldPopup(textareaId, btnEl) {
   document.getElementById('tmAiFieldPopup')?.remove();
   _tmLinkPopupOpen = true;
 
+  const existingText = document.getElementById(textareaId)?.value || '';
+
   const popup = document.createElement('div');
   popup.id = 'tmAiFieldPopup';
   popup.style.cssText =
@@ -467,19 +469,24 @@ async function _aiOpenFieldPopup(textareaId, btnEl) {
 
   popup.innerHTML = `
     <div style="font-size:11px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;
-                color:var(--muted);margin-bottom:8px">Résumé IA</div>
+                color:var(--muted);margin-bottom:8px">Assistant IA</div>
     <textarea id="aiFpTranscript" rows="12"
-              placeholder="Collez votre transcript ici…"
+              placeholder="Collez ou modifiez votre texte ici…"
               style="width:100%;box-sizing:border-box;resize:vertical;padding:8px 10px;font-size:12px;
                      background:var(--surface2);border:1px solid var(--border);border-radius:5px;
                      color:var(--text);outline:none;font-family:inherit;margin-bottom:8px;
-                     display:block;min-height:160px"></textarea>
+                     display:block;min-height:160px">${existingText.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</textarea>
     <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
-      <button id="aiFpAnalyzeBtn"
+      <button id="aiFpSummarizeBtn"
               onmousedown="event.stopPropagation()"
-              onclick="_aiFpAnalyze('${textareaId}')"
+              onclick="_aiFpProcess('${textareaId}','resume')"
               style="padding:5px 14px;font-size:12px;border-radius:5px;border:none;
-                     background:var(--accent);color:#fff;cursor:pointer">Analyser</button>
+                     background:var(--accent);color:#fff;cursor:pointer">Résumer</button>
+      <button id="aiFpCorrectBtn"
+              onmousedown="event.stopPropagation()"
+              onclick="_aiFpProcess('${textareaId}','corriger')"
+              style="padding:5px 14px;font-size:12px;border-radius:5px;border:1px solid var(--border);
+                     background:transparent;color:var(--text);cursor:pointer">Corriger</button>
       <span id="aiFpStatus" style="font-size:11px;color:var(--muted)"></span>
     </div>
     <div id="aiFpResultWrap" style="display:none;margin-bottom:8px">
@@ -531,42 +538,51 @@ async function _aiOpenFieldPopup(textareaId, btnEl) {
   }, 0);
 }
 
-async function _aiFpAnalyze(textareaId) {
-  const transcript = document.getElementById('aiFpTranscript')?.value.trim();
-  const status     = document.getElementById('aiFpStatus');
-  if (!transcript) { status.textContent = 'Collez un transcript.'; status.style.color = '#db4035'; return; }
+async function _aiFpProcess(textareaId, mode) {
+  const text   = document.getElementById('aiFpTranscript')?.value.trim();
+  const status = document.getElementById('aiFpStatus');
+  if (!text) { status.textContent = 'Aucun texte à traiter.'; status.style.color = '#db4035'; return; }
 
-  const btn = document.getElementById('aiFpAnalyzeBtn');
-  btn.disabled = true;
-  status.textContent = 'Analyse…';
+  const sumBtn = document.getElementById('aiFpSummarizeBtn');
+  const corBtn = document.getElementById('aiFpCorrectBtn');
+  if (sumBtn) sumBtn.disabled = true;
+  if (corBtn) corBtn.disabled = true;
+  status.textContent = mode === 'resume' ? 'Résumé en cours…' : 'Correction en cours…';
   status.style.color = 'var(--muted)';
 
-  try {
-    const prompt = `Tu es un assistant de gestion de projet. Fais un résumé concis en français de ce transcript de réunion.
-Utilise des tirets (-) pour structurer les points.
-Inclus : décisions prises, points clés abordés, actions identifiées, prochaines étapes.
+  const prompt = mode === 'resume'
+    ? `Fais un résumé concis en français de ce texte.
+Utilise des tirets (-) pour structurer les points importants.
 Retourne uniquement le texte du résumé, sans titre ni introduction.
 
-Transcript :
-${transcript}`;
+Texte :
+${text}`
+    : `Corrige ce texte en français : orthographe, grammaire, ponctuation et style.
+Ne change pas le sens ni la structure du contenu.
+Retourne uniquement le texte corrigé, sans commentaires ni explications.
 
-    const summary = await _aiCall(prompt);
-    const result  = document.getElementById('aiFpResult');
-    if (result) {
-      result.value = summary;
-      result.style.height = 'auto';
-      result.style.height = Math.min(result.scrollHeight, 400) + 'px';
+Texte :
+${text}`;
+
+  try {
+    const result  = await _aiCall(prompt);
+    const resultEl = document.getElementById('aiFpResult');
+    if (resultEl) {
+      resultEl.value = result;
+      resultEl.style.height = 'auto';
+      resultEl.style.height = Math.min(resultEl.scrollHeight, 400) + 'px';
     }
     document.getElementById('aiFpResultWrap').style.display = '';
     const insertBtn = document.getElementById('aiFpInsertBtn');
     if (insertBtn) { insertBtn.disabled = false; insertBtn.style.opacity = '1'; }
-    status.textContent = 'Résumé prêt';
+    status.textContent = mode === 'resume' ? 'Résumé prêt' : 'Correction prête';
     status.style.color = 'var(--muted)';
   } catch (e) {
     status.textContent = 'Erreur : ' + (e.message || 'Réponse invalide');
     status.style.color = '#db4035';
   } finally {
-    btn.disabled = false;
+    if (sumBtn) sumBtn.disabled = false;
+    if (corBtn) corBtn.disabled = false;
   }
 }
 
