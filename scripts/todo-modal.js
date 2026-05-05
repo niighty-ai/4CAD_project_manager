@@ -1055,7 +1055,7 @@ function _tmNavHtml(taskId) {
       <button class="tm-nav-btn${hasPrev ? '' : ' tm-nav-btn-off'}"
               title="Tâche précédente"
               ${hasPrev ? `onclick="_tmNavGo(${idx - 1})"` : 'disabled'}>
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke-width="2.5"
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
              stroke-linecap="round" stroke-linejoin="round">
           <polyline points="15 18 9 12 15 6"/>
         </svg>
@@ -1064,7 +1064,7 @@ function _tmNavHtml(taskId) {
       <button class="tm-nav-btn${hasNext ? '' : ' tm-nav-btn-off'}"
               title="Tâche suivante"
               ${hasNext ? `onclick="_tmNavGo(${idx + 1})"` : 'disabled'}>
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke-width="2.5"
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
              stroke-linecap="round" stroke-linejoin="round">
           <polyline points="9 18 15 12 9 6"/>
         </svg>

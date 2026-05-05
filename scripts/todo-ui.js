@@ -397,19 +397,13 @@ function _todoRenderTaskList() {
   } else if (!groupsArr.length) {
     let html = '';
     sortedTasks.forEach(task => {
-      html += _todoTaskRowHtml(task, false);
-      _todoSortTasksBy(baseTasks.filter(t => t.parentId === task.id), sort)
-        .forEach(st => { html += _todoTaskRowHtml(st, true); });
+      html += _todoTaskGroupHtml(task, baseTasks, sort);
     });
     body.innerHTML = `<div class="todo-task-list" id="todoTaskList">${html}</div>`;
   } else {
     const _renderTasksFlat = tasks => {
       let h = '';
-      tasks.forEach(task => {
-        h += _todoTaskRowHtml(task, false);
-        _todoSortTasksBy(baseTasks.filter(t => t.parentId === task.id), sort)
-          .forEach(st => { h += _todoTaskRowHtml(st, true); });
-      });
+      tasks.forEach(task => { h += _todoTaskGroupHtml(task, baseTasks, sort); });
       return h;
     };
     const outerGroups = _todoGroupTasks(sortedTasks, groupsArr[0]);
@@ -497,6 +491,18 @@ function _todoGroupTasks(tasks, groupBy) {
     map.get(key).tasks.push(task);
   });
   return [...map.values()];
+}
+
+/* ── Groupe parent + sous-tâches avec trait d'arborescence ── */
+function _todoTaskGroupHtml(task, baseTasks, sort) {
+  const subs = _todoSortTasksBy(baseTasks.filter(t => t.parentId === task.id), sort);
+  if (!subs.length) return _todoTaskRowHtml(task, false);
+  let h = `<div class="todo-task-group">`;
+  h += _todoTaskRowHtml(task, false);
+  h += `<div class="todo-subtask-group">`;
+  subs.forEach(st => { h += _todoTaskRowHtml(st, true); });
+  h += `</div></div>`;
+  return h;
 }
 
 /* ── HTML d'une ligne de tâche ── */

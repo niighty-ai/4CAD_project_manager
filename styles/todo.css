@@ -346,6 +346,33 @@
   width: 15px; height: 15px;
   border-width: 1.5px;
 }
+
+/* Arborescence dans la vue liste (parent → sous-tâches) */
+.todo-subtask-group {
+  position: relative;
+}
+.todo-subtask-group::before {
+  content: '';
+  position: absolute;
+  left: 13px; /* centre du checkbox parent : padding(4px) + demi-checkbox(9px) */
+  top: 0;
+  bottom: 16px;
+  width: 1.5px;
+  background: var(--border);
+  border-radius: 2px;
+  pointer-events: none;
+}
+.todo-task-row.subtask::before {
+  content: '';
+  position: absolute;
+  left: 13px;
+  top: 17px; /* padding-top(7px) + margin-top(1px) + demi-checkbox(9px) */
+  width: 15px; /* de x=13 jusqu'au début du padding subtask x=28 */
+  height: 1.5px;
+  background: var(--border);
+  pointer-events: none;
+}
+
 .todo-subtask-count {
   display: inline-flex; align-items: center; gap: 3px;
   font-size: 10px; color: var(--muted); font-weight: 600;
