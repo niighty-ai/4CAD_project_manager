@@ -322,6 +322,11 @@ function _todoCompleteTask(taskId) {
         newSt.priority      = st.priority;
         newSt.assignees     = [...(st.assignees || [])];
         newSt.followsParent = true;
+        /* Propager la date avec le même décalage que dans l'occurrence d'origine */
+        if (st.dueDate && task.dueDate && next.dueDate) {
+          const offsetMs = new Date(st.dueDate).getTime() - new Date(task.dueDate).getTime();
+          newSt.dueDate = new Date(new Date(next.dueDate).getTime() + offsetMs).toISOString();
+        }
       });
 
       _todoShowToast('Nouvelle occurrence créée');
