@@ -1052,22 +1052,14 @@ function _tmNavHtml(taskId) {
 
   return `
     <div class="tm-nav">
-      <button class="tm-nav-btn${hasPrev ? '' : ' tm-nav-btn-off'}"
+      <button class="tm-nav-btn tm-nav-prev${hasPrev ? '' : ' tm-nav-btn-off'}"
               title="Tâche précédente"
               ${hasPrev ? `onclick="_tmNavGo(${idx - 1})"` : 'disabled'}>
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
-             stroke-linecap="round" stroke-linejoin="round">
-          <polyline points="15 18 9 12 15 6" stroke="currentColor" fill="none"/>
-        </svg>
       </button>
       <span class="tm-nav-count">${idx + 1}&thinsp;/&thinsp;${ids.length}</span>
-      <button class="tm-nav-btn${hasNext ? '' : ' tm-nav-btn-off'}"
+      <button class="tm-nav-btn tm-nav-next${hasNext ? '' : ' tm-nav-btn-off'}"
               title="Tâche suivante"
               ${hasNext ? `onclick="_tmNavGo(${idx + 1})"` : 'disabled'}>
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
-             stroke-linecap="round" stroke-linejoin="round">
-          <polyline points="9 18 15 12 9 6" stroke="currentColor" fill="none"/>
-        </svg>
       </button>
     </div>`;
 }

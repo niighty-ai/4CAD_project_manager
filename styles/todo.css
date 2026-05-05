@@ -488,8 +488,17 @@
   color: var(--muted);
   transition: background .12s, color .12s;
 }
-.tm-nav-btn svg { stroke: currentColor; display: block; }
-.tm-nav-btn svg polyline { stroke: currentColor; fill: none; }
+.tm-nav-prev::before,
+.tm-nav-next::before {
+  content: '';
+  display: block;
+  width: 7px; height: 7px;
+  border-top: 2px solid currentColor;
+  border-right: 2px solid currentColor;
+  border-radius: 1px;
+}
+.tm-nav-prev::before { transform: rotate(-135deg) translate(1px, -1px); }
+.tm-nav-next::before { transform: rotate(45deg) translate(-1px, 1px); }
 .tm-nav-btn:hover { background: var(--border); color: var(--text); }
 .tm-nav-btn-off { opacity: .3; cursor: default; }
 .tm-nav-btn-off:hover { background: transparent; color: var(--muted); }
