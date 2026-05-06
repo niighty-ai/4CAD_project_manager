@@ -1082,16 +1082,36 @@ function _vfToggleDropdown(cls) {
   }
 }
 
-/* Clic sur un item de liste → toggle + rebuild formule */
+/* Sync l'état de "(Sélectionner tout)" selon les items réels */
+function _vfSyncSelectAll(cls) {
+  const items    = [...document.querySelectorAll(`#${cls}List .todo-vd-list-item:not(.todo-vd-list-item-all)`)];
+  const selCount = items.filter(el => el.classList.contains('selected')).length;
+  const allEl    = document.querySelector(`#${cls}List .todo-vd-list-item-all`);
+  if (!allEl) return;
+  allEl.classList.toggle('selected',      selCount === items.length);
+  allEl.classList.toggle('indeterminate', selCount > 0 && selCount < items.length);
+}
+
+/* Clic sur un item de liste → toggle + rebuild formule + sync "Sélectionner tout" */
 function _vfToggleItem(el, cls) {
   el.classList.toggle('selected');
   _vfSyncFormula(cls);
+  _vfSyncSelectAll(cls);
+}
+
+/* Clic sur "(Sélectionner tout)" */
+function _vfToggleAll(cls) {
+  const items  = [...document.querySelectorAll(`#${cls}List .todo-vd-list-item:not(.todo-vd-list-item-all)`)];
+  const allSel = items.every(el => el.classList.contains('selected'));
+  items.forEach(el => el.classList.toggle('selected', !allSel));
+  _vfSyncFormula(cls);
+  _vfSyncSelectAll(cls);
 }
 
 /* Items sélectionnés → rebuild formule + maj résumé */
 function _vfSyncFormula(cls) {
-  const sel = [...document.querySelectorAll(`#${cls}List .todo-vd-list-item.selected`)].map(el => el.dataset.val);
-  const all = [...document.querySelectorAll(`#${cls}List .todo-vd-list-item`)].map(el => el.dataset.val);
+  const sel = [...document.querySelectorAll(`#${cls}List .todo-vd-list-item:not(.todo-vd-list-item-all).selected`)].map(el => el.dataset.val);
+  const all = [...document.querySelectorAll(`#${cls}List .todo-vd-list-item:not(.todo-vd-list-item-all)`)].map(el => el.dataset.val);
   const fi  = document.getElementById(cls + 'Formula');
   if (!fi) return;
   const formula = (sel.length === 0 || sel.length === all.length) ? '=All' : sel.join(' | ');
@@ -1105,38 +1125,41 @@ function _vfFormulaInput(cls) {
   const fi = document.getElementById(cls + 'Formula');
   if (!fi) return;
   const formula = fi.value.trim();
-  const items   = [...document.querySelectorAll(`#${cls}List .todo-vd-list-item`)];
+  const items   = [...document.querySelectorAll(`#${cls}List .todo-vd-list-item:not(.todo-vd-list-item-all)`)];
   const allVals = items.map(el => el.dataset.val);
   const si = document.getElementById(cls + 'Summary');
   if (si) si.textContent = _vfSummary(formula, allVals);
   if (!formula || formula === '=All') {
-    items.forEach(el => el.classList.add('selected')); return;
+    items.forEach(el => el.classList.add('selected'));
+  } else if (formula === '=""' || formula === '=') {
+    items.forEach(el => el.classList.remove('selected'));
+  } else {
+    const terms    = formula.split('|').map(t => t.trim().toLowerCase());
+    const allKnown = terms.every(t => allVals.map(v => v.toLowerCase()).includes(t));
+    if (allKnown) items.forEach(el => { el.classList.toggle('selected', terms.includes(el.dataset.val.toLowerCase())); });
   }
-  if (formula === '=""' || formula === '=') {
-    items.forEach(el => el.classList.remove('selected')); return;
-  }
-  const terms    = formula.split('|').map(t => t.trim().toLowerCase());
-  const allKnown = terms.every(t => allVals.map(v => v.toLowerCase()).includes(t));
-  if (allKnown) items.forEach(el => { el.classList.toggle('selected', terms.includes(el.dataset.val.toLowerCase())); });
+  _vfSyncSelectAll(cls);
 }
 
 /* Tout sélectionner */
 function _vfCheckAll(cls) {
-  document.querySelectorAll(`#${cls}List .todo-vd-list-item`).forEach(el => el.classList.add('selected'));
+  document.querySelectorAll(`#${cls}List .todo-vd-list-item:not(.todo-vd-list-item-all)`).forEach(el => el.classList.add('selected'));
   const fi = document.getElementById(cls + 'Formula');
   if (fi) fi.value = '=All';
   const si = document.getElementById(cls + 'Summary');
   if (si) si.textContent = 'Tout';
+  _vfSyncSelectAll(cls);
 }
 
 /* Tout désélectionner (assignee → ="", autres → =All) */
 function _vfUncheckAll(cls) {
-  document.querySelectorAll(`#${cls}List .todo-vd-list-item`).forEach(el => el.classList.remove('selected'));
+  document.querySelectorAll(`#${cls}List .todo-vd-list-item:not(.todo-vd-list-item-all)`).forEach(el => el.classList.remove('selected'));
   const formula = cls === 'vf-assignee' ? '=""' : '=All';
   const fi = document.getElementById(cls + 'Formula');
   if (fi) fi.value = formula;
   const si = document.getElementById(cls + 'Summary');
   if (si) si.textContent = cls === 'vf-assignee' ? 'Vide' : 'Tout';
+  _vfSyncSelectAll(cls);
 }
 
 /* ── Dialog Vue avancé (formules + checkboxes + date) ── */
@@ -1181,16 +1204,25 @@ function _todoOpenViewDialog(viewId) {
 
   const pColors = { P1:'#db4035', P2:'#ff9a14', P3:'#4073ff', P4:'#aaa' };
 
-  /* Génère un champ select-like avec dropdown déroulant */
+  /* Génère un champ select-like avec dropdown Excel (cases à cocher) */
   const mkSection = (label, cls, values, checked, formula, colorFn) => {
-    const custom  = _isCustom(formula, values);
-    const summary = _vfSummary(formula, values);
+    const custom   = _isCustom(formula, values);
+    const summary  = _vfSummary(formula, values);
+    const allSel   = checked.size >= values.length;
+    const someSel  = checked.size > 0 && checked.size < values.length;
+    const allItemCls = `todo-vd-list-item todo-vd-list-item-all${allSel?' selected':someSel?' indeterminate':''}`;
+    const selectAllHtml = `
+      <div class="${allItemCls}" onclick="event.stopPropagation();_vfToggleAll('${cls}')">
+        <span class="todo-vd-cb"></span>
+        <span class="todo-vd-item-lbl" style="font-style:italic">(Sélectionner tout)</span>
+      </div>`;
     const items = values.map(v => {
       const color = colorFn ? colorFn(v) : null;
       const sel   = checked.has(v) ? 'selected' : '';
       return `<div class="todo-vd-list-item ${sel}" data-val="${_esc(v)}" onclick="event.stopPropagation();_vfToggleItem(this,'${cls}')">
+        <span class="todo-vd-cb"></span>
         ${color ? `<span class="todo-vd-dot" style="background:${color}"></span>` : ''}
-        <span>${_esc(v)}</span>
+        <span class="todo-vd-item-lbl">${_esc(v)}</span>
       </div>`;
     }).join('');
     const chevron = `<svg width="11" height="11" viewBox="0 0 12 12" fill="none" style="flex-shrink:0;transition:transform .15s"><path d="M2 4l4 4 4-4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
@@ -1203,11 +1235,10 @@ function _todoOpenViewDialog(viewId) {
         </div>
       </div>
       <div class="todo-vd-dropdown" id="${cls}Dropdown" hidden onclick="event.stopPropagation()">
-        <div class="todo-vd-dropdown-head">
-          <span class="todo-vd-qbtn" onclick="_vfCheckAll('${cls}')">Tout ✓</span>
-          <span class="todo-vd-qbtn" onclick="_vfUncheckAll('${cls}')">Tout ✗</span>
+        <div class="todo-vd-listbox" id="${cls}List">
+          ${selectAllHtml}
+          ${items}
         </div>
-        <div class="todo-vd-listbox" id="${cls}List">${items}</div>
         ${custom ? `<div class="todo-vd-formula-hint" style="padding:4px 10px 0">Formule personnalisée</div>` : ''}
         <div class="todo-vd-formula-row" style="padding:6px 10px 8px">
           <span class="todo-vd-formula-lbl">Formule</span>

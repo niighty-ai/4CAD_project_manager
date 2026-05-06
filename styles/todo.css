@@ -1344,11 +1344,6 @@
 .todo-vd-dropdown {
   border: 1px solid var(--border); border-radius: 6px;
   margin-bottom: 10px; overflow: hidden;
-  background: var(--surface);
-}
-.todo-vd-dropdown-head {
-  display: flex; align-items: center; gap: 6px;
-  padding: 6px 10px; border-bottom: 1px solid var(--border);
   background: var(--surface2);
 }
 .todo-vd-qbtn {
@@ -1376,22 +1371,52 @@
   margin-top: 4px; margin-bottom: -2px;
 }
 .todo-vd-listbox {
-  max-height: 115px; overflow-y: auto;
-  border: 1px solid var(--border); border-radius: 5px;
+  max-height: 160px; overflow-y: auto;
   background: var(--surface2);
 }
 .todo-vd-listbox::-webkit-scrollbar { width: 4px; }
 .todo-vd-listbox::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
 .todo-vd-list-item {
   display: flex; align-items: center; gap: 7px;
-  padding: 6px 9px; cursor: pointer;
-  font-size: 12px; color: var(--muted); font-weight: 500;
-  user-select: none; transition: background .08s, color .08s;
+  padding: 5px 10px; cursor: pointer;
+  font-size: 12px; color: var(--text); font-weight: 400;
+  user-select: none; transition: background .07s;
   border-bottom: 1px solid var(--border);
 }
 .todo-vd-list-item:last-child { border-bottom: none; }
-.todo-vd-list-item:hover { background: var(--surface); color: var(--text); }
-.todo-vd-list-item.selected { color: var(--text); background: rgba(236,114,6,.08); }
+.todo-vd-list-item:hover { background: rgba(128,128,128,.08); }
+.todo-vd-list-item.selected { background: transparent; }
+.todo-vd-item-lbl { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Case à cocher visuelle */
+.todo-vd-cb {
+  width: 13px; height: 13px; flex-shrink: 0;
+  border: 1.5px solid #999; border-radius: 2px;
+  background: var(--surface); display: flex;
+  align-items: center; justify-content: center;
+  transition: background .08s, border-color .08s;
+}
+.todo-vd-list-item.selected .todo-vd-cb {
+  background: var(--accent); border-color: var(--accent);
+}
+.todo-vd-list-item.selected .todo-vd-cb::after {
+  content: '';
+  display: block;
+  width: 7px; height: 4px;
+  border-left: 1.5px solid #fff;
+  border-bottom: 1.5px solid #fff;
+  transform: rotate(-45deg) translateY(-1px);
+}
+/* "(Sélectionner tout)" — état indéterminé */
+.todo-vd-list-item-all.indeterminate .todo-vd-cb {
+  background: var(--accent); border-color: var(--accent);
+}
+.todo-vd-list-item-all.indeterminate .todo-vd-cb::after {
+  content: '';
+  display: block;
+  width: 7px; height: 1.5px;
+  background: #fff;
+}
+.todo-vd-list-item-all { border-bottom: 1px solid var(--border) !important; }
 .todo-vd-checkrow {
   display: flex; gap: 10px; flex-wrap: nowrap;
   margin-bottom: 4px;
