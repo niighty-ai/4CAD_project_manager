@@ -538,24 +538,28 @@ function _todoApplyViewFilters(tasks, filters) {
     if (filters.assignee && !(t.assignees || []).some(a => a.name === filters.assignee)) return false;
     if (filters.showOnlyIncomplete && t.completed) return false;
     if (filters.dateFilter && filters.dateFilter !== 'all') {
-      if (!t.dueDate) {
-        if (filters.showNoDate) return true;
-        /* Sous-tâche sans date : visible si le parent a une date (il sera affiché) */
-        if (t.parentId) {
-          const parent = _todoData.tasks.find(p => p.id === t.parentId);
-          return !!(parent && parent.dueDate);
+      if (filters.dateFilter === 'overdue') {
+        if (!t.dueDate || new Date(t.dueDate) >= now) return false;
+      } else {
+        if (!t.dueDate) {
+          if (filters.showNoDate) return true;
+          /* Sous-tâche sans date : visible si le parent a une date (il sera affiché) */
+          if (t.parentId) {
+            const parent = _todoData.tasks.find(p => p.id === t.parentId);
+            return !!(parent && parent.dueDate);
+          }
+          return false;
         }
-        return false;
-      }
-      const d = new Date(t.dueDate);
-      if (filters.dateFilter === 'today') {
-        if (d.toDateString() !== now.toDateString()) return false;
-      } else if (filters.dateFilter === 'week') {
-        const end = new Date(now); end.setDate(end.getDate() + 7);
-        if (d < now || d > end) return false;
-      } else if (filters.dateFilter === 'month') {
-        const end = new Date(now); end.setMonth(end.getMonth() + 1);
-        if (d < now || d > end) return false;
+        const d = new Date(t.dueDate);
+        if (filters.dateFilter === 'today') {
+          if (d.toDateString() !== now.toDateString()) return false;
+        } else if (filters.dateFilter === 'week') {
+          const end = new Date(now); end.setDate(end.getDate() + 7);
+          if (d < now || d > end) return false;
+        } else if (filters.dateFilter === 'month') {
+          const end = new Date(now); end.setMonth(end.getMonth() + 1);
+          if (d < now || d > end) return false;
+        }
       }
     }
     return true;

@@ -67,11 +67,12 @@ function _todoRenderSidebar() {
   const el = document.getElementById('todoSidebar');
   if (!el) return;
 
-  const allCount    = _todoAllTasks().filter(t => !t.parentId && !t.completed).length;
-  const inboxCount  = _todoData.tasks.filter(t => !t.parentId && !t.folderId && !t.completed).length;
+  const allCount     = _todoAllTasks().filter(t => !t.parentId && !t.completed).length;
+  const inboxCount   = _todoData.tasks.filter(t => !t.parentId && !t.folderId && !t.completed).length;
+  const overdueCount = _todoAllTasks().filter(t => !t.parentId && !t.completed && t.dueDate && new Date(t.dueDate) < new Date()).length;
 
   let html = `
-    <!-- Vue globale + Boîte de réception -->
+    <!-- Vue globale + Boîte de réception + En retard -->
     <div class="todo-sidebar-section" style="margin-top:4px;">
       <div class="todo-sidebar-item ${_todoSelectedFolderId === null ? 'active' : ''}"
            onclick="_todoSelectFolder(null)">
@@ -92,6 +93,15 @@ function _todoRenderSidebar() {
         </svg>
         Boîte de réception
         <span class="todo-sidebar-count">${inboxCount}</span>
+      </div>
+      <div class="todo-sidebar-item ${_todoSelectedFolderId === 'overdue' ? 'active' : ''}"
+           onclick="_todoSelectFolder('overdue')">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/>
+          <line x1="12" y1="16" x2="12.01" y2="16"/>
+        </svg>
+        En retard
+        ${overdueCount ? `<span class="todo-sidebar-count" style="background:rgba(219,64,53,.15);color:#db4035">${overdueCount}</span>` : '<span class="todo-sidebar-count">0</span>'}
       </div>
     </div>`;
 
@@ -284,6 +294,9 @@ function _todoRenderTaskList() {
   if (_todoSelectedFolderId === 'inbox') {
     title     = 'Boîte de réception';
     baseTasks = _todoData.tasks.filter(t => !t.folderId);
+  } else if (_todoSelectedFolderId === 'overdue') {
+    title   = 'En retard';
+    filters = { dateFilter: 'overdue', showNoDate: false };
   } else if (_todoSelectedFolderId && _todoSelectedFolderId.startsWith('view:')) {
     const vid  = _todoSelectedFolderId.slice(5);
     const view = _todoData.views.find(v => v.id === vid);
@@ -1013,9 +1026,9 @@ function _todoOpenViewDialog(viewId) {
   const dateFilter = f.dateFilter || 'all';
   const showNoDate = f.showNoDate !== false;
 
-  const chkP = p => (f.priority || []).includes(p) ? 'checked' : '';
-  const chkS = s => (f.status || []).includes(_todoStatusName(s)) ? 'checked' : '';
-  const chkT = t => (f.type   || []).includes(_todoTypeName(t))   ? 'checked' : '';
+  const chkP = p => !existing || (f.priority || []).includes(p) ? 'checked' : '';
+  const chkS = s => !existing || (f.status || []).includes(_todoStatusName(s)) ? 'checked' : '';
+  const chkT = t => !existing || (f.type   || []).includes(_todoTypeName(t))   ? 'checked' : '';
 
   const overlay = document.createElement('div');
   overlay.className = 'todo-dialog-overlay';
