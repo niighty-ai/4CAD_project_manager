@@ -581,6 +581,7 @@
   border-radius: 6px;
   border: 1px dashed transparent;
   cursor: text;
+  white-space: pre-wrap;
   word-break: break-word;
   transition: border-color .15s, background .15s;
 }

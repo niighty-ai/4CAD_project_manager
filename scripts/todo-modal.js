@@ -73,7 +73,7 @@ function _tmModalHtml(task) {
           <!-- Description -->
           <div class="tm-desc-wrap">
             <div class="tm-desc-view" id="tmDescView"
-                 onclick="_tmEditDesc(event)">${task.description ? _todoLinkify(task.description) : '<span class="tm-placeholder">Ajouter une description…</span>'}</div>
+                 onclick="_tmEditDesc(event)">${task.description ? _todoNl2br(task.description) : '<span class="tm-placeholder">Ajouter une description…</span>'}</div>
             <div class="tm-desc-edit" id="tmDescEdit" style="display:none">
               <div style="position:relative">
                 <textarea class="todo-modal-desc" id="tmDesc"
@@ -248,7 +248,7 @@ function _tmSaveDesc() {
   const viewEl = document.getElementById('tmDescView');
   const editEl = document.getElementById('tmDescEdit');
   if (viewEl && editEl) {
-    viewEl.innerHTML = val ? _todoLinkify(val) : '<span class="tm-placeholder">Ajouter une description…</span>';
+    viewEl.innerHTML = val ? _todoNl2br(val) : '<span class="tm-placeholder">Ajouter une description…</span>';
     editEl.style.display = 'none';
     viewEl.style.display = '';
   }
@@ -367,7 +367,7 @@ function _tmRenderComments() {
             <span class="todo-comment-date">${_todoFmt(c.createdAt)}</span>
             ${c.updatedAt ? `<span class="todo-comment-edited">(modifié)</span>` : ''}
           </div>
-          <div class="todo-comment-text" id="ctxt_${c.id}">${_todoLinkify(c.text)}</div>
+          <div class="todo-comment-text" id="ctxt_${c.id}">${_todoNl2br(c.text)}</div>
           ${isOwn ? `
             <div class="todo-comment-actions">
               <span class="todo-comment-action" onclick="_tmEditComment('${c.id}')">Modifier</span>

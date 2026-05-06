@@ -273,6 +273,10 @@ function _todoLinkify(text) {
       : `<a href="${bareUrl}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()" style="${s};word-break:break-all">${bareUrl}</a>`
   );
 }
+/* Variante pour les champs multi-lignes : convertit aussi \n en <br> */
+function _todoNl2br(text) {
+  return _todoLinkify(text).replace(/\n/g, '<br>');
+}
 
 /* ══════════════════════════════════════════
    LISTE DE TÂCHES (2/3)
