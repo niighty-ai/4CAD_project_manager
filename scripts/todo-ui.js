@@ -1038,7 +1038,7 @@ function _todoSubmitFolderDialog(folderId) {
 }
 
 /* ══════════════════════════════════════════
-   HELPERS DIALOG VUE — sync checkboxes ↔ formule
+   HELPERS DIALOG VUE — sync liste ↔ formule
    ══════════════════════════════════════════ */
 
 /* Formule → set de valeurs sélectionnées */
@@ -1049,43 +1049,49 @@ function _vfFormulaToSet(formula, allVals) {
   return new Set(allVals.filter(v => terms.includes(v.toLowerCase())));
 }
 
-/* Checkbox changée → rebuild formule */
-function _vfSyncFormula(cls) {
-  const checked = [...document.querySelectorAll(`.${cls}:checked`)].map(el => el.value);
-  const all     = [...document.querySelectorAll(`.${cls}`)].map(el => el.value);
-  const fi      = document.getElementById(cls + 'Formula');
-  if (!fi) return;
-  fi.value = (checked.length === 0 || checked.length === all.length) ? '=All' : checked.join(' | ');
+/* Clic sur un item de liste → toggle + rebuild formule */
+function _vfToggleItem(el, cls) {
+  el.classList.toggle('selected');
+  _vfSyncFormula(cls);
 }
 
-/* Formule saisie → sync checkboxes (si formula parseable) */
+/* Items sélectionnés → rebuild formule */
+function _vfSyncFormula(cls) {
+  const sel = [...document.querySelectorAll(`#${cls}List .todo-vd-list-item.selected`)].map(el => el.dataset.val);
+  const all = [...document.querySelectorAll(`#${cls}List .todo-vd-list-item`)].map(el => el.dataset.val);
+  const fi  = document.getElementById(cls + 'Formula');
+  if (!fi) return;
+  fi.value = (sel.length === 0 || sel.length === all.length) ? '=All' : sel.join(' | ');
+}
+
+/* Formule saisie → sync liste (si parseable) */
 function _vfFormulaInput(cls) {
   const fi = document.getElementById(cls + 'Formula');
   if (!fi) return;
-  const formula    = fi.value.trim();
-  const checkboxes = [...document.querySelectorAll(`.${cls}`)];
-  const allVals    = checkboxes.map(el => el.value.toLowerCase());
+  const formula = fi.value.trim();
+  const items   = [...document.querySelectorAll(`#${cls}List .todo-vd-list-item`)];
+  const allVals = items.map(el => el.dataset.val.toLowerCase());
   if (!formula || formula === '=All') {
-    checkboxes.forEach(el => { el.checked = true; }); return;
+    items.forEach(el => el.classList.add('selected')); return;
   }
   if (formula === '=""' || formula === '=') {
-    checkboxes.forEach(el => { el.checked = false; }); return;
+    items.forEach(el => el.classList.remove('selected')); return;
   }
   const terms    = formula.split('|').map(t => t.trim().toLowerCase());
   const allKnown = terms.every(t => allVals.includes(t));
-  if (allKnown) checkboxes.forEach(el => { el.checked = terms.includes(el.value.toLowerCase()); });
+  if (allKnown) items.forEach(el => { el.classList.toggle('selected', terms.includes(el.dataset.val.toLowerCase())); });
 }
 
-/* Tout cocher */
+/* Tout sélectionner */
 function _vfCheckAll(cls) {
-  document.querySelectorAll(`.${cls}`).forEach(el => { el.checked = true; });
+  document.querySelectorAll(`#${cls}List .todo-vd-list-item`).forEach(el => el.classList.add('selected'));
   const fi = document.getElementById(cls + 'Formula');
   if (fi) fi.value = '=All';
 }
 
-/* Tout décocher (assignee → ="", autres → =All / aucun filtre) */
+/* Tout désélectionner (assignee → ="", autres → =All) */
 function _vfUncheckAll(cls) {
-  document.querySelectorAll(`.${cls}`).forEach(el => { el.checked = false; });
+  document.querySelectorAll(`#${cls}List .todo-vd-list-item`).forEach(el => el.classList.remove('selected'));
   const fi = document.getElementById(cls + 'Formula');
   if (fi) fi.value = cls === 'vf-assignee' ? '=""' : '=All';
 }
@@ -1132,19 +1138,16 @@ function _todoOpenViewDialog(viewId) {
 
   const pColors = { P1:'#db4035', P2:'#ff9a14', P3:'#4073ff', P4:'#aaa' };
 
-  /* Génère une section avec checkboxes + barre formule */
+  /* Génère une section avec liste défilante + barre formule */
   const mkSection = (label, cls, values, checked, formula, colorFn) => {
     const custom = _isCustom(formula, values);
-    const rows = values.map(v => {
+    const items = values.map(v => {
       const color = colorFn ? colorFn(v) : null;
-      const chk   = checked.has(v) ? 'checked' : '';
-      const lCls  = cls === 'vf-priority' ? v.toLowerCase() : '';
-      return `<label class="todo-vd-check">
-        <input type="checkbox" value="${_esc(v)}" class="${cls}" ${chk} onchange="_vfSyncFormula('${cls}')">
-        <span class="todo-vd-check-label ${lCls}">
-          ${color ? `<span class="todo-vd-dot" style="background:${color}"></span>` : ''}${_esc(v)}
-        </span>
-      </label>`;
+      const sel   = checked.has(v) ? 'selected' : '';
+      return `<div class="todo-vd-list-item ${sel}" data-val="${_esc(v)}" onclick="_vfToggleItem(this,'${cls}')">
+        ${color ? `<span class="todo-vd-dot" style="background:${color}"></span>` : ''}
+        <span>${_esc(v)}</span>
+      </div>`;
     }).join('');
     return `
       <div class="todo-vd-section">
@@ -1153,7 +1156,7 @@ function _todoOpenViewDialog(viewId) {
           <span class="todo-vd-qbtn" onclick="_vfCheckAll('${cls}')">Tout ✓</span>
           <span class="todo-vd-qbtn" onclick="_vfUncheckAll('${cls}')">Tout ✗</span>
         </div>
-        <div class="todo-vd-checkrow wrap">${rows}</div>
+        <div class="todo-vd-listbox" id="${cls}List">${items}</div>
         ${custom ? `<div class="todo-vd-formula-hint">Formule personnalisée</div>` : ''}
         <div class="todo-vd-formula-row">
           <span class="todo-vd-formula-lbl">Formule</span>
