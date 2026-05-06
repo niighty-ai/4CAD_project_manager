@@ -258,7 +258,9 @@ function _todoCreateTask(title, folderId, parentId) {
     completed:    false,
     completedAt:  null,
     sharedWith:   [],
-    followsParent: parentId ? true : undefined, /* sous-tâche : suit la récurrence par défaut */
+    followsParent: parentId ? true : undefined,
+    createdBy:    (typeof currentUserEmail !== 'undefined' && currentUserEmail) ? currentUserEmail : null,
+    updatedBy:    null,
     createdAt:    now,
     updatedAt:    now
   };
@@ -270,7 +272,7 @@ function _todoCreateTask(title, folderId, parentId) {
 function _todoUpdateTask(taskId, updates) {
   const task = _todoData.tasks.find(t => t.id === taskId);
   if (!task) return;
-  Object.assign(task, updates, { updatedAt: new Date().toISOString() });
+  Object.assign(task, updates, { updatedAt: new Date().toISOString(), updatedBy: (typeof currentUserEmail !== 'undefined' && currentUserEmail) ? currentUserEmail : null });
   _todoSave();
   /* Sync tâche partagée */
   if (task.sharedWith && task.sharedWith.length > 0) {
@@ -534,29 +536,69 @@ function _todoSortTasks(tasks) {
   });
 }
 
-/* ── Filtre vues ──────────────────────────────────────────────────────────── */
+/* ── Filtre vues (support formule + ancien format tableau) ────────────────── */
 function _todoApplyViewFilters(tasks, filters) {
   if (!filters) return tasks;
   const now = new Date();
+
+  /* Évaluation d'une formule scalaire : =All, ="", valeur1 | valeur2 */
+  const _fmMatch = (formula, value) => {
+    if (!formula || formula === '=All') return true;      /* pas de filtre */
+    if (formula === '=""' || formula === '=') return !value; /* champ vide uniquement */
+    const terms = formula.split('|').map(t => t.trim());
+    return terms.some(term => term.toLowerCase() === (value || '').toLowerCase());
+  };
+
   return tasks.filter(t => {
-    if (filters.priority && filters.priority.length && !filters.priority.includes(t.priority)) return false;
-    if (filters.status && filters.status.length) {
-      const sn = typeof t.status === 'object' ? (t.status?.name || '') : (t.status || '');
+    /* ── Priorité (formule ou ancien tableau) ── */
+    if (filters.priorityFormula !== undefined) {
+      if (!_fmMatch(filters.priorityFormula, t.priority)) return false;
+    } else if (filters.priority && filters.priority.length) {
+      if (!filters.priority.includes(t.priority)) return false;
+    }
+
+    /* ── Statut ── */
+    const sn = typeof t.status === 'object' ? (t.status?.name || '') : (t.status || '');
+    if (filters.statusFormula !== undefined) {
+      if (!_fmMatch(filters.statusFormula, sn)) return false;
+    } else if (filters.status && filters.status.length) {
       if (!filters.status.includes(sn)) return false;
     }
-    if (filters.type && filters.type.length) {
-      const tn = typeof t.type === 'object' ? (t.type?.name || '') : (t.type || '');
+
+    /* ── Type ── */
+    const tn = typeof t.type === 'object' ? (t.type?.name || '') : (t.type || '');
+    if (filters.typeFormula !== undefined) {
+      if (!_fmMatch(filters.typeFormula, tn)) return false;
+    } else if (filters.type && filters.type.length) {
       if (!filters.type.includes(tn)) return false;
     }
-    if (filters.assignee && !(t.assignees || []).some(a => a.name === filters.assignee)) return false;
+
+    /* ── Responsable ── */
+    const assigneeNames = (t.assignees || []).map(a => a.name || a);
+    if (filters.assigneeFormula !== undefined) {
+      const af = filters.assigneeFormula;
+      if (af && af !== '=All') {
+        if (af === '=""' || af === '=') {
+          if (assigneeNames.length > 0) return false;
+        } else {
+          const terms = af.split('|').map(s => s.trim().toLowerCase());
+          if (!terms.some(term => assigneeNames.some(n => n.toLowerCase() === term))) return false;
+        }
+      }
+    } else if (filters.assignee) {
+      if (!assigneeNames.includes(filters.assignee)) return false;
+    }
+
     if (filters.showOnlyIncomplete && t.completed) return false;
+
+    /* ── Date d'échéance ── */
     if (filters.dateFilter && filters.dateFilter !== 'all') {
       if (filters.dateFilter === 'overdue') {
         if (!t.dueDate || new Date(t.dueDate) >= now) return false;
       } else {
         if (!t.dueDate) {
           if (filters.showNoDate) return true;
-          /* Sous-tâche sans date : visible si le parent a une date (il sera affiché) */
+          /* Sous-tâche sans date : visible si le parent a une date */
           if (t.parentId) {
             const parent = _todoData.tasks.find(p => p.id === t.parentId);
             return !!(parent && parent.dueDate);
@@ -568,7 +610,7 @@ function _todoApplyViewFilters(tasks, filters) {
           if (d.toDateString() !== now.toDateString()) return false;
         } else if (filters.dateFilter === 'week') {
           /* Semaine calendaire : lundi au dimanche de la semaine courante */
-          const day = now.getDay() || 7; /* 0=dim → 7, 1=lun → 1 … */
+          const day = now.getDay() || 7;
           const weekStart = new Date(now); weekStart.setDate(now.getDate() - (day - 1)); weekStart.setHours(0,0,0,0);
           const weekEnd   = new Date(weekStart); weekEnd.setDate(weekStart.getDate() + 6); weekEnd.setHours(23,59,59,999);
           if (d < weekStart || d > weekEnd) return false;
@@ -578,6 +620,7 @@ function _todoApplyViewFilters(tasks, filters) {
         }
       }
     }
+
     return true;
   });
 }

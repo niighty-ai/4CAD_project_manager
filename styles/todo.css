@@ -1305,11 +1305,44 @@
 .tm-tag-color-opt:hover { transform: scale(1.25); }
 .tm-tag-color-opt.selected { border-color: var(--text); }
 
-/* ── Dialog vue amélioré ── */
+/* ── Dialog vue avancé ── */
+.todo-vd-section {
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  padding: 10px 12px;
+  margin-bottom: 8px;
+}
+.todo-vd-section-head {
+  display: flex; align-items: center; gap: 6px; margin-bottom: 8px;
+}
 .todo-vd-section-label {
   font-size: 10px; font-weight: 700; letter-spacing: 1.2px;
   text-transform: uppercase; color: var(--muted);
-  margin: 12px 0 6px;
+  margin: 0; flex: 1;
+}
+.todo-vd-qbtn {
+  font-size: 10px; color: var(--accent); cursor: pointer;
+  padding: 2px 7px; border-radius: 4px;
+  border: 1px solid var(--border); background: transparent;
+  line-height: 1.6; white-space: nowrap; user-select: none;
+  transition: background .1s;
+}
+.todo-vd-qbtn:hover { background: var(--surface2); }
+.todo-vd-formula-row { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+.todo-vd-formula-lbl {
+  font-size: 10px; color: var(--muted); font-weight: 700;
+  letter-spacing: .6px; text-transform: uppercase; white-space: nowrap;
+}
+.todo-vd-formula-input {
+  flex: 1; min-width: 0; padding: 4px 8px; font-size: 11px;
+  font-family: monospace; background: var(--surface2);
+  border: 1px solid var(--border); border-radius: 5px;
+  color: var(--text); outline: none;
+}
+.todo-vd-formula-input:focus { border-color: var(--accent); }
+.todo-vd-formula-hint {
+  font-size: 10px; color: var(--accent); font-style: italic;
+  margin-top: 4px; margin-bottom: -2px;
 }
 .todo-vd-checkrow {
   display: flex; gap: 10px; flex-wrap: nowrap;

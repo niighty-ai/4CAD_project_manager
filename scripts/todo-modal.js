@@ -145,9 +145,9 @@ function _tmModalHtml(task) {
         <!-- Footer gauche -->
         <div class="todo-modal-footer">
           <div class="todo-modal-footer-info">
-            Créé le ${_todoFmt(task.createdAt)}
+            Créé le ${_todoFmt(task.createdAt)}${task.createdBy ? ` par ${_esc(_todoShortName(task.createdBy))}` : ''}
             ${task.updatedAt && task.updatedAt !== task.createdAt
-              ? ` · Modifié le ${_todoFmt(task.updatedAt)}` : ''}
+              ? ` · Modifié le ${_todoFmt(task.updatedAt)}${task.updatedBy ? ` par ${_esc(_todoShortName(task.updatedBy))}` : ''}` : ''}
           </div>
           <div class="todo-modal-close" title="Fermer" onclick="_todoCloseModal()">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">

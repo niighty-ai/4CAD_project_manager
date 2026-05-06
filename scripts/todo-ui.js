@@ -1037,74 +1037,167 @@ function _todoSubmitFolderDialog(folderId) {
   _todoRenderTaskList();
 }
 
-/* ── Dialog Vue amélioré (date filter + showNoDate + 500px) ── */
+/* ══════════════════════════════════════════
+   HELPERS DIALOG VUE — sync checkboxes ↔ formule
+   ══════════════════════════════════════════ */
+
+/* Formule → set de valeurs sélectionnées */
+function _vfFormulaToSet(formula, allVals) {
+  if (!formula || formula === '=All') return new Set(allVals);
+  if (formula === '=""' || formula === '=')  return new Set();
+  const terms = formula.split('|').map(t => t.trim().toLowerCase());
+  return new Set(allVals.filter(v => terms.includes(v.toLowerCase())));
+}
+
+/* Checkbox changée → rebuild formule */
+function _vfSyncFormula(cls) {
+  const checked = [...document.querySelectorAll(`.${cls}:checked`)].map(el => el.value);
+  const all     = [...document.querySelectorAll(`.${cls}`)].map(el => el.value);
+  const fi      = document.getElementById(cls + 'Formula');
+  if (!fi) return;
+  fi.value = (checked.length === 0 || checked.length === all.length) ? '=All' : checked.join(' | ');
+}
+
+/* Formule saisie → sync checkboxes (si formula parseable) */
+function _vfFormulaInput(cls) {
+  const fi = document.getElementById(cls + 'Formula');
+  if (!fi) return;
+  const formula    = fi.value.trim();
+  const checkboxes = [...document.querySelectorAll(`.${cls}`)];
+  const allVals    = checkboxes.map(el => el.value.toLowerCase());
+  if (!formula || formula === '=All') {
+    checkboxes.forEach(el => { el.checked = true; }); return;
+  }
+  if (formula === '=""' || formula === '=') {
+    checkboxes.forEach(el => { el.checked = false; }); return;
+  }
+  const terms    = formula.split('|').map(t => t.trim().toLowerCase());
+  const allKnown = terms.every(t => allVals.includes(t));
+  if (allKnown) checkboxes.forEach(el => { el.checked = terms.includes(el.value.toLowerCase()); });
+}
+
+/* Tout cocher */
+function _vfCheckAll(cls) {
+  document.querySelectorAll(`.${cls}`).forEach(el => { el.checked = true; });
+  const fi = document.getElementById(cls + 'Formula');
+  if (fi) fi.value = '=All';
+}
+
+/* Tout décocher (assignee → ="", autres → =All / aucun filtre) */
+function _vfUncheckAll(cls) {
+  document.querySelectorAll(`.${cls}`).forEach(el => { el.checked = false; });
+  const fi = document.getElementById(cls + 'Formula');
+  if (fi) fi.value = cls === 'vf-assignee' ? '=""' : '=All';
+}
+
+/* ── Dialog Vue avancé (formules + checkboxes + date) ── */
 function _todoOpenViewDialog(viewId) {
-  const existing   = viewId ? _todoData.views.find(v => v.id === viewId) : null;
-  const title      = existing ? 'Modifier la vue' : 'Nouvelle vue';
-  const f          = existing?.filters || {};
-  const statuses   = _todoData.settings.taskStatuses;
-  const types      = _todoData.settings.taskTypes;
+  const existing = viewId ? _todoData.views.find(v => v.id === viewId) : null;
+  const title    = existing ? 'Modifier la vue' : 'Nouvelle vue';
+  const f        = existing?.filters || {};
+  const statuses = _todoData.settings.taskStatuses;
+  const types    = _todoData.settings.taskTypes;
+
+  /* Backward compat : ancien format tableau → formule */
+  const _arr2fm = arr => (!arr || !arr.length) ? '=All' : arr.join(' | ');
+
+  /* Formules actuelles (new format ou migration depuis ancien tableau) */
+  const pFormula = f.priorityFormula  !== undefined ? f.priorityFormula  : (Array.isArray(f.priority) ? _arr2fm(f.priority) : '=All');
+  const sFormula = f.statusFormula    !== undefined ? f.statusFormula    : (Array.isArray(f.status)   ? _arr2fm(f.status)   : '=All');
+  const tFormula = f.typeFormula      !== undefined ? f.typeFormula      : (Array.isArray(f.type)     ? _arr2fm(f.type)     : '=All');
+  const aFormula = f.assigneeFormula  !== undefined ? f.assigneeFormula  : '=All';
   const dateFilter = f.dateFilter || 'all';
   const showNoDate = f.showNoDate !== false;
 
-  const chkP = p => !existing || (f.priority || []).includes(p) ? 'checked' : '';
-  const chkS = s => !existing || (f.status || []).includes(_todoStatusName(s)) ? 'checked' : '';
-  const chkT = t => !existing || (f.type   || []).includes(_todoTypeName(t))   ? 'checked' : '';
+  /* Toutes les valeurs disponibles */
+  const priorities   = ['P1','P2','P3','P4'];
+  const sNames       = statuses.map(s => _todoStatusName(s));
+  const tNames       = types.map(t => _todoTypeName(t));
+  const allAssignees = [...new Set(
+    _todoAllTasks().flatMap(t => (t.assignees || []).map(a => a.name || a))
+  )].filter(Boolean).sort();
+
+  /* Checkboxes initiales déduites de la formule */
+  const checkedP = _vfFormulaToSet(pFormula, priorities);
+  const checkedS = _vfFormulaToSet(sFormula, sNames);
+  const checkedT = _vfFormulaToSet(tFormula, tNames);
+  const checkedA = _vfFormulaToSet(aFormula, allAssignees);
+
+  /* Formule "personnalisée" = contient des valeurs inconnues */
+  const _isCustom = (formula, allVals) => {
+    if (!formula || formula === '=All' || formula === '=""' || formula === '=') return false;
+    const terms = formula.split('|').map(t => t.trim().toLowerCase());
+    return !terms.every(t => allVals.map(v => v.toLowerCase()).includes(t));
+  };
+
+  const pColors = { P1:'#db4035', P2:'#ff9a14', P3:'#4073ff', P4:'#aaa' };
+
+  /* Génère une section avec checkboxes + barre formule */
+  const mkSection = (label, cls, values, checked, formula, colorFn) => {
+    const custom = _isCustom(formula, values);
+    const rows = values.map(v => {
+      const color = colorFn ? colorFn(v) : null;
+      const chk   = checked.has(v) ? 'checked' : '';
+      const lCls  = cls === 'vf-priority' ? v.toLowerCase() : '';
+      return `<label class="todo-vd-check">
+        <input type="checkbox" value="${_esc(v)}" class="${cls}" ${chk} onchange="_vfSyncFormula('${cls}')">
+        <span class="todo-vd-check-label ${lCls}">
+          ${color ? `<span class="todo-vd-dot" style="background:${color}"></span>` : ''}${_esc(v)}
+        </span>
+      </label>`;
+    }).join('');
+    return `
+      <div class="todo-vd-section">
+        <div class="todo-vd-section-head">
+          <span class="todo-vd-section-label">${label}</span>
+          <span class="todo-vd-qbtn" onclick="_vfCheckAll('${cls}')">Tout ✓</span>
+          <span class="todo-vd-qbtn" onclick="_vfUncheckAll('${cls}')">Tout ✗</span>
+        </div>
+        <div class="todo-vd-checkrow wrap">${rows}</div>
+        ${custom ? `<div class="todo-vd-formula-hint">Formule personnalisée</div>` : ''}
+        <div class="todo-vd-formula-row">
+          <span class="todo-vd-formula-lbl">Formule</span>
+          <input type="text" id="${cls}Formula" class="todo-vd-formula-input"
+                 value="${_esc(formula || '=All')}"
+                 placeholder="=All, ${values.slice(0,2).join(' | ')}, …"
+                 oninput="_vfFormulaInput('${cls}')">
+        </div>
+      </div>`;
+  };
+
+  const sColorFn = v => { const s = statuses.find(s => _todoStatusName(s) === v); return s ? _todoStatusColor(s) : null; };
+  const tColorFn = v => { const t = types.find(t => _todoTypeName(t) === v);     return t ? _todoTypeColor(t)   : null; };
 
   const overlay = document.createElement('div');
   overlay.className = 'todo-dialog-overlay';
   overlay.id = 'todoDialogOverlay';
 
   overlay.innerHTML = `
-    <div class="todo-dialog" style="width:500px;max-width:96vw">
+    <div class="todo-dialog" style="width:520px;max-width:96vw;max-height:90vh;overflow-y:auto">
       <div class="todo-dialog-title">${title}</div>
       <input class="todo-dialog-input" id="todoViewNameInput"
              placeholder="Nom de la vue" value="${_esc(existing?.name || '')}">
 
-      <div class="todo-vd-section-label">Priorité</div>
-      <div class="todo-vd-checkrow">
-        ${['P1','P2','P3','P4'].map(p => `
-          <label class="todo-vd-check">
-            <input type="checkbox" value="${p}" class="vf-priority" ${chkP(p)}>
-            <span class="todo-vd-check-label ${p.toLowerCase()}">${p}</span>
-          </label>`).join('')}
+      ${mkSection('Priorité',    'vf-priority', priorities,   checkedP, pFormula, v => pColors[v])}
+      ${sNames.length     ? mkSection('Statut',      'vf-status',   sNames,     checkedS, sFormula, sColorFn) : ''}
+      ${tNames.length     ? mkSection('Type',        'vf-type',     tNames,     checkedT, tFormula, tColorFn) : ''}
+      ${allAssignees.length ? mkSection('Responsable', 'vf-assignee', allAssignees, checkedA, aFormula, null) : ''}
+
+      <div class="todo-vd-section">
+        <div class="todo-vd-section-head">
+          <span class="todo-vd-section-label">Date d'échéance</span>
+        </div>
+        <div class="todo-vd-radio-row">
+          ${[['all','Tout'],['today',"Aujourd'hui"],['week','Cette semaine'],['month','Ce mois']].map(([v,l]) =>
+            `<label class="todo-vd-radio">
+              <input type="radio" name="vfDate" value="${v}" ${dateFilter===v?'checked':''}>${l}
+            </label>`).join('')}
+        </div>
+        <label class="todo-vd-check" style="margin-top:8px">
+          <input type="checkbox" id="vfShowNoDate" ${showNoDate?'checked':''}>
+          <span style="font-size:12px;color:var(--text)">Afficher les tâches sans date</span>
+        </label>
       </div>
-
-      ${statuses.length ? `
-        <div class="todo-vd-section-label">Statut</div>
-        <div class="todo-vd-checkrow wrap">
-          ${statuses.map(s => {
-            const n = _todoStatusName(s); const c = _todoStatusColor(s);
-            return `<label class="todo-vd-check">
-              <input type="checkbox" value="${_esc(n)}" class="vf-status" ${chkS(s)}>
-              <span class="todo-vd-check-label"><span class="todo-vd-dot" style="background:${c}"></span>${_esc(n)}</span>
-            </label>`;
-          }).join('')}
-        </div>` : ''}
-
-      ${types.length ? `
-        <div class="todo-vd-section-label">Type</div>
-        <div class="todo-vd-checkrow wrap">
-          ${types.map(t => {
-            const n = _todoTypeName(t); const c = _todoTypeColor(t);
-            return `<label class="todo-vd-check">
-              <input type="checkbox" value="${_esc(n)}" class="vf-type" ${chkT(t)}>
-              <span class="todo-vd-check-label"><span class="todo-vd-dot" style="background:${c}"></span>${_esc(n)}</span>
-            </label>`;
-          }).join('')}
-        </div>` : ''}
-
-      <div class="todo-vd-section-label">Date d'échéance</div>
-      <div class="todo-vd-radio-row">
-        ${[['all','Tout'],['today',"Aujourd'hui"],['week','Cette semaine'],['month','Ce mois']].map(([v,l]) =>
-          `<label class="todo-vd-radio">
-            <input type="radio" name="vfDate" value="${v}" ${dateFilter===v?'checked':''}>${l}
-          </label>`).join('')}
-      </div>
-      <label class="todo-vd-check" style="margin-top:6px">
-        <input type="checkbox" id="vfShowNoDate" ${showNoDate?'checked':''}>
-        <span style="font-size:12px;color:var(--text)">Afficher les tâches sans date</span>
-      </label>
 
       <div class="todo-dialog-actions">
         <button class="todo-dialog-cancel" onclick="_todoCloseDialog()">Annuler</button>
@@ -1118,27 +1211,27 @@ function _todoOpenViewDialog(viewId) {
   overlay.addEventListener('click', e => { if (e.target === overlay) _todoCloseDialog(); });
   const ni = document.getElementById('todoViewNameInput');
   ni.focus();
-  ni.addEventListener('keydown', e => { if (e.key === 'Enter') _todoSubmitViewDialog(viewId||''); if (e.key === 'Escape') _todoCloseDialog(); });
+  ni.addEventListener('keydown', e => { if (e.key === 'Escape') _todoCloseDialog(); });
 }
 
 function _todoSubmitViewDialog(viewId) {
   const name = document.getElementById('todoViewNameInput')?.value.trim();
   if (!name) { document.getElementById('todoViewNameInput')?.focus(); return; }
 
-  const getChecked = cls => [...document.querySelectorAll(`.${cls}:checked`)].map(el => el.value);
-  const dateFilter = document.querySelector('input[name="vfDate"]:checked')?.value || 'all';
+  const _getFormula = id => document.getElementById(id)?.value.trim() || '=All';
+  const dateFilter  = document.querySelector('input[name="vfDate"]:checked')?.value || 'all';
+  const showNoDate  = document.getElementById('vfShowNoDate')?.checked;
+
   const filters = {
-    priority:           getChecked('vf-priority'),
-    status:             getChecked('vf-status'),
-    type:               getChecked('vf-type'),
-    dateFilter:         dateFilter !== 'all' ? dateFilter : undefined,
-    showNoDate:         document.getElementById('vfShowNoDate')?.checked || undefined
+    priorityFormula:  _getFormula('vf-priorityFormula'),
+    statusFormula:    _getFormula('vf-statusFormula'),
+    typeFormula:      _getFormula('vf-typeFormula'),
+    assigneeFormula:  _getFormula('vf-assigneeFormula'),
+    dateFilter:       dateFilter !== 'all' ? dateFilter : undefined,
+    showNoDate:       showNoDate || undefined
   };
-  if (!filters.priority.length)       delete filters.priority;
-  if (!filters.status.length)         delete filters.status;
-  if (!filters.type.length)           delete filters.type;
-  if (!filters.dateFilter)            delete filters.dateFilter;
-  if (filters.showNoDate === undefined) delete filters.showNoDate;
+  if (!filters.dateFilter) delete filters.dateFilter;
+  if (!filters.showNoDate) delete filters.showNoDate;
 
   if (viewId) {
     _todoUpdateView(viewId, { name, filters });
