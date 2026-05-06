@@ -126,6 +126,19 @@ function _startTodoLoad(userId) {
       }
       _todoLoaded = true;
       _todoCleanupOldCompleted();
+      /* Migration : aligner le type des sous-tâches sur celui du parent */
+      const _tn = t => typeof t === 'object' ? (t?.name || '') : (t || '');
+      let _migrated = false;
+      _todoData.tasks.forEach(task => {
+        if (!task.parentId) return;
+        const parent = _todoData.tasks.find(p => p.id === task.parentId);
+        if (parent && _tn(task.type) !== _tn(parent.type)) {
+          task.type = parent.type;
+          task.updatedAt = new Date().toISOString();
+          _migrated = true;
+        }
+      });
+      if (_migrated) _todoSave();
       /* Créer "Mes tâches" si aucun dossier n'existe */
       if (!_todoData.folders.length) {
         _todoCreateFolder('Mes tâches', '#546e7a');

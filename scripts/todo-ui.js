@@ -315,6 +315,17 @@ function _todoRenderTaskList() {
   if (filters)        baseTasks = _todoApplyViewFilters(baseTasks, filters);
   if (hideCompleted)  baseTasks = baseTasks.filter(t => !t.completed);
 
+  /* Si une sous-tâche correspond au filtre, s'assurer que sa tâche parente est incluse */
+  if (filters) {
+    const missing = new Set(baseTasks.filter(t => t.parentId).map(t => t.parentId));
+    missing.forEach(pid => {
+      if (!baseTasks.find(t => t.id === pid)) {
+        const parent = _todoAllTasks().find(t => t.id === pid);
+        if (parent) baseTasks.push(parent);
+      }
+    });
+  }
+
   const rootTasks   = baseTasks.filter(t => !t.parentId);
   const sortedTasks = _todoSortTasksBy(rootTasks, sort);
   /* Expose l'ordre courant pour la navigation dans la modale */
@@ -557,7 +568,7 @@ function _todoTaskRowHtml(task, isSub) {
     meta += `<span class="todo-pill todo-pill-status todo-pill-clickable" style="--c:${statusColor}"
       onclick="event.stopPropagation();_todoPillEdit(event,'status','${task.id}')">${_esc(statusName)}</span>`;
   }
-  if (typeName) {
+  if (typeName && !isSub) {
     meta += `<span class="todo-pill todo-pill-type todo-pill-clickable" style="--c:${typeColor}"
       onclick="event.stopPropagation();_todoPillEdit(event,'type','${task.id}')">${_esc(typeName)}</span>`;
   }
@@ -784,6 +795,12 @@ function _todoPillSet(taskId, field, value) {
     _todoUpdateTask(taskId, { dueDate: value ? new Date(value).toISOString() : null });
   } else {
     _todoUpdateTask(taskId, { [field]: value });
+    /* Propagation du type aux sous-tâches (type hérité, non modifiable sur les sous-tâches) */
+    if (field === 'type') {
+      const now = new Date().toISOString();
+      _todoData.tasks.filter(s => s.parentId === taskId).forEach(s => { s.type = value; s.updatedAt = now; });
+      _todoSave();
+    }
   }
   _todoRenderTaskList();
   if (typeof _todoModalTaskId !== 'undefined' && _todoModalTaskId) _tmRenderRight();

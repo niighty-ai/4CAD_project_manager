@@ -523,22 +523,25 @@ function _tmRenderRight() {
       </div>
     </div>
 
-    <!-- Type (OBLIGATOIRE, en premier) -->
+    <!-- Type (OBLIGATOIRE pour les tâches parentes ; hérité et non modifiable pour les sous-tâches) -->
     <div class="todo-prop" id="tmPropType">
       <div class="todo-prop-label">
-        Type <span class="tm-required-star">*</span>
-        <span style="margin-left:auto;cursor:pointer;color:var(--accent);font-size:9px"
-              onclick="_tmOpenTagsDialog('type')">Gérer</span>
+        Type ${!isSub ? '<span class="tm-required-star">*</span>' : ''}
+        ${isSub
+          ? `<span style="margin-left:auto;font-size:9px;color:var(--muted);font-style:italic">Hérité du parent</span>`
+          : `<span style="margin-left:auto;cursor:pointer;color:var(--accent);font-size:9px" onclick="_tmOpenTagsDialog('type')">Gérer</span>`}
       </div>
       <div class="todo-prop-value">
         ${curTypeName ? `<span class="tm-color-dot" style="background:${curTypeColor}"></span>` : ''}
-        <select onchange="_tmSetType(this.value)">
-          <option value="">— Aucun —</option>
-          ${types.map(t => {
-            const n = tName(t);
-            return `<option value="${_esc(n)}" ${curTypeName === n ? 'selected' : ''}>${_esc(n)}</option>`;
-          }).join('')}
-        </select>
+        ${isSub
+          ? `<span style="font-size:12px;color:var(--text)">${_esc(curTypeName) || '—'}</span>`
+          : `<select onchange="_tmSetType(this.value)">
+              <option value="">— Aucun —</option>
+              ${types.map(t => {
+                const n = tName(t);
+                return `<option value="${_esc(n)}" ${curTypeName === n ? 'selected' : ''}>${_esc(n)}</option>`;
+              }).join('')}
+            </select>`}
       </div>
     </div>
 
@@ -650,6 +653,12 @@ function _tmSetStatus(s) {
 function _tmSetType(t) {
   const id = _tmActiveSubId || _todoModalTaskId;
   _todoUpdateTask(id, { type: t });
+  /* Propagation aux sous-tâches si tâche parente */
+  if (!_tmActiveSubId) {
+    const now = new Date().toISOString();
+    _todoData.tasks.filter(s => s.parentId === id).forEach(s => { s.type = t; s.updatedAt = now; });
+    _todoSave();
+  }
   document.getElementById('tmPropType')?.classList.remove('tm-required-missing');
   _todoRenderTaskList();
   _tmRenderRight();
