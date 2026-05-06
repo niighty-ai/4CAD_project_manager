@@ -554,8 +554,11 @@ function _todoApplyViewFilters(tasks, filters) {
         if (filters.dateFilter === 'today') {
           if (d.toDateString() !== now.toDateString()) return false;
         } else if (filters.dateFilter === 'week') {
-          const end = new Date(now); end.setDate(end.getDate() + 7);
-          if (d < now || d > end) return false;
+          /* Semaine calendaire : lundi au dimanche de la semaine courante */
+          const day = now.getDay() || 7; /* 0=dim → 7, 1=lun → 1 … */
+          const weekStart = new Date(now); weekStart.setDate(now.getDate() - (day - 1)); weekStart.setHours(0,0,0,0);
+          const weekEnd   = new Date(weekStart); weekEnd.setDate(weekStart.getDate() + 6); weekEnd.setHours(23,59,59,999);
+          if (d < weekStart || d > weekEnd) return false;
         } else if (filters.dateFilter === 'month') {
           const end = new Date(now); end.setMonth(end.getMonth() + 1);
           if (d < now || d > end) return false;
