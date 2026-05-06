@@ -1320,6 +1320,37 @@
   text-transform: uppercase; color: var(--muted);
   margin: 0; flex: 1;
 }
+/* Critère filtre : row label + trigger */
+.todo-vd-field-row {
+  display: flex; align-items: center; gap: 10px; margin-bottom: 6px;
+}
+.todo-vd-field-label {
+  font-size: 11px; font-weight: 700; letter-spacing: .7px;
+  text-transform: uppercase; color: var(--muted);
+  width: 96px; flex-shrink: 0;
+}
+.todo-vd-select-trigger {
+  flex: 1; display: flex; align-items: center; justify-content: space-between;
+  padding: 6px 10px; border: 1px solid var(--border); border-radius: 6px;
+  background: var(--surface2); cursor: pointer;
+  font-size: 12px; color: var(--text); user-select: none;
+  transition: border-color .1s;
+}
+.todo-vd-select-trigger:hover { border-color: var(--accent); }
+.todo-vd-select-trigger.open  { border-color: var(--accent); }
+.todo-vd-select-trigger.open svg { transform: rotate(180deg); }
+.todo-vd-select-summary { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Dropdown panel */
+.todo-vd-dropdown {
+  border: 1px solid var(--border); border-radius: 6px;
+  margin-bottom: 10px; overflow: hidden;
+  background: var(--surface);
+}
+.todo-vd-dropdown-head {
+  display: flex; align-items: center; gap: 6px;
+  padding: 6px 10px; border-bottom: 1px solid var(--border);
+  background: var(--surface2);
+}
 .todo-vd-qbtn {
   font-size: 10px; color: var(--accent); cursor: pointer;
   padding: 2px 7px; border-radius: 4px;

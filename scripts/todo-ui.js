@@ -1049,28 +1049,66 @@ function _vfFormulaToSet(formula, allVals) {
   return new Set(allVals.filter(v => terms.includes(v.toLowerCase())));
 }
 
+/* Formule → texte résumé court pour le trigger */
+function _vfSummary(formula, allVals) {
+  if (!formula || formula === '=All') return 'Tout';
+  if (formula === '=""' || formula === '=') return 'Vide';
+  const terms = formula.split('|').map(t => t.trim());
+  if (terms.length >= allVals.length) return 'Tout';
+  return terms.join(', ');
+}
+
+/* Ouvre/ferme le dropdown d'un critère (ferme les autres) */
+function _vfToggleDropdown(cls) {
+  const dd      = document.getElementById(cls + 'Dropdown');
+  const trigger = document.getElementById(cls + 'Field');
+  if (!dd) return;
+  const opening = dd.hidden;
+  document.querySelectorAll('.todo-vd-dropdown').forEach(el => { el.hidden = true; });
+  document.querySelectorAll('.todo-vd-select-trigger').forEach(el => el.classList.remove('open'));
+  if (opening) {
+    dd.hidden = false;
+    trigger?.classList.add('open');
+    setTimeout(() => {
+      const handler = e => {
+        if (!dd.contains(e.target) && !trigger?.contains(e.target)) {
+          dd.hidden = true;
+          trigger?.classList.remove('open');
+          document.removeEventListener('click', handler);
+        }
+      };
+      document.addEventListener('click', handler);
+    }, 0);
+  }
+}
+
 /* Clic sur un item de liste → toggle + rebuild formule */
 function _vfToggleItem(el, cls) {
   el.classList.toggle('selected');
   _vfSyncFormula(cls);
 }
 
-/* Items sélectionnés → rebuild formule */
+/* Items sélectionnés → rebuild formule + maj résumé */
 function _vfSyncFormula(cls) {
   const sel = [...document.querySelectorAll(`#${cls}List .todo-vd-list-item.selected`)].map(el => el.dataset.val);
   const all = [...document.querySelectorAll(`#${cls}List .todo-vd-list-item`)].map(el => el.dataset.val);
   const fi  = document.getElementById(cls + 'Formula');
   if (!fi) return;
-  fi.value = (sel.length === 0 || sel.length === all.length) ? '=All' : sel.join(' | ');
+  const formula = (sel.length === 0 || sel.length === all.length) ? '=All' : sel.join(' | ');
+  fi.value = formula;
+  const si = document.getElementById(cls + 'Summary');
+  if (si) si.textContent = _vfSummary(formula, all);
 }
 
-/* Formule saisie → sync liste (si parseable) */
+/* Formule saisie → sync liste + maj résumé */
 function _vfFormulaInput(cls) {
   const fi = document.getElementById(cls + 'Formula');
   if (!fi) return;
   const formula = fi.value.trim();
   const items   = [...document.querySelectorAll(`#${cls}List .todo-vd-list-item`)];
-  const allVals = items.map(el => el.dataset.val.toLowerCase());
+  const allVals = items.map(el => el.dataset.val);
+  const si = document.getElementById(cls + 'Summary');
+  if (si) si.textContent = _vfSummary(formula, allVals);
   if (!formula || formula === '=All') {
     items.forEach(el => el.classList.add('selected')); return;
   }
@@ -1078,7 +1116,7 @@ function _vfFormulaInput(cls) {
     items.forEach(el => el.classList.remove('selected')); return;
   }
   const terms    = formula.split('|').map(t => t.trim().toLowerCase());
-  const allKnown = terms.every(t => allVals.includes(t));
+  const allKnown = terms.every(t => allVals.map(v => v.toLowerCase()).includes(t));
   if (allKnown) items.forEach(el => { el.classList.toggle('selected', terms.includes(el.dataset.val.toLowerCase())); });
 }
 
@@ -1087,13 +1125,18 @@ function _vfCheckAll(cls) {
   document.querySelectorAll(`#${cls}List .todo-vd-list-item`).forEach(el => el.classList.add('selected'));
   const fi = document.getElementById(cls + 'Formula');
   if (fi) fi.value = '=All';
+  const si = document.getElementById(cls + 'Summary');
+  if (si) si.textContent = 'Tout';
 }
 
 /* Tout désélectionner (assignee → ="", autres → =All) */
 function _vfUncheckAll(cls) {
   document.querySelectorAll(`#${cls}List .todo-vd-list-item`).forEach(el => el.classList.remove('selected'));
+  const formula = cls === 'vf-assignee' ? '=""' : '=All';
   const fi = document.getElementById(cls + 'Formula');
-  if (fi) fi.value = cls === 'vf-assignee' ? '=""' : '=All';
+  if (fi) fi.value = formula;
+  const si = document.getElementById(cls + 'Summary');
+  if (si) si.textContent = cls === 'vf-assignee' ? 'Vide' : 'Tout';
 }
 
 /* ── Dialog Vue avancé (formules + checkboxes + date) ── */
@@ -1138,34 +1181,43 @@ function _todoOpenViewDialog(viewId) {
 
   const pColors = { P1:'#db4035', P2:'#ff9a14', P3:'#4073ff', P4:'#aaa' };
 
-  /* Génère une section avec liste défilante + barre formule */
+  /* Génère un champ select-like avec dropdown déroulant */
   const mkSection = (label, cls, values, checked, formula, colorFn) => {
-    const custom = _isCustom(formula, values);
+    const custom  = _isCustom(formula, values);
+    const summary = _vfSummary(formula, values);
     const items = values.map(v => {
       const color = colorFn ? colorFn(v) : null;
       const sel   = checked.has(v) ? 'selected' : '';
-      return `<div class="todo-vd-list-item ${sel}" data-val="${_esc(v)}" onclick="_vfToggleItem(this,'${cls}')">
+      return `<div class="todo-vd-list-item ${sel}" data-val="${_esc(v)}" onclick="event.stopPropagation();_vfToggleItem(this,'${cls}')">
         ${color ? `<span class="todo-vd-dot" style="background:${color}"></span>` : ''}
         <span>${_esc(v)}</span>
       </div>`;
     }).join('');
+    const chevron = `<svg width="11" height="11" viewBox="0 0 12 12" fill="none" style="flex-shrink:0;transition:transform .15s"><path d="M2 4l4 4 4-4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
     return `
-      <div class="todo-vd-section">
-        <div class="todo-vd-section-head">
-          <span class="todo-vd-section-label">${label}</span>
+      <div class="todo-vd-field-row">
+        <span class="todo-vd-field-label">${label}</span>
+        <div class="todo-vd-select-trigger" id="${cls}Field" onclick="_vfToggleDropdown('${cls}')">
+          <span class="todo-vd-select-summary" id="${cls}Summary">${_esc(summary)}</span>
+          ${chevron}
+        </div>
+      </div>
+      <div class="todo-vd-dropdown" id="${cls}Dropdown" hidden onclick="event.stopPropagation()">
+        <div class="todo-vd-dropdown-head">
           <span class="todo-vd-qbtn" onclick="_vfCheckAll('${cls}')">Tout ✓</span>
           <span class="todo-vd-qbtn" onclick="_vfUncheckAll('${cls}')">Tout ✗</span>
         </div>
         <div class="todo-vd-listbox" id="${cls}List">${items}</div>
-        ${custom ? `<div class="todo-vd-formula-hint">Formule personnalisée</div>` : ''}
-        <div class="todo-vd-formula-row">
+        ${custom ? `<div class="todo-vd-formula-hint" style="padding:4px 10px 0">Formule personnalisée</div>` : ''}
+        <div class="todo-vd-formula-row" style="padding:6px 10px 8px">
           <span class="todo-vd-formula-lbl">Formule</span>
           <input type="text" id="${cls}Formula" class="todo-vd-formula-input"
                  value="${_esc(formula || '=All')}"
                  placeholder="=All, ${values.slice(0,2).join(' | ')}, …"
-                 oninput="_vfFormulaInput('${cls}')">
+                 oninput="_vfFormulaInput('${cls}')"
+                 onclick="event.stopPropagation()">
         </div>
-      </div>`;
+      </div>`
   };
 
   const sColorFn = v => { const s = statuses.find(s => _todoStatusName(s) === v); return s ? _todoStatusColor(s) : null; };
