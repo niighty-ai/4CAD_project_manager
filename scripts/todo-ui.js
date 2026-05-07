@@ -1062,36 +1062,42 @@ function _vfSummary(formula, allVals, labelFn) {
   return labelFn ? terms.map(t => labelFn(t)).join(', ') : terms.join(', ');
 }
 
-/* Ouvre/ferme le dropdown d'un critère — le liste flotte hors de la modale */
+/* Remet un dropdown dans son emplacement d'origine et réinitialise la recherche */
+function _vfCloseDD(dd) {
+  const si = dd.querySelector('.todo-vd-search');
+  if (si && si.value) {
+    si.value = '';
+    dd.querySelectorAll('.todo-vd-list-item:not(.todo-vd-list-item-all)').forEach(el => el.style.display = '');
+  }
+  dd.hidden = true;
+  dd.style.cssText = '';
+  if (dd._origParent) { dd._origParent.insertBefore(dd, dd._origNext || null); delete dd._origParent; }
+}
+
+/* Ouvre/ferme le dropdown d'un critère — la liste flotte hors de la modale */
 function _vfToggleDropdown(cls) {
   const dd      = document.getElementById(cls + 'Dropdown');
   const trigger = document.getElementById(cls + 'Field');
   if (!dd) return;
   const opening = dd.hidden;
 
-  /* Ferme tous les dropdowns ouverts et les remet à leur place */
-  document.querySelectorAll('.todo-vd-dropdown:not([hidden])').forEach(el => {
-    el.hidden = true;
-    el.style.cssText = '';
-    if (el._origParent) { el._origParent.insertBefore(el, el._origNext || null); delete el._origParent; }
-  });
+  document.querySelectorAll('.todo-vd-dropdown:not([hidden])').forEach(_vfCloseDD);
   document.querySelectorAll('.todo-vd-select-trigger').forEach(el => el.classList.remove('open'));
 
   if (opening) {
     const rect = trigger.getBoundingClientRect();
-    /* Détache vers <body> pour positionner en overlay (sans agrandir la modale) */
     dd._origParent = dd.parentElement;
     dd._origNext   = dd.nextSibling;
     document.body.appendChild(dd);
     dd.style.cssText = `position:fixed;z-index:99999;top:${rect.bottom + 4}px;left:${rect.left}px;width:${rect.width}px;margin:0;`;
     dd.hidden = false;
     trigger.classList.add('open');
+    /* Focus la zone de recherche dès l'ouverture */
+    setTimeout(() => dd.querySelector('.todo-vd-search')?.focus(), 10);
     setTimeout(() => {
       const handler = e => {
         if (!dd.contains(e.target) && !trigger.contains(e.target)) {
-          dd.hidden = true;
-          dd.style.cssText = '';
-          if (dd._origParent) { dd._origParent.insertBefore(dd, dd._origNext || null); delete dd._origParent; }
+          _vfCloseDD(dd);
           trigger.classList.remove('open');
           document.removeEventListener('click', handler);
         }
@@ -1099,6 +1105,17 @@ function _vfToggleDropdown(cls) {
       document.addEventListener('click', handler);
     }, 0);
   }
+}
+
+/* Recherche dans le dropdown — filtre les items visibles */
+function _vfSearch(cls) {
+  const si = document.querySelector(`#${cls}Dropdown .todo-vd-search`);
+  if (!si) return;
+  const q = si.value.toLowerCase().trim();
+  document.querySelectorAll(`#${cls}List .todo-vd-list-item:not(.todo-vd-list-item-all)`).forEach(el => {
+    const lbl = (el.querySelector('.todo-vd-item-lbl')?.textContent || '').toLowerCase();
+    el.style.display = (!q || lbl.includes(q)) ? '' : 'none';
+  });
 }
 
 /* Sync l'état de "(Sélectionner tout)" selon les items réels */
@@ -1275,6 +1292,10 @@ function _todoOpenViewDialog(viewId) {
                oninput="_vfFormulaInput('${cls}')">
       </div>
       <div class="todo-vd-dropdown" id="${cls}Dropdown" hidden>
+        <div class="todo-vd-search-row">
+          <input type="text" class="todo-vd-search" placeholder="Rechercher…"
+                 oninput="_vfSearch('${cls}')" onclick="event.stopPropagation()">
+        </div>
         <div class="todo-vd-listbox" id="${cls}List">
           ${selectAllHtml}
           ${items}
