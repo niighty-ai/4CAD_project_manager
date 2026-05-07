@@ -69,7 +69,8 @@ function _todoRenderSidebar() {
 
   const allCount     = _todoAllTasks().filter(t => !t.completed).length;
   const inboxCount   = _todoData.tasks.filter(t => !t.folderId && !t.completed).length;
-  const overdueCount = _todoAllTasks().filter(t => !t.completed && t.dueDate && new Date(t.dueDate) < new Date()).length;
+  const _today = new Date(); _today.setHours(0, 0, 0, 0);
+  const overdueCount = _todoAllTasks().filter(t => !t.completed && t.dueDate && new Date(t.dueDate) < _today).length;
 
   let html = `
     <!-- Vue globale + Boîte de réception + En retard -->

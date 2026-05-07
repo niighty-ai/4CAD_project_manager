@@ -48,7 +48,8 @@ function _todoShortName(email) {
 
 function _todoIsOverdue(dueDate) {
   if (!dueDate) return false;
-  return new Date(dueDate) < new Date();
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  return new Date(dueDate) < today;
 }
 
 function _todoNextOccurrence(dueDate, recurrence) {
@@ -621,7 +622,8 @@ function _todoApplyViewFilters(tasks, filters) {
       }
     } else if (filters.dateFilter && filters.dateFilter !== 'all') {
       if (filters.dateFilter === 'overdue') {
-        if (!t.dueDate || new Date(t.dueDate) >= now) return false;
+        const todayStart = new Date(now); todayStart.setHours(0, 0, 0, 0);
+        if (!t.dueDate || new Date(t.dueDate) >= todayStart) return false;
       } else {
         if (!t.dueDate) {
           if (filters.showNoDate) return true;
