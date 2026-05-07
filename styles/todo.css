@@ -176,11 +176,34 @@
   font-size: 18px;
   font-weight: 700;
   color: var(--text);
-  flex: 1;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  max-width: 220px;
 }
+/* Barre de recherche globale */
+.todo-search-wrap {
+  flex: 1; max-width: 320px;
+  display: flex; align-items: center; gap: 6px;
+  padding: 0 10px;
+  background: var(--surface2); border: 1px solid var(--border);
+  border-radius: 7px; transition: border-color .12s;
+}
+.todo-search-wrap:focus-within,
+.todo-search-wrap.active { border-color: var(--accent); }
+.todo-search-icon { flex-shrink: 0; color: var(--muted); }
+.todo-search-bar {
+  flex: 1; min-width: 0; padding: 6px 0;
+  font-size: 12px; background: transparent;
+  border: none; color: var(--text); outline: none;
+}
+.todo-search-bar::placeholder { color: var(--muted); }
+.todo-search-clear {
+  flex-shrink: 0; cursor: pointer; color: var(--muted);
+  font-size: 11px; padding: 2px 4px; border-radius: 3px;
+  line-height: 1; user-select: none; transition: background .08s;
+}
+.todo-search-clear:hover { background: var(--border); color: var(--text); }
 
 /* Bouton tri */
 .todo-sort-btn {

@@ -326,6 +326,17 @@ function _todoRenderTaskList() {
     });
   }
 
+  /* ── Recherche globale (toutes les tâches, ignorant le dossier/vue actif) ── */
+  if (_todoSearchQuery) {
+    const q    = _todoSearchQuery.toLowerCase();
+    const allT = _todoAllTasks();
+    const hits = new Set(allT.filter(t => _todoTaskMatchesSearch(t, q)).map(t => t.id));
+    /* Si une sous-tâche matche, inclure aussi son parent pour l'affichage */
+    allT.filter(t => t.parentId && hits.has(t.id)).forEach(t => hits.add(t.parentId));
+    baseTasks = allT.filter(t => hits.has(t.id) && (!hideCompleted || !t.completed));
+    title     = `Résultats : "${_todoSearchQuery}"`;
+  }
+
   const rootTasks   = baseTasks.filter(t => !t.parentId);
   const sortedTasks = _todoSortTasksBy(rootTasks, sort);
   /* Expose l'ordre courant pour la navigation dans la modale */
@@ -351,6 +362,17 @@ function _todoRenderTaskList() {
   main.innerHTML = `
     <div class="todo-main-header">
       <div class="todo-main-title">${_esc(title)}</div>
+
+      <div class="todo-search-wrap ${_todoSearchQuery ? 'active' : ''}">
+        <svg class="todo-search-icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+        </svg>
+        <input type="text" id="todoGlobalSearch" class="todo-search-bar"
+               placeholder="Rechercher…" value="${_esc(_todoSearchQuery)}"
+               oninput="_todoSetSearch(this.value)"
+               onkeydown="if(event.key==='Escape')_todoSetSearch('')">
+        ${_todoSearchQuery ? `<span class="todo-search-clear" onclick="_todoSetSearch('')" title="Effacer">✕</span>` : ''}
+      </div>
 
       <button class="todo-ai-trigger" onclick="_todoOpenAiModal()" title="Importer un transcript de réunion">IA</button>
 
@@ -883,6 +905,26 @@ function _todoDuplicateTask(id) {
 
 /* ── Événements globaux (une seule fois) ── */
 let _todoGlobalEventsAttached = false;
+let _todoSearchQuery = '';
+
+/* Retourne true si la tâche correspond à la requête de recherche */
+function _todoTaskMatchesSearch(task, q) {
+  if ((task.title       || '').toLowerCase().includes(q)) return true;
+  if ((task.description || '').toLowerCase().includes(q)) return true;
+  if ((task.assignees   || []).some(a => (a.name || a || '').toLowerCase().includes(q))) return true;
+  if ((task.comments    || []).some(c => (c.text || '').toLowerCase().includes(q))) return true;
+  return false;
+}
+
+/* Met à jour la recherche et re-rend la liste (refocus après render) */
+function _todoSetSearch(val) {
+  _todoSearchQuery = val;
+  _todoRenderTaskList();
+  requestAnimationFrame(() => {
+    const el = document.getElementById('todoGlobalSearch');
+    if (el) { el.focus(); el.setSelectionRange(val.length, val.length); }
+  });
+}
 function _todoAttachGlobalEvents() {
   if (_todoGlobalEventsAttached) return;
   _todoGlobalEventsAttached = true;
