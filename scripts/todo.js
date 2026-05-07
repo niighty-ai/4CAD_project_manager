@@ -306,17 +306,17 @@ function _todoCompleteTask(taskId) {
   if (!task.completed) {
     task.completed   = true;
     task.completedAt = new Date().toISOString();
+
+    /* Terminer automatiquement toutes les sous-tâches */
+    _todoData.tasks.filter(t => t.parentId === taskId && !t.completed).forEach(st => {
+      st.completed   = true;
+      st.completedAt = new Date().toISOString();
+      st.updatedAt   = new Date().toISOString();
+    });
+
     /* Récurrence : créer la prochaine occurrence */
     if (task.recurrence && task.recurrence.type !== 'none') {
-      /* Compléter d'abord les sous-tâches non terminées avec followsParent:false */
       const subtasks = _todoData.tasks.filter(t => t.parentId === taskId);
-      subtasks.forEach(st => {
-        if (!st.completed) {
-          st.completed   = true;
-          st.completedAt = new Date().toISOString();
-          st.updatedAt   = new Date().toISOString();
-        }
-      });
 
       const next = _todoCreateTask(task.title, task.folderId, task.parentId);
       next.description = task.description;
