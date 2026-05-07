@@ -602,7 +602,6 @@ function _todoApplyViewFilters(tasks, filters) {
 
         if (!t.dueDate) {
           if (includeEmpty) return true;
-          if (t.parentId) { const p = _todoData.tasks.find(p => p.id === t.parentId); return !!(p && p.dueDate); }
           return false;
         }
         if (!periods.length) return false; /* seulement '=""' mais la tâche a une date */
@@ -627,11 +626,6 @@ function _todoApplyViewFilters(tasks, filters) {
       } else {
         if (!t.dueDate) {
           if (filters.showNoDate) return true;
-          /* Sous-tâche sans date : visible si le parent a une date */
-          if (t.parentId) {
-            const parent = _todoData.tasks.find(p => p.id === t.parentId);
-            return !!(parent && parent.dueDate);
-          }
           return false;
         }
         const d = new Date(t.dueDate);
