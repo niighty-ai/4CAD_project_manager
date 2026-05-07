@@ -67,9 +67,10 @@ function _todoRenderSidebar() {
   const el = document.getElementById('todoSidebar');
   if (!el) return;
 
-  const allCount     = _todoAllTasks().filter(t => !t.parentId && !t.completed).length;
-  const inboxCount   = _todoData.tasks.filter(t => !t.parentId && !t.folderId && !t.completed).length;
-  const overdueCount = _todoAllTasks().filter(t => !t.parentId && !t.completed && t.dueDate && new Date(t.dueDate) < new Date()).length;
+  const allCount     = _todoAllTasks().filter(t => !t.completed).length;
+  const inboxCount   = _todoData.tasks.filter(t => !t.folderId && !t.completed).length;
+  const _today = new Date(); _today.setHours(0, 0, 0, 0);
+  const overdueCount = _todoAllTasks().filter(t => !t.completed && t.dueDate && new Date(t.dueDate) < _today).length;
 
   let html = `
     <!-- Vue globale + Boîte de réception + En retard -->
@@ -125,7 +126,7 @@ function _todoRenderSidebar() {
 
   _todoData.views.forEach(v => {
     const isActive = _todoSelectedFolderId === 'view:' + v.id;
-    const cnt = _todoApplyViewFilters(_todoAllTasks().filter(t => !t.parentId && !t.completed), v.filters).length;
+    const cnt = _todoApplyViewFilters(_todoAllTasks().filter(t => !t.completed), v.filters).length;
     html += `
       <div class="todo-sidebar-item ${isActive ? 'active' : ''}"
            onclick="_todoSelectFolder('view:${v.id}')">
@@ -174,7 +175,7 @@ function _todoRenderSidebar() {
   const sorted = [..._todoData.folders].sort((a, b) => (a.order || 0) - (b.order || 0));
   sorted.forEach((f, idx) => {
     const isActive = _todoSelectedFolderId === f.id;
-    const cnt = _todoData.tasks.filter(t => t.folderId === f.id && !t.parentId && !t.completed).length;
+    const cnt = _todoData.tasks.filter(t => t.folderId === f.id && !t.completed).length;
     html += `
       <div class="todo-sidebar-item ${isActive ? 'active' : ''}"
            data-folder-id="${f.id}" data-folder-idx="${idx}"
@@ -326,6 +327,17 @@ function _todoRenderTaskList() {
     });
   }
 
+  /* ── Recherche globale (toutes les tâches, ignorant le dossier/vue actif) ── */
+  if (_todoSearchQuery) {
+    const q    = _todoSearchQuery.toLowerCase();
+    const allT = _todoAllTasks();
+    const hits = new Set(allT.filter(t => _todoTaskMatchesSearch(t, q)).map(t => t.id));
+    /* Si une sous-tâche matche, inclure aussi son parent pour l'affichage */
+    allT.filter(t => t.parentId && hits.has(t.id)).forEach(t => hits.add(t.parentId));
+    baseTasks = allT.filter(t => hits.has(t.id) && (!hideCompleted || !t.completed));
+    title     = `Résultats : "${_todoSearchQuery}"`;
+  }
+
   const rootTasks   = baseTasks.filter(t => !t.parentId);
   const sortedTasks = _todoSortTasksBy(rootTasks, sort);
   /* Expose l'ordre courant pour la navigation dans la modale */
@@ -351,6 +363,17 @@ function _todoRenderTaskList() {
   main.innerHTML = `
     <div class="todo-main-header">
       <div class="todo-main-title">${_esc(title)}</div>
+
+      <div class="todo-search-wrap ${_todoSearchQuery ? 'active' : ''}">
+        <svg class="todo-search-icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+        </svg>
+        <input type="text" id="todoGlobalSearch" class="todo-search-bar"
+               placeholder="Rechercher…" value="${_esc(_todoSearchQuery)}"
+               oninput="_todoSetSearch(this.value)"
+               onkeydown="if(event.key==='Escape')_todoSetSearch('')">
+        ${_todoSearchQuery ? `<span class="todo-search-clear" onclick="_todoSetSearch('')" title="Effacer">✕</span>` : ''}
+      </div>
 
       <button class="todo-ai-trigger" onclick="_todoOpenAiModal()" title="Importer un transcript de réunion">IA</button>
 
@@ -883,6 +906,26 @@ function _todoDuplicateTask(id) {
 
 /* ── Événements globaux (une seule fois) ── */
 let _todoGlobalEventsAttached = false;
+let _todoSearchQuery = '';
+
+/* Retourne true si la tâche correspond à la requête de recherche */
+function _todoTaskMatchesSearch(task, q) {
+  if ((task.title       || '').toLowerCase().includes(q)) return true;
+  if ((task.description || '').toLowerCase().includes(q)) return true;
+  if ((task.assignees   || []).some(a => (a.name || a || '').toLowerCase().includes(q))) return true;
+  if ((task.comments    || []).some(c => (c.text || '').toLowerCase().includes(q))) return true;
+  return false;
+}
+
+/* Met à jour la recherche et re-rend la liste (refocus après render) */
+function _todoSetSearch(val) {
+  _todoSearchQuery = val;
+  _todoRenderTaskList();
+  requestAnimationFrame(() => {
+    const el = document.getElementById('todoGlobalSearch');
+    if (el) { el.focus(); el.setSelectionRange(val.length, val.length); }
+  });
+}
 function _todoAttachGlobalEvents() {
   if (_todoGlobalEventsAttached) return;
   _todoGlobalEventsAttached = true;
@@ -1038,56 +1081,167 @@ function _todoSubmitFolderDialog(folderId) {
 }
 
 /* ══════════════════════════════════════════
-   HELPERS DIALOG VUE — sync checkboxes ↔ formule
+   HELPERS DIALOG VUE — sync liste ↔ formule
    ══════════════════════════════════════════ */
 
-/* Formule → set de valeurs sélectionnées */
+/* Libellés d'affichage par critère (pour les valeurs techniques ex. dates) */
+const _vfLabelMaps = {};
+
+/* Formule → set de valeurs sélectionnées
+   '=""' est traité comme "vide" sauf si '=""' est lui-même une valeur valide (filtre date) */
 function _vfFormulaToSet(formula, allVals) {
   if (!formula || formula === '=All') return new Set(allVals);
-  if (formula === '=""' || formula === '=')  return new Set();
-  const terms = formula.split('|').map(t => t.trim().toLowerCase());
+  if ((formula === '=""' || formula === '=') && !allVals.includes('=""')) return new Set();
+  /* Collecte tous les termes individuels des groupes | et & */
+  const terms = formula.split('|').flatMap(grp => grp.split('&').map(t => t.trim().toLowerCase()));
   return new Set(allVals.filter(v => terms.includes(v.toLowerCase())));
 }
 
-/* Checkbox changée → rebuild formule */
-function _vfSyncFormula(cls) {
-  const checked = [...document.querySelectorAll(`.${cls}:checked`)].map(el => el.value);
-  const all     = [...document.querySelectorAll(`.${cls}`)].map(el => el.value);
-  const fi      = document.getElementById(cls + 'Formula');
-  if (!fi) return;
-  fi.value = (checked.length === 0 || checked.length === all.length) ? '=All' : checked.join(' | ');
+/* Formule → texte résumé court pour le trigger (labelFn optionnel pour libellés custom) */
+function _vfSummary(formula, allVals, labelFn) {
+  if (!formula || formula === '=All') return 'Tout';
+  if ((formula === '=""' || formula === '=') && !allVals.includes('=""')) return 'Vide';
+  /* Formules complexes (& ET, opérateurs date <>=) : afficher la formule brute */
+  if (formula.includes('&') || /[<>]/.test(formula) || /=\d/.test(formula)) return formula;
+  const terms = formula.split('|').map(t => t.trim());
+  if (terms.length >= allVals.length) return 'Tout';
+  return labelFn ? terms.map(t => labelFn(t)).join(', ') : terms.join(', ');
 }
 
-/* Formule saisie → sync checkboxes (si formula parseable) */
+/* Remet un dropdown dans son emplacement d'origine et réinitialise la recherche */
+function _vfCloseDD(dd) {
+  const si = dd.querySelector('.todo-vd-search');
+  if (si && si.value) {
+    si.value = '';
+    dd.querySelectorAll('.todo-vd-list-item:not(.todo-vd-list-item-all)').forEach(el => el.style.display = '');
+  }
+  dd.hidden = true;
+  dd.style.cssText = '';
+  if (dd._origParent) { dd._origParent.insertBefore(dd, dd._origNext || null); delete dd._origParent; }
+}
+
+/* Ouvre/ferme le dropdown d'un critère — la liste flotte hors de la modale */
+function _vfToggleDropdown(cls) {
+  const dd      = document.getElementById(cls + 'Dropdown');
+  const trigger = document.getElementById(cls + 'Field');
+  if (!dd) return;
+  const opening = dd.hidden;
+
+  document.querySelectorAll('.todo-vd-dropdown:not([hidden])').forEach(_vfCloseDD);
+  document.querySelectorAll('.todo-vd-select-trigger').forEach(el => el.classList.remove('open'));
+
+  if (opening) {
+    const rect = trigger.getBoundingClientRect();
+    dd._origParent = dd.parentElement;
+    dd._origNext   = dd.nextSibling;
+    document.body.appendChild(dd);
+    dd.style.cssText = `position:fixed;z-index:99999;top:${rect.bottom + 4}px;left:${rect.left}px;width:${rect.width}px;margin:0;`;
+    dd.hidden = false;
+    trigger.classList.add('open');
+    /* Focus la zone de recherche dès l'ouverture */
+    setTimeout(() => dd.querySelector('.todo-vd-search')?.focus(), 10);
+    setTimeout(() => {
+      const handler = e => {
+        if (!dd.contains(e.target) && !trigger.contains(e.target)) {
+          _vfCloseDD(dd);
+          trigger.classList.remove('open');
+          document.removeEventListener('click', handler);
+        }
+      };
+      document.addEventListener('click', handler);
+    }, 0);
+  }
+}
+
+/* Recherche dans le dropdown — filtre les items visibles */
+function _vfSearch(cls) {
+  const si = document.querySelector(`#${cls}Dropdown .todo-vd-search`);
+  if (!si) return;
+  const q = si.value.toLowerCase().trim();
+  document.querySelectorAll(`#${cls}List .todo-vd-list-item:not(.todo-vd-list-item-all)`).forEach(el => {
+    const lbl = (el.querySelector('.todo-vd-item-lbl')?.textContent || '').toLowerCase();
+    el.style.display = (!q || lbl.includes(q)) ? '' : 'none';
+  });
+}
+
+/* Sync l'état de "(Sélectionner tout)" selon les items réels */
+function _vfSyncSelectAll(cls) {
+  const items    = [...document.querySelectorAll(`#${cls}List .todo-vd-list-item:not(.todo-vd-list-item-all)`)];
+  const selCount = items.filter(el => el.classList.contains('selected')).length;
+  const allEl    = document.querySelector(`#${cls}List .todo-vd-list-item-all`);
+  if (!allEl) return;
+  allEl.classList.toggle('selected',      selCount === items.length);
+  allEl.classList.toggle('indeterminate', selCount > 0 && selCount < items.length);
+}
+
+/* Clic sur un item de liste → toggle + rebuild formule + sync "Sélectionner tout" */
+function _vfToggleItem(el, cls) {
+  el.classList.toggle('selected');
+  _vfSyncFormula(cls);
+  _vfSyncSelectAll(cls);
+}
+
+/* Clic sur "(Sélectionner tout)" */
+function _vfToggleAll(cls) {
+  const items  = [...document.querySelectorAll(`#${cls}List .todo-vd-list-item:not(.todo-vd-list-item-all)`)];
+  const allSel = items.every(el => el.classList.contains('selected'));
+  items.forEach(el => el.classList.toggle('selected', !allSel));
+  _vfSyncFormula(cls);
+  _vfSyncSelectAll(cls);
+}
+
+/* Items sélectionnés → rebuild formule + maj résumé */
+function _vfSyncFormula(cls) {
+  const sel = [...document.querySelectorAll(`#${cls}List .todo-vd-list-item:not(.todo-vd-list-item-all).selected`)].map(el => el.dataset.val);
+  const all = [...document.querySelectorAll(`#${cls}List .todo-vd-list-item:not(.todo-vd-list-item-all)`)].map(el => el.dataset.val);
+  const fi  = document.getElementById(cls + 'Formula');
+  if (!fi) return;
+  const formula = (sel.length === 0 || sel.length === all.length) ? '=All' : sel.join(' | ');
+  fi.value = formula;
+  const si = document.getElementById(cls + 'Summary');
+  if (si) si.textContent = _vfSummary(formula, all, _vfLabelMaps[cls]);
+}
+
+/* Formule saisie → sync liste + maj résumé */
 function _vfFormulaInput(cls) {
   const fi = document.getElementById(cls + 'Formula');
   if (!fi) return;
-  const formula    = fi.value.trim();
-  const checkboxes = [...document.querySelectorAll(`.${cls}`)];
-  const allVals    = checkboxes.map(el => el.value.toLowerCase());
+  const formula = fi.value.trim();
+  const items   = [...document.querySelectorAll(`#${cls}List .todo-vd-list-item:not(.todo-vd-list-item-all)`)];
+  const allVals = items.map(el => el.dataset.val);
+  const si = document.getElementById(cls + 'Summary');
+  if (si) si.textContent = _vfSummary(formula, allVals, _vfLabelMaps[cls]);
   if (!formula || formula === '=All') {
-    checkboxes.forEach(el => { el.checked = true; }); return;
+    items.forEach(el => el.classList.add('selected'));
+  } else if (formula === '=""' || formula === '=') {
+    items.forEach(el => el.classList.remove('selected'));
+  } else {
+    const terms    = formula.split('|').flatMap(grp => grp.split('&').map(t => t.trim().toLowerCase()));
+    const allKnown = terms.every(t => allVals.map(v => v.toLowerCase()).includes(t));
+    if (allKnown) items.forEach(el => { el.classList.toggle('selected', terms.includes(el.dataset.val.toLowerCase())); });
   }
-  if (formula === '=""' || formula === '=') {
-    checkboxes.forEach(el => { el.checked = false; }); return;
-  }
-  const terms    = formula.split('|').map(t => t.trim().toLowerCase());
-  const allKnown = terms.every(t => allVals.includes(t));
-  if (allKnown) checkboxes.forEach(el => { el.checked = terms.includes(el.value.toLowerCase()); });
+  _vfSyncSelectAll(cls);
 }
 
-/* Tout cocher */
+/* Tout sélectionner */
 function _vfCheckAll(cls) {
-  document.querySelectorAll(`.${cls}`).forEach(el => { el.checked = true; });
+  document.querySelectorAll(`#${cls}List .todo-vd-list-item:not(.todo-vd-list-item-all)`).forEach(el => el.classList.add('selected'));
   const fi = document.getElementById(cls + 'Formula');
   if (fi) fi.value = '=All';
+  const si = document.getElementById(cls + 'Summary');
+  if (si) si.textContent = 'Tout';
+  _vfSyncSelectAll(cls);
 }
 
-/* Tout décocher (assignee → ="", autres → =All / aucun filtre) */
+/* Tout désélectionner (assignee → ="", autres → =All) */
 function _vfUncheckAll(cls) {
-  document.querySelectorAll(`.${cls}`).forEach(el => { el.checked = false; });
+  document.querySelectorAll(`#${cls}List .todo-vd-list-item:not(.todo-vd-list-item-all)`).forEach(el => el.classList.remove('selected'));
+  const formula = cls === 'vf-assignee' ? '=""' : '=All';
   const fi = document.getElementById(cls + 'Formula');
-  if (fi) fi.value = cls === 'vf-assignee' ? '=""' : '=All';
+  if (fi) fi.value = formula;
+  const si = document.getElementById(cls + 'Summary');
+  if (si) si.textContent = cls === 'vf-assignee' ? 'Vide' : 'Tout';
+  _vfSyncSelectAll(cls);
 }
 
 /* ── Dialog Vue avancé (formules + checkboxes + date) ── */
@@ -1106,8 +1260,13 @@ function _todoOpenViewDialog(viewId) {
   const sFormula = f.statusFormula    !== undefined ? f.statusFormula    : (Array.isArray(f.status)   ? _arr2fm(f.status)   : '=All');
   const tFormula = f.typeFormula      !== undefined ? f.typeFormula      : (Array.isArray(f.type)     ? _arr2fm(f.type)     : '=All');
   const aFormula = f.assigneeFormula  !== undefined ? f.assigneeFormula  : '=All';
-  const dateFilter = f.dateFilter || 'all';
-  const showNoDate = f.showNoDate !== false;
+
+  /* Backward compat : ancien dateFilter + showNoDate → dateFormula */
+  const _dateOldToFm = (df, snd) => {
+    if (!df || df === 'all') return '=All';
+    return snd ? `${df} | =""` : df;
+  };
+  const dFormula = f.dateFormula !== undefined ? f.dateFormula : _dateOldToFm(f.dateFilter, f.showNoDate);
 
   /* Toutes les valeurs disponibles */
   const priorities   = ['P1','P2','P3','P4'];
@@ -1117,52 +1276,93 @@ function _todoOpenViewDialog(viewId) {
     _todoAllTasks().flatMap(t => (t.assignees || []).map(a => a.name || a))
   )].filter(Boolean).sort();
 
+  /* Valeurs disponibles pour la date */
+  const dateVals   = ['=""', 'today', 'week', 'month'];
+  const dateLabels = { '=""': '(Sans date)', today: "Aujourd'hui", week: 'Cette semaine', month: 'Ce mois' };
+
   /* Checkboxes initiales déduites de la formule */
   const checkedP = _vfFormulaToSet(pFormula, priorities);
   const checkedS = _vfFormulaToSet(sFormula, sNames);
   const checkedT = _vfFormulaToSet(tFormula, tNames);
   const checkedA = _vfFormulaToSet(aFormula, allAssignees);
+  const checkedD = _vfFormulaToSet(dFormula, dateVals);
 
   /* Formule "personnalisée" = contient des valeurs inconnues */
   const _isCustom = (formula, allVals) => {
     if (!formula || formula === '=All' || formula === '=""' || formula === '=') return false;
-    const terms = formula.split('|').map(t => t.trim().toLowerCase());
+    const terms = formula.split('|').flatMap(grp => grp.split('&').map(t => t.trim().toLowerCase()));
     return !terms.every(t => allVals.map(v => v.toLowerCase()).includes(t));
   };
 
   const pColors = { P1:'#db4035', P2:'#ff9a14', P3:'#4073ff', P4:'#aaa' };
 
-  /* Génère une section avec checkboxes + barre formule */
-  const mkSection = (label, cls, values, checked, formula, colorFn) => {
-    const custom = _isCustom(formula, values);
-    const rows = values.map(v => {
-      const color = colorFn ? colorFn(v) : null;
-      const chk   = checked.has(v) ? 'checked' : '';
-      const lCls  = cls === 'vf-priority' ? v.toLowerCase() : '';
-      return `<label class="todo-vd-check">
-        <input type="checkbox" value="${_esc(v)}" class="${cls}" ${chk} onchange="_vfSyncFormula('${cls}')">
-        <span class="todo-vd-check-label ${lCls}">
-          ${color ? `<span class="todo-vd-dot" style="background:${color}"></span>` : ''}${_esc(v)}
-        </span>
-      </label>`;
-    }).join('');
-    return `
-      <div class="todo-vd-section">
-        <div class="todo-vd-section-head">
-          <span class="todo-vd-section-label">${label}</span>
-          <span class="todo-vd-qbtn" onclick="_vfCheckAll('${cls}')">Tout ✓</span>
-          <span class="todo-vd-qbtn" onclick="_vfUncheckAll('${cls}')">Tout ✗</span>
-        </div>
-        <div class="todo-vd-checkrow wrap">${rows}</div>
-        ${custom ? `<div class="todo-vd-formula-hint">Formule personnalisée</div>` : ''}
-        <div class="todo-vd-formula-row">
-          <span class="todo-vd-formula-lbl">Formule</span>
-          <input type="text" id="${cls}Formula" class="todo-vd-formula-input"
-                 value="${_esc(formula || '=All')}"
-                 placeholder="=All, ${values.slice(0,2).join(' | ')}, …"
-                 oninput="_vfFormulaInput('${cls}')">
-        </div>
+  /* Génère un champ select-like avec dropdown Excel (cases à cocher)
+     labelFn optionnel : v → libellé affiché (ex. '=""' → '(Sans date)') */
+  const mkSection = (label, cls, values, checked, formula, colorFn, labelFn) => {
+    if (labelFn) _vfLabelMaps[cls] = labelFn;
+    const custom   = _isCustom(formula, values);
+    const summary  = _vfSummary(formula, values, labelFn);
+    const allSel   = checked.size >= values.length;
+    const someSel  = checked.size > 0 && checked.size < values.length;
+    const allItemCls = `todo-vd-list-item todo-vd-list-item-all${allSel?' selected':someSel?' indeterminate':''}`;
+    const selectAllHtml = `
+      <div class="${allItemCls}" onclick="event.stopPropagation();_vfToggleAll('${cls}')">
+        <span class="todo-vd-cb"></span>
+        <span class="todo-vd-item-lbl" style="font-style:italic">(Sélectionner tout)</span>
       </div>`;
+    const items = values.map(v => {
+      const color    = colorFn ? colorFn(v) : null;
+      const sel      = checked.has(v) ? 'selected' : '';
+      const dispLbl  = labelFn ? _esc(labelFn(v)) : _esc(v);
+      return `<div class="todo-vd-list-item ${sel}" data-val="${_esc(v)}" onclick="event.stopPropagation();_vfToggleItem(this,'${cls}')">
+        <span class="todo-vd-cb"></span>
+        ${color ? `<span class="todo-vd-dot" style="background:${color}"></span>` : ''}
+        <span class="todo-vd-item-lbl">${dispLbl}</span>
+      </div>`;
+    }).join('');
+    const chevron = `<svg width="11" height="11" viewBox="0 0 12 12" fill="none" style="flex-shrink:0;transition:transform .15s"><path d="M2 4l4 4 4-4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+    const fmPlaceholder = values.filter(v => v !== '=""').slice(0, 2).join(' | ');
+    const fmHelp = '<span class="todo-fm-help">?<span class="todo-fm-tooltip">'
+      + '<b>Syntaxe des formules</b><br>'
+      + '<code>=All</code>&ensp;tout afficher (aucun filtre)<br>'
+      + '<code>=""</code>&ensp;vide / sans valeur<br>'
+      + '<code>A&nbsp;|&nbsp;B</code>&ensp;A <em>ou</em> B &mdash; OU logique<br>'
+      + '<code>A&nbsp;&amp;&nbsp;B</code>&ensp;A <em>et</em> B &mdash; ET logique<br>'
+      + '<br><em>Mots-clés dates :</em><br>'
+      + '<code>today</code>&ensp;<code>week</code>&ensp;<code>month</code><br>'
+      + '<em>Opérateurs dates :</em><br>'
+      + '<code>=JJ/MM/AAAA</code>&ensp;<code>&gt;JJ/MM/AAAA</code>&ensp;<code>&lt;JJ/MM/AAAA</code><br>'
+      + '<code>&gt;=JJ/MM/AAAA</code>&ensp;<code>&lt;=JJ/MM/AAAA</code><br>'
+      + '<em>Exemples :</em><br>'
+      + '<code>week&nbsp;|&nbsp;=""</code>&ensp;&rarr; semaine ou sans date<br>'
+      + '<code>&gt;08/05/2026&nbsp;&amp;&nbsp;&lt;15/05/2026</code>&ensp;&rarr; entre deux dates<br>'
+      + '<code>François&nbsp;&amp;&nbsp;Vincent</code>&ensp;&rarr; les deux affectés'
+      + '</span></span>';
+    return `
+      <div class="todo-vd-field-row">
+        <span class="todo-vd-field-label">${label}</span>
+        <div class="todo-vd-select-trigger" id="${cls}Field" onclick="_vfToggleDropdown('${cls}')">
+          <span class="todo-vd-select-summary" id="${cls}Summary">${_esc(summary)}</span>
+          ${chevron}
+        </div>
+      </div>
+      <div class="todo-vd-formula-row" style="margin-bottom:10px">
+        <span class="todo-vd-formula-lbl">Formule ${fmHelp}</span>
+        <input type="text" id="${cls}Formula" class="todo-vd-formula-input"
+               value="${_esc(formula || '=All')}"
+               placeholder="=All, ${fmPlaceholder || values.slice(0,2).join(' | ')}, …"
+               oninput="_vfFormulaInput('${cls}')">
+      </div>
+      <div class="todo-vd-dropdown" id="${cls}Dropdown" hidden>
+        <div class="todo-vd-search-row">
+          <input type="text" class="todo-vd-search" placeholder="Rechercher…"
+                 oninput="_vfSearch('${cls}')" onclick="event.stopPropagation()">
+        </div>
+        <div class="todo-vd-listbox" id="${cls}List">
+          ${selectAllHtml}
+          ${items}
+        </div>
+      </div>`
   };
 
   const sColorFn = v => { const s = statuses.find(s => _todoStatusName(s) === v); return s ? _todoStatusColor(s) : null; };
@@ -1182,22 +1382,7 @@ function _todoOpenViewDialog(viewId) {
       ${sNames.length     ? mkSection('Statut',      'vf-status',   sNames,     checkedS, sFormula, sColorFn) : ''}
       ${tNames.length     ? mkSection('Type',        'vf-type',     tNames,     checkedT, tFormula, tColorFn) : ''}
       ${allAssignees.length ? mkSection('Responsable', 'vf-assignee', allAssignees, checkedA, aFormula, null) : ''}
-
-      <div class="todo-vd-section">
-        <div class="todo-vd-section-head">
-          <span class="todo-vd-section-label">Date d'échéance</span>
-        </div>
-        <div class="todo-vd-radio-row">
-          ${[['all','Tout'],['today',"Aujourd'hui"],['week','Cette semaine'],['month','Ce mois']].map(([v,l]) =>
-            `<label class="todo-vd-radio">
-              <input type="radio" name="vfDate" value="${v}" ${dateFilter===v?'checked':''}>${l}
-            </label>`).join('')}
-        </div>
-        <label class="todo-vd-check" style="margin-top:8px">
-          <input type="checkbox" id="vfShowNoDate" ${showNoDate?'checked':''}>
-          <span style="font-size:12px;color:var(--text)">Afficher les tâches sans date</span>
-        </label>
-      </div>
+      ${mkSection('Échéance', 'vf-date', dateVals, checkedD, dFormula, null, v => dateLabels[v] || v)}
 
       <div class="todo-dialog-actions">
         <button class="todo-dialog-cancel" onclick="_todoCloseDialog()">Annuler</button>
@@ -1219,19 +1404,14 @@ function _todoSubmitViewDialog(viewId) {
   if (!name) { document.getElementById('todoViewNameInput')?.focus(); return; }
 
   const _getFormula = id => document.getElementById(id)?.value.trim() || '=All';
-  const dateFilter  = document.querySelector('input[name="vfDate"]:checked')?.value || 'all';
-  const showNoDate  = document.getElementById('vfShowNoDate')?.checked;
 
   const filters = {
     priorityFormula:  _getFormula('vf-priorityFormula'),
     statusFormula:    _getFormula('vf-statusFormula'),
     typeFormula:      _getFormula('vf-typeFormula'),
     assigneeFormula:  _getFormula('vf-assigneeFormula'),
-    dateFilter:       dateFilter !== 'all' ? dateFilter : undefined,
-    showNoDate:       showNoDate || undefined
+    dateFormula:      _getFormula('vf-dateFormula'),
   };
-  if (!filters.dateFilter) delete filters.dateFilter;
-  if (!filters.showNoDate) delete filters.showNoDate;
 
   if (viewId) {
     _todoUpdateView(viewId, { name, filters });
@@ -1245,5 +1425,7 @@ function _todoSubmitViewDialog(viewId) {
 
 /* ── Fermeture dialog ── */
 function _todoCloseDialog() {
+  /* Retire les dropdowns flottants éventuellement attachés au body */
+  document.querySelectorAll('.todo-vd-dropdown').forEach(el => el.remove());
   document.getElementById('todoDialogOverlay')?.remove();
 }
