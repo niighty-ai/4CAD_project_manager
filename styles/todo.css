@@ -1396,7 +1396,6 @@
 }
 /* Badge aide formule */
 .todo-fm-help {
-  position: relative;
   display: inline-flex; align-items: center; justify-content: center;
   width: 13px; height: 13px; border-radius: 50%;
   font-size: 9px; font-weight: 700; letter-spacing: 0;
@@ -1405,9 +1404,7 @@
 }
 .todo-fm-help:hover { background: var(--accent); color: #fff; }
 .todo-fm-tooltip {
-  position: absolute;
-  bottom: calc(100% + 7px);
-  left: 50%; transform: translateX(-50%);
+  position: fixed;
   min-width: 210px;
   background: var(--surface);
   border: 1px solid var(--border); border-radius: 8px;
@@ -1418,10 +1415,10 @@
   box-shadow: 0 6px 18px rgba(0,0,0,.18);
   visibility: hidden; opacity: 0;
   transition: opacity .13s, visibility .13s;
-  z-index: 100001; pointer-events: none;
+  z-index: 100002; pointer-events: none;
   white-space: normal;
 }
-.todo-fm-help:hover .todo-fm-tooltip { visibility: visible; opacity: 1; }
+.todo-fm-tooltip.visible { visibility: visible; opacity: 1; }
 .todo-fm-tooltip code {
   font-family: 'Courier New', monospace; font-size: 10px;
   background: var(--surface2); padding: 1px 5px;

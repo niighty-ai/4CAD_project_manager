@@ -1108,6 +1108,27 @@ function _vfSummary(formula, allVals, labelFn) {
   return labelFn ? terms.map(t => labelFn(t)).join(', ') : terms.join(', ');
 }
 
+/* Tooltip aide formule — position fixed pour échapper à l'overflow de la modale */
+function _fmHelpEnter(el) {
+  const tip = el.querySelector('.todo-fm-tooltip');
+  if (!tip) return;
+  tip.classList.add('visible');
+  const r  = el.getBoundingClientRect();
+  const tw = tip.offsetWidth  || 230;
+  const th = tip.offsetHeight || 10;
+  let top  = r.top - th - 7;
+  let left = r.left + r.width / 2 - tw / 2;
+  if (top < 8)  top  = r.bottom + 7;
+  if (left < 8) left = 8;
+  if (left + tw > window.innerWidth - 8) left = window.innerWidth - tw - 8;
+  tip.style.top  = top  + 'px';
+  tip.style.left = left + 'px';
+}
+function _fmHelpLeave(el) {
+  const tip = el.querySelector('.todo-fm-tooltip');
+  if (tip) { tip.classList.remove('visible'); tip.style.top = ''; tip.style.left = ''; }
+}
+
 /* Remet un dropdown dans son emplacement d'origine et réinitialise la recherche */
 function _vfCloseDD(dd) {
   const si = dd.querySelector('.todo-vd-search');
@@ -1322,7 +1343,7 @@ function _todoOpenViewDialog(viewId) {
     }).join('');
     const chevron = `<svg width="11" height="11" viewBox="0 0 12 12" fill="none" style="flex-shrink:0;transition:transform .15s"><path d="M2 4l4 4 4-4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
     const fmPlaceholder = values.filter(v => v !== '=""').slice(0, 2).join(' | ');
-    const fmHelp = '<span class="todo-fm-help">?<span class="todo-fm-tooltip">'
+    const fmHelp = '<span class="todo-fm-help" onmouseenter="_fmHelpEnter(this)" onmouseleave="_fmHelpLeave(this)">?<span class="todo-fm-tooltip">'
       + '<b>Syntaxe des formules</b><br>'
       + '<code>=All</code>&ensp;tout afficher (aucun filtre)<br>'
       + '<code>=""</code>&ensp;vide / sans valeur<br>'
