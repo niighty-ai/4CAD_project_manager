@@ -1319,6 +1319,15 @@ function _todoOpenViewDialog(viewId) {
     }).join('');
     const chevron = `<svg width="11" height="11" viewBox="0 0 12 12" fill="none" style="flex-shrink:0;transition:transform .15s"><path d="M2 4l4 4 4-4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
     const fmPlaceholder = values.filter(v => v !== '=""').slice(0, 2).join(' | ');
+    const fmHelp = '<span class="todo-fm-help">?<span class="todo-fm-tooltip">'
+      + '<b>Syntaxe des formules</b><br>'
+      + '<code>=All</code>&ensp;tout afficher (aucun filtre)<br>'
+      + '<code>=""</code>&ensp;vide / sans valeur<br>'
+      + '<code>A&nbsp;|&nbsp;B</code>&ensp;A <em>ou</em> B (plusieurs valeurs)<br>'
+      + '<br><em>Mots-clés dates :</em><br>'
+      + '<code>today</code>&ensp;<code>week</code>&ensp;<code>month</code><br>'
+      + '<em>Exemple :</em>&ensp;<code>week | =""</code>'
+      + '</span></span>';
     return `
       <div class="todo-vd-field-row">
         <span class="todo-vd-field-label">${label}</span>
@@ -1328,7 +1337,7 @@ function _todoOpenViewDialog(viewId) {
         </div>
       </div>
       <div class="todo-vd-formula-row" style="margin-bottom:10px">
-        <span class="todo-vd-formula-lbl">Formule</span>
+        <span class="todo-vd-formula-lbl">Formule ${fmHelp}</span>
         <input type="text" id="${cls}Formula" class="todo-vd-formula-input"
                value="${_esc(formula || '=All')}"
                placeholder="=All, ${fmPlaceholder || values.slice(0,2).join(' | ')}, …"
