@@ -591,8 +591,35 @@ function _todoApplyViewFilters(tasks, filters) {
 
     if (filters.showOnlyIncomplete && t.completed) return false;
 
-    /* ── Date d'échéance ── */
-    if (filters.dateFilter && filters.dateFilter !== 'all') {
+    /* ── Date d'échéance (formule ou ancien format) ── */
+    if (filters.dateFormula !== undefined) {
+      const df = filters.dateFormula;
+      if (df && df !== '=All') {
+        const terms        = (df === '=""' || df === '=') ? ['=""'] : df.split('|').map(s => s.trim());
+        const includeEmpty = terms.some(s => s === '=""' || s === '=');
+        const periods      = terms.filter(s => ['today','week','month'].includes(s));
+
+        if (!t.dueDate) {
+          if (includeEmpty) return true;
+          if (t.parentId) { const p = _todoData.tasks.find(p => p.id === t.parentId); return !!(p && p.dueDate); }
+          return false;
+        }
+        if (!periods.length) return false; /* seulement '=""' mais la tâche a une date */
+
+        const d = new Date(t.dueDate);
+        const dow = now.getDay() || 7;
+        const wkS = new Date(now); wkS.setDate(now.getDate() - (dow - 1)); wkS.setHours(0,0,0,0);
+        const wkE = new Date(wkS); wkE.setDate(wkS.getDate() + 6); wkE.setHours(23,59,59,999);
+        const moE = new Date(now); moE.setMonth(moE.getMonth() + 1);
+
+        const inPeriod = periods.some(p =>
+          p === 'today' ? d.toDateString() === now.toDateString() :
+          p === 'week'  ? d >= wkS && d <= wkE :
+          p === 'month' ? d >= now && d <= moE : false
+        );
+        if (!inPeriod) return false;
+      }
+    } else if (filters.dateFilter && filters.dateFilter !== 'all') {
       if (filters.dateFilter === 'overdue') {
         if (!t.dueDate || new Date(t.dueDate) >= now) return false;
       } else {
@@ -609,7 +636,6 @@ function _todoApplyViewFilters(tasks, filters) {
         if (filters.dateFilter === 'today') {
           if (d.toDateString() !== now.toDateString()) return false;
         } else if (filters.dateFilter === 'week') {
-          /* Semaine calendaire : lundi au dimanche de la semaine courante */
           const day = now.getDay() || 7;
           const weekStart = new Date(now); weekStart.setDate(now.getDate() - (day - 1)); weekStart.setHours(0,0,0,0);
           const weekEnd   = new Date(weekStart); weekEnd.setDate(weekStart.getDate() + 6); weekEnd.setHours(23,59,59,999);
