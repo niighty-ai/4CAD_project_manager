@@ -67,9 +67,9 @@ function _todoRenderSidebar() {
   const el = document.getElementById('todoSidebar');
   if (!el) return;
 
-  const allCount     = _todoAllTasks().filter(t => !t.parentId && !t.completed).length;
-  const inboxCount   = _todoData.tasks.filter(t => !t.parentId && !t.folderId && !t.completed).length;
-  const overdueCount = _todoAllTasks().filter(t => !t.parentId && !t.completed && t.dueDate && new Date(t.dueDate) < new Date()).length;
+  const allCount     = _todoAllTasks().filter(t => !t.completed).length;
+  const inboxCount   = _todoData.tasks.filter(t => !t.folderId && !t.completed).length;
+  const overdueCount = _todoAllTasks().filter(t => !t.completed && t.dueDate && new Date(t.dueDate) < new Date()).length;
 
   let html = `
     <!-- Vue globale + Boîte de réception + En retard -->
@@ -125,7 +125,7 @@ function _todoRenderSidebar() {
 
   _todoData.views.forEach(v => {
     const isActive = _todoSelectedFolderId === 'view:' + v.id;
-    const cnt = _todoApplyViewFilters(_todoAllTasks().filter(t => !t.parentId && !t.completed), v.filters).length;
+    const cnt = _todoApplyViewFilters(_todoAllTasks().filter(t => !t.completed), v.filters).length;
     html += `
       <div class="todo-sidebar-item ${isActive ? 'active' : ''}"
            onclick="_todoSelectFolder('view:${v.id}')">
@@ -174,7 +174,7 @@ function _todoRenderSidebar() {
   const sorted = [..._todoData.folders].sort((a, b) => (a.order || 0) - (b.order || 0));
   sorted.forEach((f, idx) => {
     const isActive = _todoSelectedFolderId === f.id;
-    const cnt = _todoData.tasks.filter(t => t.folderId === f.id && !t.parentId && !t.completed).length;
+    const cnt = _todoData.tasks.filter(t => t.folderId === f.id && !t.completed).length;
     html += `
       <div class="todo-sidebar-item ${isActive ? 'active' : ''}"
            data-folder-id="${f.id}" data-folder-idx="${idx}"
