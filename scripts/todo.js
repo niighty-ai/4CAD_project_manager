@@ -538,16 +538,60 @@ function _todoSortTasks(tasks) {
 }
 
 /* ── Filtre vues (support formule + ancien format tableau) ────────────────── */
+
+/* Parse une date au format DD/MM/YYYY ou YYYY-MM-DD → Date locale à minuit */
+function _parseFmDate(str) {
+  str = (str || '').trim();
+  const dmy = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (dmy) { const d = new Date(+dmy[3], +dmy[2]-1, +dmy[1]); d.setHours(0,0,0,0); return d; }
+  const ymd = str.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (ymd) { const d = new Date(+ymd[1], +ymd[2]-1, +ymd[3]); d.setHours(0,0,0,0); return d; }
+  return null;
+}
+
+/* Évalue un terme de formule date sur une valeur dueDate */
+function _evalDateTerm(term, taskDate, now) {
+  const tl = term.trim().toLowerCase();
+  if (tl === '=all') return true;
+  if (tl === '=""' || tl === '=') return !taskDate;
+  if (!taskDate) return false;
+  const d = new Date(taskDate); d.setHours(0,0,0,0);
+  if (tl === 'today') { const n0 = new Date(now); n0.setHours(0,0,0,0); return d.getTime() === n0.getTime(); }
+  if (tl === 'week') {
+    const dow = now.getDay() || 7;
+    const wkS = new Date(now); wkS.setDate(now.getDate()-(dow-1)); wkS.setHours(0,0,0,0);
+    const wkE = new Date(wkS); wkE.setDate(wkS.getDate()+6); wkE.setHours(23,59,59,999);
+    return d >= wkS && d <= wkE;
+  }
+  if (tl === 'month') {
+    const n0 = new Date(now); n0.setHours(0,0,0,0);
+    const moE = new Date(n0); moE.setMonth(moE.getMonth()+1);
+    return d >= n0 && d <= moE;
+  }
+  const m = term.trim().match(/^(>=|<=|>|<|=)(.+)$/);
+  if (!m) return false;
+  const ref = _parseFmDate(m[2]);
+  if (!ref) return false;
+  if (m[1] === '=')  return d.getTime() === ref.getTime();
+  if (m[1] === '>')  return d > ref;
+  if (m[1] === '<')  return d < ref;
+  if (m[1] === '>=') return d >= ref;
+  if (m[1] === '<=') return d <= ref;
+  return false;
+}
+
 function _todoApplyViewFilters(tasks, filters) {
   if (!filters) return tasks;
   const now = new Date();
 
-  /* Évaluation d'une formule scalaire : =All, ="", valeur1 | valeur2 */
+  /* Évalue une formule scalaire (|=OU, &=ET) sur une valeur simple */
   const _fmMatch = (formula, value) => {
-    if (!formula || formula === '=All') return true;      /* pas de filtre */
-    if (formula === '=""' || formula === '=') return !value; /* champ vide uniquement */
-    const terms = formula.split('|').map(t => t.trim());
-    return terms.some(term => term.toLowerCase() === (value || '').toLowerCase());
+    if (!formula || formula === '=All') return true;
+    if (formula === '=""' || formula === '=') return !value;
+    const lv = (value || '').toLowerCase();
+    return formula.split('|').some(grp =>
+      grp.split('&').map(t => t.trim().toLowerCase()).every(t => t === lv)
+    );
   };
 
   return tasks.filter(t => {
@@ -582,8 +626,12 @@ function _todoApplyViewFilters(tasks, filters) {
         if (af === '=""' || af === '=') {
           if (assigneeNames.length > 0) return false;
         } else {
-          const terms = af.split('|').map(s => s.trim().toLowerCase());
-          if (!terms.some(term => assigneeNames.some(n => n.toLowerCase() === term))) return false;
+          /* OR groupes, chaque groupe = ET de termes (tous doivent être dans les responsables) */
+          const lnames = assigneeNames.map(n => n.toLowerCase());
+          const match = af.split('|').some(grp =>
+            grp.split('&').map(s => s.trim().toLowerCase()).every(s => lnames.includes(s))
+          );
+          if (!match) return false;
         }
       }
     } else if (filters.assignee) {
@@ -596,28 +644,11 @@ function _todoApplyViewFilters(tasks, filters) {
     if (filters.dateFormula !== undefined) {
       const df = filters.dateFormula;
       if (df && df !== '=All') {
-        const terms        = (df === '=""' || df === '=') ? ['=""'] : df.split('|').map(s => s.trim());
-        const includeEmpty = terms.some(s => s === '=""' || s === '=');
-        const periods      = terms.filter(s => ['today','week','month'].includes(s));
-
-        if (!t.dueDate) {
-          if (includeEmpty) return true;
-          return false;
-        }
-        if (!periods.length) return false; /* seulement '=""' mais la tâche a une date */
-
-        const d = new Date(t.dueDate);
-        const dow = now.getDay() || 7;
-        const wkS = new Date(now); wkS.setDate(now.getDate() - (dow - 1)); wkS.setHours(0,0,0,0);
-        const wkE = new Date(wkS); wkE.setDate(wkS.getDate() + 6); wkE.setHours(23,59,59,999);
-        const moE = new Date(now); moE.setMonth(moE.getMonth() + 1);
-
-        const inPeriod = periods.some(p =>
-          p === 'today' ? d.toDateString() === now.toDateString() :
-          p === 'week'  ? d >= wkS && d <= wkE :
-          p === 'month' ? d >= now && d <= moE : false
+        /* OR groupes, chaque groupe = ET de termes (_evalDateTerm gère =, >, <, >=, <=, keywords) */
+        const match = df.split('|').some(grp =>
+          grp.split('&').map(term => term.trim()).every(term => _evalDateTerm(term, t.dueDate, now))
         );
-        if (!inPeriod) return false;
+        if (!match) return false;
       }
     } else if (filters.dateFilter && filters.dateFilter !== 'all') {
       if (filters.dateFilter === 'overdue') {

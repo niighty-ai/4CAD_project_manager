@@ -1092,7 +1092,8 @@ const _vfLabelMaps = {};
 function _vfFormulaToSet(formula, allVals) {
   if (!formula || formula === '=All') return new Set(allVals);
   if ((formula === '=""' || formula === '=') && !allVals.includes('=""')) return new Set();
-  const terms = formula.split('|').map(t => t.trim().toLowerCase());
+  /* Collecte tous les termes individuels des groupes | et & */
+  const terms = formula.split('|').flatMap(grp => grp.split('&').map(t => t.trim().toLowerCase()));
   return new Set(allVals.filter(v => terms.includes(v.toLowerCase())));
 }
 
@@ -1100,6 +1101,8 @@ function _vfFormulaToSet(formula, allVals) {
 function _vfSummary(formula, allVals, labelFn) {
   if (!formula || formula === '=All') return 'Tout';
   if ((formula === '=""' || formula === '=') && !allVals.includes('=""')) return 'Vide';
+  /* Formules complexes (& ET, opérateurs date <>=) : afficher la formule brute */
+  if (formula.includes('&') || /[<>]/.test(formula) || /=\d/.test(formula)) return formula;
   const terms = formula.split('|').map(t => t.trim());
   if (terms.length >= allVals.length) return 'Tout';
   return labelFn ? terms.map(t => labelFn(t)).join(', ') : terms.join(', ');
@@ -1213,7 +1216,7 @@ function _vfFormulaInput(cls) {
   } else if (formula === '=""' || formula === '=') {
     items.forEach(el => el.classList.remove('selected'));
   } else {
-    const terms    = formula.split('|').map(t => t.trim().toLowerCase());
+    const terms    = formula.split('|').flatMap(grp => grp.split('&').map(t => t.trim().toLowerCase()));
     const allKnown = terms.every(t => allVals.map(v => v.toLowerCase()).includes(t));
     if (allKnown) items.forEach(el => { el.classList.toggle('selected', terms.includes(el.dataset.val.toLowerCase())); });
   }
@@ -1287,7 +1290,7 @@ function _todoOpenViewDialog(viewId) {
   /* Formule "personnalisée" = contient des valeurs inconnues */
   const _isCustom = (formula, allVals) => {
     if (!formula || formula === '=All' || formula === '=""' || formula === '=') return false;
-    const terms = formula.split('|').map(t => t.trim().toLowerCase());
+    const terms = formula.split('|').flatMap(grp => grp.split('&').map(t => t.trim().toLowerCase()));
     return !terms.every(t => allVals.map(v => v.toLowerCase()).includes(t));
   };
 
@@ -1323,10 +1326,17 @@ function _todoOpenViewDialog(viewId) {
       + '<b>Syntaxe des formules</b><br>'
       + '<code>=All</code>&ensp;tout afficher (aucun filtre)<br>'
       + '<code>=""</code>&ensp;vide / sans valeur<br>'
-      + '<code>A&nbsp;|&nbsp;B</code>&ensp;A <em>ou</em> B (plusieurs valeurs)<br>'
+      + '<code>A&nbsp;|&nbsp;B</code>&ensp;A <em>ou</em> B &mdash; OU logique<br>'
+      + '<code>A&nbsp;&amp;&nbsp;B</code>&ensp;A <em>et</em> B &mdash; ET logique<br>'
       + '<br><em>Mots-clés dates :</em><br>'
       + '<code>today</code>&ensp;<code>week</code>&ensp;<code>month</code><br>'
-      + '<em>Exemple :</em>&ensp;<code>week | =""</code>'
+      + '<em>Opérateurs dates :</em><br>'
+      + '<code>=JJ/MM/AAAA</code>&ensp;<code>&gt;JJ/MM/AAAA</code>&ensp;<code>&lt;JJ/MM/AAAA</code><br>'
+      + '<code>&gt;=JJ/MM/AAAA</code>&ensp;<code>&lt;=JJ/MM/AAAA</code><br>'
+      + '<em>Exemples :</em><br>'
+      + '<code>week&nbsp;|&nbsp;=""</code>&ensp;&rarr; semaine ou sans date<br>'
+      + '<code>&gt;08/05/2026&nbsp;&amp;&nbsp;&lt;15/05/2026</code>&ensp;&rarr; entre deux dates<br>'
+      + '<code>François&nbsp;&amp;&nbsp;Vincent</code>&ensp;&rarr; les deux affectés'
       + '</span></span>';
     return `
       <div class="todo-vd-field-row">
