@@ -1340,11 +1340,11 @@
 .todo-vd-select-trigger.open  { border-color: var(--accent); }
 .todo-vd-select-trigger.open svg { transform: rotate(180deg); }
 .todo-vd-select-summary { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-/* Dropdown panel */
+/* Dropdown panel (flotte hors de la modale via JS fixed positioning) */
 .todo-vd-dropdown {
   border: 1px solid var(--border); border-radius: 6px;
-  margin-bottom: 10px; overflow: hidden;
-  background: var(--surface2);
+  overflow: hidden; background: var(--surface2);
+  box-shadow: 0 6px 20px rgba(0,0,0,.18);
 }
 .todo-vd-qbtn {
   font-size: 10px; color: var(--accent); cursor: pointer;

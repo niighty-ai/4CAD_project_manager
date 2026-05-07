@@ -1062,22 +1062,37 @@ function _vfSummary(formula, allVals, labelFn) {
   return labelFn ? terms.map(t => labelFn(t)).join(', ') : terms.join(', ');
 }
 
-/* Ouvre/ferme le dropdown d'un critère (ferme les autres) */
+/* Ouvre/ferme le dropdown d'un critère — le liste flotte hors de la modale */
 function _vfToggleDropdown(cls) {
   const dd      = document.getElementById(cls + 'Dropdown');
   const trigger = document.getElementById(cls + 'Field');
   if (!dd) return;
   const opening = dd.hidden;
-  document.querySelectorAll('.todo-vd-dropdown').forEach(el => { el.hidden = true; });
+
+  /* Ferme tous les dropdowns ouverts et les remet à leur place */
+  document.querySelectorAll('.todo-vd-dropdown:not([hidden])').forEach(el => {
+    el.hidden = true;
+    el.style.cssText = '';
+    if (el._origParent) { el._origParent.insertBefore(el, el._origNext || null); delete el._origParent; }
+  });
   document.querySelectorAll('.todo-vd-select-trigger').forEach(el => el.classList.remove('open'));
+
   if (opening) {
+    const rect = trigger.getBoundingClientRect();
+    /* Détache vers <body> pour positionner en overlay (sans agrandir la modale) */
+    dd._origParent = dd.parentElement;
+    dd._origNext   = dd.nextSibling;
+    document.body.appendChild(dd);
+    dd.style.cssText = `position:fixed;z-index:99999;top:${rect.bottom + 4}px;left:${rect.left}px;width:${rect.width}px;margin:0;`;
     dd.hidden = false;
-    trigger?.classList.add('open');
+    trigger.classList.add('open');
     setTimeout(() => {
       const handler = e => {
-        if (!dd.contains(e.target) && !trigger?.contains(e.target)) {
+        if (!dd.contains(e.target) && !trigger.contains(e.target)) {
           dd.hidden = true;
-          trigger?.classList.remove('open');
+          dd.style.cssText = '';
+          if (dd._origParent) { dd._origParent.insertBefore(dd, dd._origNext || null); delete dd._origParent; }
+          trigger.classList.remove('open');
           document.removeEventListener('click', handler);
         }
       };
@@ -1243,6 +1258,7 @@ function _todoOpenViewDialog(viewId) {
       </div>`;
     }).join('');
     const chevron = `<svg width="11" height="11" viewBox="0 0 12 12" fill="none" style="flex-shrink:0;transition:transform .15s"><path d="M2 4l4 4 4-4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+    const fmPlaceholder = values.filter(v => v !== '=""').slice(0, 2).join(' | ');
     return `
       <div class="todo-vd-field-row">
         <span class="todo-vd-field-label">${label}</span>
@@ -1251,19 +1267,17 @@ function _todoOpenViewDialog(viewId) {
           ${chevron}
         </div>
       </div>
-      <div class="todo-vd-dropdown" id="${cls}Dropdown" hidden onclick="event.stopPropagation()">
+      <div class="todo-vd-formula-row" style="margin-bottom:10px">
+        <span class="todo-vd-formula-lbl">Formule</span>
+        <input type="text" id="${cls}Formula" class="todo-vd-formula-input"
+               value="${_esc(formula || '=All')}"
+               placeholder="=All, ${fmPlaceholder || values.slice(0,2).join(' | ')}, …"
+               oninput="_vfFormulaInput('${cls}')">
+      </div>
+      <div class="todo-vd-dropdown" id="${cls}Dropdown" hidden>
         <div class="todo-vd-listbox" id="${cls}List">
           ${selectAllHtml}
           ${items}
-        </div>
-        ${custom ? `<div class="todo-vd-formula-hint" style="padding:4px 10px 0">Formule personnalisée</div>` : ''}
-        <div class="todo-vd-formula-row" style="padding:6px 10px 8px">
-          <span class="todo-vd-formula-lbl">Formule</span>
-          <input type="text" id="${cls}Formula" class="todo-vd-formula-input"
-                 value="${_esc(formula || '=All')}"
-                 placeholder="=All, ${values.slice(0,2).join(' | ')}, …"
-                 oninput="_vfFormulaInput('${cls}')"
-                 onclick="event.stopPropagation()">
         </div>
       </div>`
   };
@@ -1328,5 +1342,7 @@ function _todoSubmitViewDialog(viewId) {
 
 /* ── Fermeture dialog ── */
 function _todoCloseDialog() {
+  /* Retire les dropdowns flottants éventuellement attachés au body */
+  document.querySelectorAll('.todo-vd-dropdown').forEach(el => el.remove());
   document.getElementById('todoDialogOverlay')?.remove();
 }
