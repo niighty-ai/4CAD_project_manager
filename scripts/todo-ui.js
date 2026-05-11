@@ -571,8 +571,8 @@ function _todoTaskRowHtml(task, isSub) {
   const statusColor = _todoStatusColor(_todoFindStatus(statusName) || task.status);
 
   let meta = '';
-  /* Badge dossier en premier — vue globale ET vues personnalisées */
-  const _isViewOrAll = !_todoSelectedFolderId || (_todoSelectedFolderId || '').startsWith('view:');
+  /* Badge dossier en premier — vue globale, vues spéciales (inbox, overdue) et vues personnalisées */
+  const _isViewOrAll = !_todoSelectedFolderId || (_todoSelectedFolderId || '').startsWith('view:') || _todoSelectedFolderId === 'overdue' || _todoSelectedFolderId === 'inbox';
   if (_isViewOrAll && task.folderId && !isSub) {
     const folder = _todoData.folders.find(f => f.id === task.folderId);
     if (folder) {
