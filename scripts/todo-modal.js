@@ -769,8 +769,10 @@ function _tmUnshare(uid) {
 
 /* ── Palette couleurs pour types/statuts ── */
 const _TM_TAG_COLORS = [
-  '#EC7206','#e53935','#8e24aa','#1e88e5','#43a047',
-  '#fb8c00','#6d4c41','#546e7a','#00897b','#f06292'
+  '#e53935','#e91e63','#8e24aa','#5c6bc0',
+  '#1e88e5','#00acc1','#00897b','#43a047',
+  '#c0ca33','#f9a825','#fb8c00','#EC7206',
+  '#f06292','#6d4c41','#546e7a','#78909c'
 ];
 let _tmTagPickedColor = _TM_TAG_COLORS[0];
 
@@ -781,7 +783,7 @@ function _tmShowColorPanel(anchorEl, currentColor, onPick) {
   panel.id = 'tmDotColorPanel';
   panel.style.cssText = 'position:fixed;z-index:1400;background:var(--surface);' +
     'border:1px solid var(--border);border-radius:8px;padding:8px;' +
-    'display:flex;flex-wrap:wrap;gap:5px;width:148px;box-shadow:0 4px 16px var(--shadow)';
+    'display:flex;flex-wrap:wrap;gap:5px;width:200px;box-shadow:0 4px 16px var(--shadow)';
   _TM_TAG_COLORS.forEach(c => {
     const sw = document.createElement('div');
     sw.style.cssText = `width:18px;height:18px;border-radius:50%;background:${c};cursor:pointer;` +
@@ -888,7 +890,7 @@ function _tmTagEditOpen(kind, name, color) {
                         if(event.key==='Escape'){_tmTagRefresh('${kind}');}">
       <div class="tm-color-picker-row" id="tmEditColorPicker" style="display:none;position:absolute;
            background:var(--surface);border:1px solid var(--border);border-radius:7px;
-           padding:6px;box-shadow:0 4px 16px var(--shadow);z-index:1300;flex-wrap:wrap;gap:5px;width:160px">
+           padding:6px;box-shadow:0 4px 16px var(--shadow);z-index:1300;flex-wrap:wrap;gap:5px;width:210px">
         ${_TM_TAG_COLORS.map(c => `
           <div style="width:16px;height:16px;border-radius:50%;background:${c};cursor:pointer;
                border:2px solid ${c === color ? 'var(--text)' : 'transparent'};flex-shrink:0"

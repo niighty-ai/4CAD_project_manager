@@ -1002,8 +1002,10 @@ function _todoConfirmDeleteView(id) {
    ══════════════════════════════════════════ */
 
 const _FOLDER_COLORS = [
-  '#EC7206','#e53935','#8e24aa','#1e88e5',
-  '#43a047','#fb8c00','#6d4c41','#546e7a'
+  '#e53935','#e91e63','#8e24aa','#5c6bc0',
+  '#1e88e5','#00acc1','#00897b','#43a047',
+  '#c0ca33','#f9a825','#fb8c00','#EC7206',
+  '#f06292','#6d4c41','#546e7a','#78909c'
 ];
 
 /* ── Dialog Dossier (créer / renommer) ── */
