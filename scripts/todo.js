@@ -568,15 +568,40 @@ function _evalDateTerm(term, taskDate, now) {
     const moE = new Date(n0); moE.setMonth(moE.getMonth()+1);
     return d >= n0 && d <= moE;
   }
-  const m = term.trim().match(/^(>=|<=|>|<|=)(.+)$/);
+  const m = term.trim().match(/^(>=|<=|>|<|=)\s*(.+)$/);
   if (!m) return false;
+  const op = m[1], rhs = m[2].trim().toLowerCase();
+
+  /* Opérateur + mot-clé relatif (today / week / month) */
+  if (rhs === 'today' || rhs === 'week' || rhs === 'month') {
+    if (!taskDate) return false;
+    let lo, hi;
+    if (rhs === 'today') {
+      lo = new Date(now); lo.setHours(0,0,0,0);
+      hi = new Date(now); hi.setHours(23,59,59,999);
+    } else if (rhs === 'week') {
+      const dow = now.getDay() || 7;
+      lo = new Date(now); lo.setDate(now.getDate()-(dow-1)); lo.setHours(0,0,0,0);
+      hi = new Date(lo);  hi.setDate(lo.getDate()+6);        hi.setHours(23,59,59,999);
+    } else {
+      lo = new Date(now.getFullYear(), now.getMonth(), 1, 0,0,0,0);
+      hi = new Date(now.getFullYear(), now.getMonth()+1, 0, 23,59,59,999);
+    }
+    if (op === '<=') return d <= hi;
+    if (op === '>=') return d >= lo;
+    if (op === '<')  return d <  lo;
+    if (op === '>')  return d >  hi;
+    return false;
+  }
+
+  /* Opérateur + date littérale JJ/MM/AAAA ou YYYY-MM-DD */
   const ref = _parseFmDate(m[2]);
   if (!ref) return false;
-  if (m[1] === '=')  return d.getTime() === ref.getTime();
-  if (m[1] === '>')  return d > ref;
-  if (m[1] === '<')  return d < ref;
-  if (m[1] === '>=') return d >= ref;
-  if (m[1] === '<=') return d <= ref;
+  if (op === '=')  return d.getTime() === ref.getTime();
+  if (op === '>')  return d > ref;
+  if (op === '<')  return d < ref;
+  if (op === '>=') return d >= ref;
+  if (op === '<=') return d <= ref;
   return false;
 }
 
