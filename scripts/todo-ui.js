@@ -591,15 +591,17 @@ function _todoTaskRowHtml(task, isSub) {
 
   let meta = '';
   /* Badge dossier en premier — vue globale, vues spéciales (inbox, overdue) et vues personnalisées */
-  const _isViewOrAll = !_todoSelectedFolderId || (_todoSelectedFolderId || '').startsWith('view:') || _todoSelectedFolderId === 'overdue' || _todoSelectedFolderId === 'inbox';
-  if (_isViewOrAll && task.folderId && !isSub) {
-    const folder = _todoData.folders.find(f => f.id === task.folderId);
-    if (folder) {
-      meta += `<span class="todo-pill todo-pill-folder" style="--c:${folder.color || '#888'}">
+  const _isViewOrAll = !_todoSelectedFolderId || (_todoSelectedFolderId || '').startsWith('view:') || _todoSelectedFolderId === 'overdue' || _todoSelectedFolderId === 'inbox' || _todoSelectedFolderId === 'shared';
+  if (_isViewOrAll && !isSub) {
+    const folder     = task.folderId ? _todoData.folders.find(f => f.id === task.folderId) : null;
+    const folderName = folder ? folder.name : (task._ownerFolderName || null);
+    const folderColor = folder ? (folder.color || '#888') : '#546e7a';
+    if (folderName) {
+      meta += `<span class="todo-pill todo-pill-folder" style="--c:${folderColor}">
         <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
         </svg>
-        ${_esc(folder.name)}</span>`;
+        ${_esc(folderName)}</span>`;
     }
   }
   if (task.priority) {

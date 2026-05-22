@@ -83,6 +83,7 @@ function _todoReadLS() {
 /* ── Sauvegarde Firebase (debouncée 200 ms) ───────────────────────────────── */
 function _todoSave() {
   _todoWriteLS();
+  _todoSaveTs = Date.now(); /* bloquer _fbOnTodoData immédiatement (pas seulement dans le timer) */
   clearTimeout(_todoSaveTimer);
   _todoSaveTimer = setTimeout(() => {
     if (!currentUserId || typeof window._fbSetTodoData !== 'function') return;
