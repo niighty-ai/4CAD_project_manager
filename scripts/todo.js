@@ -149,9 +149,8 @@ function _startTodoLoad(userId) {
     });
   }
 
-  /* Écoute des tâches partagées avec moi
-     Les refs sont indexées par email (seul identifiant connu du partageur) */
-  const sharesKey = _todoIsAdmin() ? null : (currentUserEmail || null);
+  /* Écoute des tâches partagées avec moi */
+  const sharesKey = currentUserEmail || null;
   if (_todoIsAdmin()) {
     /* Admin : écoute de toutes les tâches partagées dans la base */
     if (typeof window._fbOnAllSharedTasks === 'function') {
@@ -167,24 +166,17 @@ function _startTodoLoad(userId) {
         if (currentView === 'todo') _todoRender();
       });
     }
-  } else if (sharesKey && typeof window._fbOnTodoShares === 'function') {
-    console.log('[todo-share] écoute todo_shares pour:', sharesKey);
-    window._fbOnTodoShares(sharesKey, refs => {
-      console.log('[todo-share] refs reçues:', refs);
+  } else if (sharesKey && typeof window._fbOnSharedTasksForEmail === 'function') {
+    window._fbOnSharedTasksForEmail(sharesKey, tasks => {
       _todoSharedTasks = {};
       _todoSharedTasksOwner = {};
-      const ids = Object.keys(refs || {});
-      let remaining = ids.length;
-      if (remaining === 0) { if (currentView === 'todo') _todoRender(); return; }
-      ids.forEach(taskId => {
-        _todoSharedTasksOwner[taskId] = refs[taskId];
-        window._fbGetSharedTask(taskId, data => {
-          console.log('[todo-share] tâche reçue', taskId, ':', data ? 'OK' : 'null');
-          if (data) _todoSharedTasks[taskId] = data;
-          remaining--;
-          if (remaining === 0 && currentView === 'todo') _todoRender();
-        });
+      tasks.forEach(t => {
+        if (t && t.id) {
+          _todoSharedTasks[t.id] = t;
+          if (t.createdBy) _todoSharedTasksOwner[t.id] = t.createdBy;
+        }
       });
+      if (currentView === 'todo') _todoRender();
     });
   }
 }
@@ -533,16 +525,6 @@ function _todoShareTask(taskId, targetUserId) {
     }
   });
 
-  /* Ajout des références chez le destinataire (clé = email destinataire, valeur = email propriétaire) */
-  if (typeof window._fbAddTodoShares === 'function') {
-    const ownerKey = currentUserEmail || currentUserId;
-    const refs = { [task.id]: ownerKey };
-    subtasks.forEach(sub => { refs[sub.id] = ownerKey; });
-    console.log('[todo-share] écriture todo_shares pour:', targetUserId, 'refs:', refs);
-    window._fbAddTodoShares(targetUserId, refs)
-      .then(() => console.log('[todo-share] écriture OK'))
-      .catch(e => console.error('[todo-share] écriture ERREUR:', e));
-  }
   _todoSave();
 }
 
