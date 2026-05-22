@@ -172,3 +172,30 @@ window._fbOnMySharedTasks = (ownerEmail, cb) =>
     });
     cb(tasks);
   });
+
+/* ── Notifications en temps réel (clé = email encodé) ── */
+window._fbWriteNotif = (userKey, notif) =>
+  set(ref(_fbDb, 'notifications/' + userKey + '/' + notif.id), notif);
+
+window._fbOnNotifs = (userKey, cb) =>
+  onValue(ref(_fbDb, 'notifications/' + userKey), snap => {
+    const val = snap.val() || {};
+    cb(Object.values(val));
+  });
+
+window._fbMarkNotifRead = (userKey, notifId) =>
+  update(ref(_fbDb, 'notifications/' + userKey + '/' + notifId), {
+    read: true, readAt: new Date().toISOString()
+  });
+
+window._fbDeleteNotif = (userKey, notifId) =>
+  remove(ref(_fbDb, 'notifications/' + userKey + '/' + notifId));
+
+/* ── Préférences de notification ── */
+window._fbGetNotifPrefs = (userKey, cb) =>
+  get(ref(_fbDb, 'notification_prefs/' + userKey))
+    .then(snap => cb(snap.val()))
+    .catch(() => cb(null));
+
+window._fbSetNotifPrefs = (userKey, prefs) =>
+  set(ref(_fbDb, 'notification_prefs/' + userKey), prefs);
