@@ -24,18 +24,20 @@ function _todoOpenModalSub(subId, parentId) {
 
 /* ── Fermeture (avec validation Type + Statut obligatoires) ── */
 function _todoCloseModal() {
-  const task = _todoData.tasks.find(t => t.id === _todoModalTaskId);
-  if (task) {
-    const typeName   = typeof task.type   === 'object' ? task.type?.name   : task.type;
-    const statusName = typeof task.status === 'object' ? task.status?.name : task.status;
-    if (!typeName || !statusName) {
-      const missing = [!typeName && 'Type', !statusName && 'Statut'].filter(Boolean).join(' et ');
-      _todoShowToast(`⚠ ${missing} obligatoire(s) — veuillez renseigner avant de fermer`);
-      /* Mise en évidence visuelle */
-      document.querySelectorAll('.tm-required-missing').forEach(el => el.classList.remove('tm-required-missing'));
-      if (!typeName)   document.getElementById('tmPropType')?.classList.add('tm-required-missing');
-      if (!statusName) document.getElementById('tmPropStatus')?.classList.add('tm-required-missing');
-      return;
+  /* Pas de validation pour les tâches reçues */
+  if (!_todoIsReceivedShared(_todoModalTaskId)) {
+    const task = _todoData.tasks.find(t => t.id === _todoModalTaskId);
+    if (task) {
+      const typeName   = typeof task.type   === 'object' ? task.type?.name   : task.type;
+      const statusName = typeof task.status === 'object' ? task.status?.name : task.status;
+      if (!typeName || !statusName) {
+        const missing = [!typeName && 'Type', !statusName && 'Statut'].filter(Boolean).join(' et ');
+        _todoShowToast(`⚠ ${missing} obligatoire(s) — veuillez renseigner avant de fermer`);
+        document.querySelectorAll('.tm-required-missing').forEach(el => el.classList.remove('tm-required-missing'));
+        if (!typeName)   document.getElementById('tmPropType')?.classList.add('tm-required-missing');
+        if (!statusName) document.getElementById('tmPropStatus')?.classList.add('tm-required-missing');
+        return;
+      }
     }
   }
   document.getElementById('todoModalOverlay')?.remove();
@@ -101,12 +103,12 @@ function _tmModalHtml(task) {
               Sous-tâches
             </div>
             <div class="todo-subtask-list" id="tmSubtasks"></div>
-            <div class="todo-add-subtask" onclick="_tmAddSubtask()">
+            ${!_todoIsReceivedShared(task.id) ? `<div class="todo-add-subtask" onclick="_tmAddSubtask()">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
                 <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
               </svg>
               Ajouter une sous-tâche
-            </div>
+            </div>` : ''}
           </div>
 
           <!-- Commentaires -->
@@ -163,7 +165,7 @@ function _tmModalHtml(task) {
 
 /* ── Rendu complet de la modale ── */
 function _todoRenderModal() {
-  const task = _todoData.tasks.find(t => t.id === _todoModalTaskId);
+  const task = _todoFindTask(_todoModalTaskId);
   if (!task) { document.getElementById('todoModalOverlay')?.remove(); return; }
 
   const existing = document.getElementById('todoModalOverlay');
@@ -193,7 +195,8 @@ function _tmAutoResize(el) {
 
 /* ── Bascule vue/édition pour le titre ── */
 function _tmEditTitle(e) {
-  if (e?.target?.tagName === 'A') return; // lien cliqué → ne pas passer en édition
+  if (e?.target?.tagName === 'A') return;
+  if (_todoIsReceivedShared(_todoModalTaskId)) return; /* lecture seule pour les tâches reçues */
   _tmBackToParent();
   document.getElementById('tmTitleView').style.display = 'none';
   const editEl = document.getElementById('tmTitleEdit');
@@ -207,6 +210,7 @@ function _tmEditTitle(e) {
 /* ── Bascule vue/édition pour la description ── */
 function _tmEditDesc(e) {
   if (e?.target?.tagName === 'A') return;
+  if (_todoIsReceivedShared(_todoModalTaskId)) return; /* lecture seule pour les tâches reçues */
   _tmBackToParent();
   document.getElementById('tmDescView').style.display = 'none';
   const editEl = document.getElementById('tmDescEdit');
@@ -258,12 +262,17 @@ function _tmSaveDesc() {
 function _tmRenderSubtasks() {
   const el = document.getElementById('tmSubtasks');
   if (!el) return;
-  const subs = _todoData.tasks.filter(t => t.parentId === _todoModalTaskId);
+  const received = _todoIsReceivedShared(_todoModalTaskId);
+  /* Pour une tâche reçue, les sous-tâches sont dans _todoSharedTasks */
+  const subs = received
+    ? Object.values(_todoSharedTasks).filter(t => t && t.parentId === _todoModalTaskId)
+    : _todoData.tasks.filter(t => t.parentId === _todoModalTaskId);
   if (!subs.length) { el.innerHTML = ''; return; }
   el.innerHTML = subs.map(st => {
     const isActive = st.id === _tmActiveSubId;
     const inputId  = `tmSubInput_${st.id}`;
-    const titlePart = isActive
+    /* En mode reçu : titre non éditable, pas de bouton supprimer */
+    const titlePart = (!received && isActive)
       ? `<input type="text" id="${inputId}" value="${_esc(st.title)}"
                onclick="event.stopPropagation()"
                onfocus="_tmFocusSub('${st.id}')"
@@ -286,12 +295,12 @@ function _tmRenderSubtasks() {
         </svg>
       </div>
       ${titlePart}
-      <div class="todo-subtask-del" title="Supprimer"
+      ${!received ? `<div class="todo-subtask-del" title="Supprimer"
            onclick="event.stopPropagation();_tmDeleteSubtask('${st.id}')">
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
           <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
         </svg>
-      </div>
+      </div>` : ''}
     </div>`;
   }).join('');
 }
@@ -318,6 +327,7 @@ function _tmBackToParent() {
 }
 
 function _tmAddSubtask() {
+  if (_todoIsReceivedShared(_todoModalTaskId)) return; /* pas d'ajout sur tâche reçue */
   const task = _todoData.tasks.find(t => t.id === _todoModalTaskId);
   if (!task) return;
   const st = _todoCreateTask('Nouvelle sous-tâche', task.folderId, _todoModalTaskId);
@@ -351,7 +361,7 @@ function _tmRenderComments() {
   const el = document.getElementById('tmComments');
   if (!el) return;
   const activeId = _tmActiveSubId || _todoModalTaskId;
-  const task     = _todoData.tasks.find(t => t.id === activeId);
+  const task     = _todoFindTask(activeId);
   const comments = task?.comments || [];
   if (!comments.length) { el.innerHTML = ''; return; }
 
@@ -397,7 +407,7 @@ function _tmSubmitComment() {
 
 function _tmEditComment(commentId) {
   const activeId = _tmActiveSubId || _todoModalTaskId;
-  const task = _todoData.tasks.find(t => t.id === activeId);
+  const task = _todoFindTask(activeId);
   const c    = (task?.comments || []).find(c => c.id === commentId);
   if (!c) return;
 
@@ -443,15 +453,21 @@ function _tmRenderRight() {
   if (!el) return;
 
   /* Tâche affichée : sous-tâche active ou parent */
-  const activeId = _tmActiveSubId || _todoModalTaskId;
-  const task     = _todoData.tasks.find(t => t.id === activeId);
+  const activeId   = _tmActiveSubId || _todoModalTaskId;
+  const task       = _todoFindTask(activeId);
   if (!task) return;
-  const isSub    = !!_tmActiveSubId;
+  const isSub      = !!_tmActiveSubId;
+  const isReceived = _todoIsReceivedShared(_todoModalTaskId); /* tâche reçue (pas possédée) */
 
-  const parent   = isSub ? _todoData.tasks.find(t => t.id === _todoModalTaskId) : null;
+  const parent   = isSub ? _todoFindTask(_todoModalTaskId) : null;
   const folders  = _todoData.folders;
-  const types    = _todoData.settings.taskTypes;
-  const statuses = _todoData.settings.taskStatuses;
+  /* Pour une tâche reçue, les statuts/types viennent des settings du créateur */
+  const types    = isReceived
+    ? (task._ownerSettings?.taskTypes    || _todoData.settings.taskTypes)
+    : _todoData.settings.taskTypes;
+  const statuses = isReceived
+    ? (task._ownerSettings?.taskStatuses || _todoData.settings.taskStatuses)
+    : _todoData.settings.taskStatuses;
   const recTypes = [
     { val:'none',    label:'Pas de récurrence' },
     { val:'daily',   label:'Tous les jours' },
@@ -509,6 +525,101 @@ function _tmRenderRight() {
         </select>
       </div>
     </div>`;
+
+  if (isReceived) {
+    /* ── Mode tâche reçue : champs limités ── */
+    const ownerEmail = task.createdBy || '';
+    const folderName = task._ownerFolderName || (task.folderId ? `Dossier #${task.folderId.slice(-4)}` : '—');
+    el.innerHTML = `
+      ${breadcrumb}
+
+      <!-- Bandeau "Partagée par" -->
+      <div class="todo-prop" style="background:rgba(99,102,241,.07);border-radius:6px;padding:6px 10px;margin-bottom:4px">
+        <div style="font-size:10px;color:var(--muted);margin-bottom:2px">Partagée par</div>
+        <div style="display:flex;align-items:center;gap:6px">
+          <div class="todo-comment-avatar" style="width:22px;height:22px;font-size:9px;flex-shrink:0">${_todoInitials(ownerEmail)}</div>
+          <span style="font-size:11px;overflow:hidden;text-overflow:ellipsis">${_esc(_todoShortName(ownerEmail) || ownerEmail)}</span>
+        </div>
+      </div>
+
+      <!-- Priorité (lecture seule) -->
+      <div class="todo-prop">
+        <div class="todo-prop-label">Priorité</div>
+        <div class="todo-priority-opts">
+          ${['P1','P2','P3','P4'].map(p => `
+            <div class="todo-priority-opt ${p.toLowerCase()} ${task.priority === p ? 'selected' : ''}"
+                 style="pointer-events:none;opacity:${task.priority === p ? '1' : '0.35'}">${p}</div>`).join('')}
+        </div>
+      </div>
+
+      <!-- Type (lecture seule) -->
+      <div class="todo-prop">
+        <div class="todo-prop-label">Type
+          <span style="margin-left:auto;font-size:9px;color:var(--muted);font-style:italic">Lecture seule</span>
+        </div>
+        <div class="todo-prop-value">
+          ${curTypeName ? `<span class="tm-color-dot" style="background:${curTypeColor}"></span>` : ''}
+          <span style="font-size:12px;color:var(--text)">${_esc(curTypeName) || '—'}</span>
+        </div>
+      </div>
+
+      <!-- Statut (modifiable avec les statuts du créateur) -->
+      <div class="todo-prop" id="tmPropStatus">
+        <div class="todo-prop-label">Statut</div>
+        <div class="todo-prop-value">
+          ${curStatusName ? `<span class="tm-color-dot" style="background:${curStatusColor}"></span>` : ''}
+          <select onchange="_tmSetStatusShared(this.value)">
+            <option value="">— Aucun —</option>
+            ${statuses.map(s => {
+              const n = tName(s);
+              return `<option value="${_esc(n)}" ${curStatusName === n ? 'selected' : ''}>${_esc(n)}</option>`;
+            }).join('')}
+          </select>
+        </div>
+      </div>
+
+      <!-- Échéance (lecture seule) -->
+      <div class="todo-prop">
+        <div class="todo-prop-label">Échéance</div>
+        <div class="todo-prop-value" style="padding:4px 8px;font-size:12px;color:var(--text)">
+          ${task.dueDate ? _todoFmtDate(task.dueDate) : '—'}
+        </div>
+      </div>
+
+      <!-- Dossier (lecture seule, affiche le nom du dossier du créateur si disponible) -->
+      ${!isSub ? `
+      <div class="todo-prop">
+        <div class="todo-prop-label">Dossier
+          <span style="margin-left:auto;font-size:9px;color:var(--muted);font-style:italic">Lecture seule</span>
+        </div>
+        <div class="todo-prop-value" style="padding:4px 8px;font-size:12px;color:var(--text)">${_esc(folderName)}</div>
+      </div>` : ''}
+
+      <!-- Responsables (modifiable) -->
+      <div class="todo-prop">
+        <div class="todo-prop-label">Responsable(s)</div>
+        <div class="todo-assignees" id="tmAssignees">
+          ${assigneeNames.map(n => `
+            <span class="todo-assignee-tag">
+              ${_esc(n)}
+              <span class="todo-assignee-remove" onclick="_tmRemoveAssignee('${_esc(n)}')">
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                  <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                </svg>
+              </span>
+            </span>`).join('')}
+        </div>
+        <div style="position:relative;margin-top:4px">
+          <input class="todo-dialog-input" id="tmAssigneeInput"
+                 placeholder="Ajouter un responsable…" autocomplete="off"
+                 style="margin:0;font-size:11px;padding:5px 8px"
+                 oninput="_tmAssigneeSearch(this.value)"
+                 onkeydown="_tmAssigneeKey(event)">
+          <div class="todo-assignee-dropdown" id="tmAssigneeDropdown" style="display:none"></div>
+        </div>
+      </div>`;
+    return;
+  }
 
   el.innerHTML = `
     ${breadcrumb}
@@ -618,7 +729,7 @@ function _tmRenderRight() {
         ${(task.sharedWith || []).map(uid => `
           <div class="todo-share-item">
             <div class="todo-comment-avatar" style="width:22px;height:22px;font-size:9px">${_todoInitials(uid)}</div>
-            <span style="font-size:11px;overflow:hidden;text-overflow:ellipsis">${_esc(uid)}</span>
+            <span style="font-size:11px;overflow:hidden;text-overflow:ellipsis">${_esc(_todoShortName(uid) || uid)}</span>
             <span class="todo-share-remove" onclick="_tmUnshare('${_esc(uid)}')">
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
@@ -626,13 +737,7 @@ function _tmRenderRight() {
             </span>
           </div>`).join('')}
       </div>
-      <div style="display:flex;gap:6px;margin-top:6px">
-        <input class="todo-dialog-input" id="tmShareInput" placeholder="Email utilisateur…"
-               style="margin:0;font-size:11px;padding:5px 8px;flex:1"
-               onkeydown="if(event.key==='Enter')_tmShareSubmit()">
-        <button class="todo-dialog-ok" style="padding:5px 10px;font-size:11px;white-space:nowrap"
-                onclick="_tmShareSubmit()">Partager</button>
-      </div>
+      ${_tmSharePickerHtml()}
     </div>` : ''}`;
 }
 
@@ -694,7 +799,7 @@ function _tmAssigneeSearch(val) {
   const q = val.trim().toLowerCase();
   if (!q) { drop.style.display = 'none'; return; }
   const activeId = _tmActiveSubId || _todoModalTaskId;
-  const task   = _todoData.tasks.find(t => t.id === activeId);
+  const task   = _todoFindTask(activeId);
   const already= (task?.assignees || []).map(a => (a.name || a).toLowerCase());
   const matches= _todoGetResources().filter(n => n.toLowerCase().includes(q) && !already.includes(n.toLowerCase()));
   if (!matches.length) { drop.style.display = 'none'; return; }
@@ -717,12 +822,16 @@ function _tmAssigneeKey(e) {
 
 function _tmPickAssignee(name) {
   const activeId = _tmActiveSubId || _todoModalTaskId;
-  const task = _todoData.tasks.find(t => t.id === activeId);
+  const task = _todoFindTask(activeId);
   if (!task) return;
   const assignees = task.assignees || [];
   if (assignees.find(a => (a.name || a) === name)) return;
   assignees.push({ name });
-  _todoUpdateTask(activeId, { assignees });
+  if (_todoIsReceivedShared(activeId)) {
+    _todoUpdateSharedTask(activeId, { assignees });
+  } else {
+    _todoUpdateTask(activeId, { assignees });
+  }
   document.getElementById('tmAssigneeInput').value = '';
   document.getElementById('tmAssigneeDropdown').style.display = 'none';
   _todoRenderTaskList();
@@ -744,26 +853,80 @@ function _tmPickAssignee(name) {
 
 function _tmRemoveAssignee(name) {
   const activeId = _tmActiveSubId || _todoModalTaskId;
-  const task = _todoData.tasks.find(t => t.id === activeId);
+  const task = _todoFindTask(activeId);
   if (!task) return;
   task.assignees = (task.assignees || []).filter(a => (a.name || a) !== name);
-  _todoUpdateTask(activeId, { assignees: task.assignees });
+  if (_todoIsReceivedShared(activeId)) {
+    _todoUpdateSharedTask(activeId, { assignees: task.assignees });
+  } else {
+    _todoUpdateTask(activeId, { assignees: task.assignees });
+  }
   _todoRenderTaskList();
   _tmRenderRight();
 }
 
-/* ── Partage ── */
-function _tmShareSubmit() {
-  const input = document.getElementById('tmShareInput');
-  const uid   = input?.value.trim();
-  if (!uid) return;
-  _todoShareTask(_todoModalTaskId, uid);
-  input.value = '';
-  _tmRenderRight();
-  _todoShowToast('Tâche partagée');
+/* ── Partage — sélecteur de ressources ── */
+
+/* Génère le HTML du sélecteur de ressource pour le partage */
+function _tmSharePickerHtml() {
+  return `<div style="position:relative;margin-top:6px">
+    <input class="todo-dialog-input" id="tmShareInput"
+           placeholder="Rechercher une ressource…" autocomplete="off"
+           style="margin:0;font-size:11px;padding:5px 8px;width:100%;box-sizing:border-box"
+           oninput="_tmShareSearch(this.value)"
+           onkeydown="if(event.key==='Escape'){document.getElementById('tmShareDropdown').style.display='none';this.value='';}">
+    <div id="tmShareDropdown" class="todo-assignee-dropdown" style="display:none"></div>
+  </div>`;
 }
+
+function _tmShareSearch(val) {
+  const drop = document.getElementById('tmShareDropdown');
+  if (!drop) return;
+  const q = val.trim().toLowerCase();
+  if (!q) { drop.style.display = 'none'; return; }
+  const task    = _todoData.tasks.find(t => t.id === _todoModalTaskId);
+  const already = (task?.sharedWith || []);
+  const matches = _todoGetResources().filter(name => {
+    if (name.toLowerCase().indexOf(q) === -1) return false;
+    const email = _resourceToEmail(name);
+    if (!email) return false; /* pas d'email @4cad.fr → bloqué */
+    return !already.includes(email);
+  });
+  if (!matches.length) { drop.style.display = 'none'; return; }
+  drop.style.display = 'block';
+  drop.innerHTML = matches.slice(0, 8).map(n => {
+    const email = _resourceToEmail(n);
+    return `<div class="todo-assignee-opt" onclick="_tmShareWithResource('${_esc(n)}')">
+      <span>${_esc(n)}</span>
+      <span style="color:var(--muted);font-size:10px;margin-left:auto">${_esc(email)}</span>
+    </div>`;
+  }).join('');
+}
+
+function _tmShareWithResource(name) {
+  const email = _resourceToEmail(name);
+  if (!email) {
+    _todoShowToast('Impossible de déterminer l\'email de cette ressource');
+    return;
+  }
+  _todoShareTask(_todoModalTaskId, email);
+  const inp = document.getElementById('tmShareInput');
+  if (inp) inp.value = '';
+  document.getElementById('tmShareDropdown').style.display = 'none';
+  _tmRenderRight();
+  _todoShowToast(`Tâche partagée avec ${name}`);
+}
+
 function _tmUnshare(uid) {
   _todoUnshareTask(_todoModalTaskId, uid);
+  _tmRenderRight();
+}
+
+/* Setter statut pour une tâche reçue (sauvegarde sur Firebase shared) */
+function _tmSetStatusShared(s) {
+  const id = _tmActiveSubId || _todoModalTaskId;
+  _todoUpdateSharedTask(id, { status: s });
+  _todoRenderTaskList();
   _tmRenderRight();
 }
 
