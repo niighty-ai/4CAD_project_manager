@@ -354,6 +354,7 @@
                          border: 1px solid color-mix(in srgb, var(--c,#888) 25%, transparent); }
 .todo-pill-date.overdue { background: rgba(219,64,53,.12); color: #db4035; }
 .todo-pill-assignee    { background: rgba(114,182,236,.15); color: var(--blue); }
+.todo-pill-shared      { background: rgba(99,102,241,.12); color: #6366f1; border: 1px solid rgba(99,102,241,.2); }
 .todo-pill-type        { background: var(--surface2); color: var(--muted); border: 1px solid var(--border); }
 .todo-pill-status      { background: var(--surface2); color: var(--text); border: 1px solid var(--border); }
 .todo-pill-priority.p1 { background: rgba(219,64,53,.12); color: #db4035; }
