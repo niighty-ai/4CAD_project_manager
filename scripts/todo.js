@@ -233,12 +233,24 @@ function _todoIsReceivedShared(taskId) {
 function _todoUpdateSharedTask(taskId, updates) {
   const task = _todoSharedTasks[taskId];
   if (!task) return;
+  /* Capturer l'état avant modification pour les notifications */
+  const prevStatus    = typeof task.status === 'object' ? task.status?.name : task.status;
+  const prevCompleted = task.completed;
   Object.assign(task, updates, {
     updatedAt: new Date().toISOString(),
     updatedBy: (typeof currentUserEmail !== 'undefined' && currentUserEmail) ? currentUserEmail : null
   });
   if (typeof window._fbSetSharedTask === 'function') {
     window._fbSetSharedTask(taskId, task);
+  }
+  /* Notifications vers le propriétaire et les autres collaborateurs */
+  if (typeof _notifSendChange === 'function') {
+    if ('status' in updates) {
+      const v = typeof task.status === 'object' ? task.status?.name : task.status;
+      if (v !== prevStatus) _notifSendChange(task, 'status_change', v);
+    }
+    if ('completed' in updates && updates.completed !== prevCompleted)
+      _notifSendChange(task, 'completed', task.completed);
   }
 }
 
@@ -363,11 +375,30 @@ function _todoCreateTask(title, folderId, parentId) {
 function _todoUpdateTask(taskId, updates) {
   const task = _todoData.tasks.find(t => t.id === taskId);
   if (!task) return;
+  /* Capturer l'état avant modification pour les notifications */
+  const prevStatus   = typeof task.status   === 'object' ? task.status?.name   : task.status;
+  const prevType     = typeof task.type     === 'object' ? task.type?.name     : task.type;
+  const prevPriority = task.priority;
+  const prevDueDate  = task.dueDate;
   Object.assign(task, updates, { updatedAt: new Date().toISOString(), updatedBy: (typeof currentUserEmail !== 'undefined' && currentUserEmail) ? currentUserEmail : null });
   _todoSave();
-  /* Sync tâche partagée */
+  /* Sync tâche partagée + notifications */
   if (task.sharedWith && task.sharedWith.length > 0) {
     _todoSyncShared(task);
+    if (typeof _notifSendChange === 'function') {
+      if ('status' in updates) {
+        const v = typeof task.status === 'object' ? task.status?.name : task.status;
+        if (v !== prevStatus) _notifSendChange(task, 'status_change', v);
+      }
+      if ('type' in updates) {
+        const v = typeof task.type === 'object' ? task.type?.name : task.type;
+        if (v !== prevType) _notifSendChange(task, 'type_change', v);
+      }
+      if ('priority' in updates && task.priority !== prevPriority)
+        _notifSendChange(task, 'priority_change', task.priority);
+      if ('dueDate' in updates && task.dueDate !== prevDueDate)
+        _notifSendChange(task, 'date_change');
+    }
   }
 }
 
@@ -455,7 +486,11 @@ function _todoCompleteTask(taskId) {
   }
   _todoTouchTask(task);
   _todoSave();
-  if (task.sharedWith && task.sharedWith.length > 0) _todoSyncShared(task);
+  if (task.sharedWith && task.sharedWith.length > 0) {
+    _todoSyncShared(task);
+    if (typeof _notifSendChange === 'function')
+      _notifSendChange(task, 'completed', task.completed);
+  }
   _todoRenderTaskList();
   if (typeof _todoRenderSidebar === 'function') _todoRenderSidebar();
 }
@@ -475,6 +510,9 @@ function _todoAddComment(taskId, text) {
       updatedAt:  null
     });
     _todoUpdateSharedTask(taskId, { comments: task.comments });
+    /* Notification commentaire (tâche reçue) — sans passer par _todoUpdateSharedTask
+       pour éviter un doublon avec le hook 'completed'/'status' déjà dedans */
+    if (typeof _notifSendChange === 'function') _notifSendChange(task, 'comment');
     return;
   }
   const task = _todoData.tasks.find(t => t.id === taskId);
@@ -490,7 +528,10 @@ function _todoAddComment(taskId, text) {
   });
   _todoTouchTask(task);
   _todoSave();
-  if (task.sharedWith && task.sharedWith.length > 0) _todoSyncShared(task);
+  if (task.sharedWith && task.sharedWith.length > 0) {
+    _todoSyncShared(task);
+    if (typeof _notifSendChange === 'function') _notifSendChange(task, 'comment');
+  }
 }
 
 function _todoEditComment(taskId, commentId, text) {
@@ -567,6 +608,10 @@ function _todoShareTask(taskId, targetUserId) {
   });
 
   _todoSave();
+
+  /* Notification d'assignation vers le nouveau destinataire uniquement */
+  if (typeof _notifSendChange === 'function')
+    _notifSendChange(task, 'assigned', null, targetUserId);
 }
 
 function _todoUnshareTask(taskId, targetUserId) {

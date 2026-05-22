@@ -1,0 +1,386 @@
+/* ════════════════════════════════════════════════════════════════════
+   notifications.css — Cloche, badge, dropdown, toast, préférences
+   ════════════════════════════════════════════════════════════════════ */
+
+/* ── Wrapper (position relative pour ancrer le dropdown) ── */
+#notifWrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+/* ── Bouton cloche ── */
+.notif-btn {
+  position: relative;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: var(--muted);
+  transition: border-color .15s, color .15s;
+  flex-shrink: 0;
+  padding: 0;
+}
+.notif-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.notif-btn svg {
+  pointer-events: none;
+}
+
+/* ── Badge rouge ── */
+#notifBadge {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  background: #e74c3c;
+  color: #fff;
+  font-size: 9px;
+  font-weight: 700;
+  font-family: Arial, sans-serif;
+  min-width: 16px;
+  height: 16px;
+  border-radius: 8px;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 0 3px;
+  pointer-events: none;
+  box-sizing: border-box;
+  line-height: 1;
+}
+
+/* ── Dropdown ── */
+#notifDrop {
+  display: none;
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  width: 340px;
+  max-height: 500px;
+  overflow-y: auto;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 8px 32px rgba(0,0,0,.2);
+  z-index: 8000;
+  font-family: Arial, sans-serif;
+}
+
+/* ── Barre d'en-tête du dropdown ── */
+.notif-header-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px 8px;
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text);
+  position: sticky;
+  top: 0;
+  background: var(--surface);
+  z-index: 2;
+}
+.notif-mark-all-btn {
+  background: none;
+  border: none;
+  font-size: 10px;
+  color: var(--accent);
+  cursor: pointer;
+  font-family: Arial, sans-serif;
+  padding: 2px 4px;
+  border-radius: 3px;
+  transition: background .12s;
+}
+.notif-mark-all-btn:hover {
+  background: rgba(236,114,6,.1);
+}
+
+/* ── Séparateur de section ── */
+.notif-sep-label {
+  padding: 7px 14px 3px;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: .8px;
+  text-transform: uppercase;
+  color: var(--accent);
+  background: var(--surface);
+  position: sticky;
+  top: 41px;
+  z-index: 1;
+}
+.notif-sep-label--muted {
+  color: var(--muted);
+}
+
+/* ── Élément de notification ── */
+.notif-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 14px;
+  cursor: pointer;
+  border-bottom: 1px solid var(--border);
+  transition: background .12s;
+  position: relative;
+  text-decoration: none;
+}
+.notif-item:last-child {
+  border-bottom: none;
+}
+.notif-item:hover {
+  background: var(--surface2);
+}
+.notif-item--read {
+  opacity: .6;
+}
+
+/* ── Icône de type ── */
+.notif-icon-col {
+  flex-shrink: 0;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 1px;
+}
+.notif-type-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+}
+.notif-icon-status_change   { color: #3498db; background: rgba(52,152,219,.12); }
+.notif-icon-type_change     { color: #9b59b6; background: rgba(155,89,182,.12); }
+.notif-icon-priority_change { color: #e67e22; background: rgba(230,126,34,.12); }
+.notif-icon-date_change     { color: #16a085; background: rgba(22,160,133,.12); }
+.notif-icon-completed       { color: #27ae60; background: rgba(39,174,96,.12);  }
+.notif-icon-comment         { color: #2980b9; background: rgba(41,128,185,.12); }
+.notif-icon-assigned        { color: var(--accent); background: rgba(236,114,6,.12); }
+
+/* ── Corps de la notification ── */
+.notif-body {
+  flex: 1;
+  min-width: 0;
+}
+.notif-task-name {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-bottom: 2px;
+}
+.notif-msg {
+  font-size: 11px;
+  color: var(--muted);
+  line-height: 1.4;
+}
+.notif-time {
+  font-size: 10px;
+  color: var(--muted);
+  margin-top: 3px;
+  opacity: .7;
+}
+
+/* ── Point bleu "non lu" ── */
+.notif-dot {
+  width: 8px;
+  height: 8px;
+  background: var(--accent);
+  border-radius: 50%;
+  flex-shrink: 0;
+  align-self: center;
+  margin-left: 2px;
+}
+
+/* ── Dropdown vide ── */
+.notif-empty {
+  padding: 32px 20px;
+  text-align: center;
+  color: var(--muted);
+  font-size: 13px;
+  font-family: Arial, sans-serif;
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   Toast d'assignation
+   ════════════════════════════════════════════════════════════════════ */
+.notif-assign-toast {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
+  border-radius: 8px;
+  box-shadow: 0 6px 28px rgba(0,0,0,.22);
+  padding: 12px 14px 12px 12px;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  max-width: 300px;
+  min-width: 220px;
+  z-index: 9500;
+  cursor: pointer;
+  font-family: Arial, sans-serif;
+  animation: natIn .25s cubic-bezier(.34,1.56,.64,1);
+}
+@keyframes natIn {
+  from { transform: translateX(110%); opacity: 0; }
+  to   { transform: translateX(0);    opacity: 1; }
+}
+.nat-bell {
+  color: var(--accent);
+  flex-shrink: 0;
+  margin-top: 1px;
+  display: flex;
+}
+.nat-body {
+  flex: 1;
+  min-width: 0;
+}
+.nat-title {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 2px;
+  text-transform: uppercase;
+  letter-spacing: .4px;
+}
+.nat-task {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.nat-from {
+  font-size: 10px;
+  color: var(--muted);
+  margin-top: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.nat-close {
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-size: 14px;
+  cursor: pointer;
+  padding: 0 2px;
+  border-radius: 3px;
+  flex-shrink: 0;
+  line-height: 1;
+  align-self: flex-start;
+  transition: color .12s;
+}
+.nat-close:hover {
+  color: var(--text);
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   Modal de préférences
+   ════════════════════════════════════════════════════════════════════ */
+.notif-prefs-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,.45);
+  z-index: 9000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: Arial, sans-serif;
+}
+.notif-prefs-modal {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  width: 360px;
+  box-shadow: 0 12px 40px rgba(0,0,0,.25);
+  overflow: hidden;
+}
+.notif-prefs-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text);
+}
+.notif-prefs-header button {
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-size: 16px;
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 3px;
+  transition: color .12s;
+}
+.notif-prefs-header button:hover {
+  color: var(--text);
+}
+.notif-prefs-body {
+  padding: 12px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.notif-pref-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 0;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--text);
+}
+.notif-pref-row:last-child {
+  border-bottom: none;
+}
+.notif-pref-row input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.notif-prefs-footer {
+  padding: 12px 18px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  justify-content: flex-end;
+}
+.notif-prefs-save-btn {
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 5px;
+  padding: 8px 20px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  font-family: Arial, sans-serif;
+  transition: background .15s;
+}
+.notif-prefs-save-btn:hover {
+  background: var(--accent-dark);
+}
