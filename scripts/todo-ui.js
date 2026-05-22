@@ -643,16 +643,34 @@ function _todoTaskRowHtml(task, isSub) {
   }
 
   if ((task.sharedWith || []).length > 0 && !_todoIsReceivedShared(task.id)) {
+    /* Propriétaire — flèche sortante ↗ + initiales des destinataires */
     const initials = e => (e.split('@')[0] || '').slice(0, 2).toUpperCase();
     const shown    = task.sharedWith.slice(0, 2).map(initials).join(' · ');
     const extra    = task.sharedWith.length > 2 ? ` · +${task.sharedWith.length - 2}` : '';
-    meta += `<span class="todo-pill todo-pill-shared">
+    meta += `<span class="todo-pill todo-pill-shared-owner">
       <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/>
         <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/>
         <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
       </svg>
+      <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+        <line x1="7" y1="17" x2="17" y2="7"/><polyline points="7 7 17 7 17 17"/>
+      </svg>
       ${_esc(shown + extra)}</span>`;
+  } else if (_todoIsReceivedShared(task.id)) {
+    /* Receveur — flèche entrante ↙ + initiales du propriétaire */
+    const ownerEmail    = task.createdBy || '';
+    const ownerInitials = ownerEmail ? (ownerEmail.split('@')[0] || '').slice(0, 2).toUpperCase() : '?';
+    meta += `<span class="todo-pill todo-pill-shared-received">
+      <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/>
+        <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/>
+        <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
+      </svg>
+      <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+        <line x1="17" y1="7" x2="7" y2="17"/><polyline points="17 17 7 17 7 7"/>
+      </svg>
+      ${_esc(ownerInitials)}</span>`;
   }
 
   if (task.recurrence && task.recurrence.type !== 'none') {
