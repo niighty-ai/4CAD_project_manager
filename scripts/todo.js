@@ -179,6 +179,31 @@ function _startTodoLoad(userId) {
       if (currentView === 'todo') _todoRender();
     });
   }
+
+  /* Propriétaire : rapatrie les modifications faites par les destinataires
+     (statut, responsables, commentaires, complétion) dans _todoData.tasks.
+     Ne se déclenche que quand updatedBy est un email différent du propriétaire,
+     ce qui évite l'écho des propres écritures de l'owner via _todoSyncShared. */
+  if (!_todoIsAdmin() && currentUserEmail && typeof window._fbOnMySharedTasks === 'function') {
+    window._fbOnMySharedTasks(currentUserEmail, tasks => {
+      let changed = false;
+      tasks.forEach(sharedVersion => {
+        if (!sharedVersion?.id) return;
+        if (!sharedVersion.updatedBy || sharedVersion.updatedBy === currentUserEmail) return;
+        const localTask = _todoData.tasks.find(t => t.id === sharedVersion.id);
+        if (!localTask) return;
+        ['status', 'assignees', 'comments', 'completed', 'completedAt'].forEach(field => {
+          localTask[field] = sharedVersion[field];
+        });
+        localTask.updatedAt = sharedVersion.updatedAt;
+        changed = true;
+      });
+      if (changed) {
+        _todoSave();
+        if (currentView === 'todo') _todoRender();
+      }
+    });
+  }
 }
 
 /* ── Helpers partage ──────────────────────────────────────────────────────── */
@@ -415,6 +440,7 @@ function _todoCompleteTask(taskId) {
   }
   task.updatedAt = new Date().toISOString();
   _todoSave();
+  if (task.sharedWith && task.sharedWith.length > 0) _todoSyncShared(task);
   _todoRenderTaskList();
   if (typeof _todoRenderSidebar === 'function') _todoRenderSidebar();
 }

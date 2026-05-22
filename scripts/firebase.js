@@ -156,3 +156,19 @@ window._fbOnSharedTasksForEmail = (email, cb) =>
     });
     cb(tasks);
   });
+
+/* Écoute des modifications apportées par les destinataires sur les tâches de l'owner */
+window._fbOnMySharedTasks = (ownerEmail, cb) =>
+  onValue(ref(_fbDb, 'todo_shared'), snap => {
+    const val = snap.val() || {};
+    const tasks = [];
+    Object.values(val).forEach(v => {
+      try {
+        if (v?.d) {
+          const t = JSON.parse(v.d);
+          if (t.createdBy === ownerEmail) tasks.push(t);
+        }
+      } catch(e) {}
+    });
+    cb(tasks);
+  });
