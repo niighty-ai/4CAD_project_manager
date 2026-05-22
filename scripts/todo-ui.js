@@ -67,7 +67,8 @@ function _todoRenderSidebar() {
   const el = document.getElementById('todoSidebar');
   if (!el) return;
 
-  const allCount     = _todoData.tasks.filter(t => !t.completed).length;
+  const allCount     = _todoData.tasks.filter(t => !t.completed).length
+                     + _todoReceivedSharedTasks().filter(t => !t.completed).length;
   const inboxCount   = _todoData.tasks.filter(t => !t.folderId && !t.completed).length;
   const _today = new Date(); _today.setHours(0, 0, 0, 0);
   const overdueCount = _todoAllTasks().filter(t => !t.completed && t.dueDate && new Date(t.dueDate) < _today).length;
@@ -186,7 +187,8 @@ function _todoRenderSidebar() {
   const sorted = [..._todoData.folders].sort((a, b) => (a.order || 0) - (b.order || 0));
   sorted.forEach((f, idx) => {
     const isActive = _todoSelectedFolderId === f.id;
-    const cnt = _todoData.tasks.filter(t => t.folderId === f.id && !t.completed).length;
+    const cnt = _todoData.tasks.filter(t => t.folderId === f.id && !t.completed).length
+              + _todoSharedTasksForFolder(f.id).filter(t => !t.completed).length;
     html += `
       <div class="todo-sidebar-item ${isActive ? 'active' : ''}"
            data-folder-id="${f.id}" data-folder-idx="${idx}"
@@ -329,7 +331,14 @@ function _todoRenderTaskList() {
   } else if (_todoSelectedFolderId) {
     const folder = _todoData.folders.find(f => f.id === _todoSelectedFolderId);
     title     = folder ? folder.name : 'Dossier';
-    baseTasks = _todoData.tasks.filter(t => t.folderId === _todoSelectedFolderId);
+    const sharedForFolder = _todoSharedTasksForFolder(_todoSelectedFolderId);
+    /* Marquer les sous-tâches partagées orphelines (parent non partagé) comme racines */
+    const sharedIds = new Set(sharedForFolder.map(t => t.id));
+    sharedForFolder.forEach(t => {
+      if (t.parentId && !sharedIds.has(t.parentId) && !_todoData.tasks.find(lt => lt.id === t.parentId))
+        t._sharedOrphan = true;
+    });
+    baseTasks = [..._todoData.tasks.filter(t => t.folderId === _todoSelectedFolderId), ...sharedForFolder];
   }
 
   if (filters)        baseTasks = _todoApplyViewFilters(baseTasks, filters);

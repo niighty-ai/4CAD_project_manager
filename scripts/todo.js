@@ -255,6 +255,15 @@ function _todoReceivedSharedTasks() {
   return Object.values(_todoSharedTasks).filter(t => t && !_todoData.tasks.find(lt => lt.id === t.id));
 }
 
+/* Tâches partagées reçues dont le nom de dossier propriétaire correspond à un dossier local */
+function _todoSharedTasksForFolder(folderId) {
+  const folder = _todoData.folders.find(f => f.id === folderId);
+  if (!folder) return [];
+  const norm = s => (s || '').trim().toLowerCase();
+  const folderNorm = norm(folder.name);
+  return _todoReceivedSharedTasks().filter(t => norm(t._ownerFolderName) === folderNorm);
+}
+
 /* ── CRUD Dossiers ────────────────────────────────────────────────────────── */
 function _todoCreateFolder(name, color) {
   const folder = { id: _todoId(), name: name.trim(), color: color || '#EC7206', order: _todoData.folders.length };
