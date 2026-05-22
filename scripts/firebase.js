@@ -105,8 +105,10 @@ window._fbGetSharedTask = (taskId, cb) =>
       catch(e) { cb(null); }
     }).catch(() => cb(null));
 
-/* Firebase interdit . # $ [ ] dans les noms de clés — encode l'email en remplaçant '.' par ',' */
-function _fbEncodeKey(email) { return (email || '').replace(/\./g, ','); }
+/* Encode l'email en clé Firebase valide : '.' → ',' et '@' → '-' */
+function _fbEncodeKey(email) {
+  return (email || '').replace(/\./g, ',').replace(/@/g, '-');
+}
 
 /* ── Références de partage par utilisateur ── */
 window._fbSetTodoShares = (userId, refs) =>
@@ -114,12 +116,14 @@ window._fbSetTodoShares = (userId, refs) =>
 window._fbOnTodoShares = (userId, cb) =>
   onValue(ref(_fbDb, 'todo_shares/' + _fbEncodeKey(userId)), snap => cb(snap.val() || {}));
 
-/* Ajoute des entrées dans les références de partage sans écraser les existantes */
+/* Ajoute des entrées dans les références de partage (set individuel par entrée) */
 window._fbAddTodoShares = (userId, newRefs) => {
-  const updates = {};
   const key = _fbEncodeKey(userId);
-  Object.keys(newRefs).forEach(k => { updates['todo_shares/' + key + '/' + k] = newRefs[k]; });
-  return update(ref(_fbDb), updates);
+  return Promise.all(
+    Object.keys(newRefs).map(taskId =>
+      set(ref(_fbDb, 'todo_shares/' + key + '/' + taskId), newRefs[taskId])
+    )
+  );
 };
 
 /* Supprime une référence de partage spécifique */

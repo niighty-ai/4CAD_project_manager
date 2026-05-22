@@ -168,7 +168,9 @@ function _startTodoLoad(userId) {
       });
     }
   } else if (sharesKey && typeof window._fbOnTodoShares === 'function') {
+    console.log('[todo-share] écoute todo_shares pour:', sharesKey);
     window._fbOnTodoShares(sharesKey, refs => {
+      console.log('[todo-share] refs reçues:', refs);
       _todoSharedTasks = {};
       _todoSharedTasksOwner = {};
       const ids = Object.keys(refs || {});
@@ -177,6 +179,7 @@ function _startTodoLoad(userId) {
       ids.forEach(taskId => {
         _todoSharedTasksOwner[taskId] = refs[taskId];
         window._fbGetSharedTask(taskId, data => {
+          console.log('[todo-share] tâche reçue', taskId, ':', data ? 'OK' : 'null');
           if (data) _todoSharedTasks[taskId] = data;
           remaining--;
           if (remaining === 0 && currentView === 'todo') _todoRender();
@@ -535,7 +538,10 @@ function _todoShareTask(taskId, targetUserId) {
     const ownerKey = currentUserEmail || currentUserId;
     const refs = { [task.id]: ownerKey };
     subtasks.forEach(sub => { refs[sub.id] = ownerKey; });
-    window._fbAddTodoShares(targetUserId, refs);
+    console.log('[todo-share] écriture todo_shares pour:', targetUserId, 'refs:', refs);
+    window._fbAddTodoShares(targetUserId, refs)
+      .then(() => console.log('[todo-share] écriture OK'))
+      .catch(e => console.error('[todo-share] écriture ERREUR:', e));
   }
   _todoSave();
 }
