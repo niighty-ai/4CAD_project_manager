@@ -331,6 +331,13 @@ function _tmAddSubtask() {
   const task = _todoData.tasks.find(t => t.id === _todoModalTaskId);
   if (!task) return;
   const st = _todoCreateTask('Nouvelle sous-tâche', task.folderId, _todoModalTaskId);
+  /* Propager automatiquement le partage du parent vers la nouvelle sous-tâche */
+  if (task.sharedWith && task.sharedWith.length > 0) {
+    st.sharedWith = [...task.sharedWith];
+    _todoTouchTask(st);
+    _todoSyncShared(st);
+    _todoSave();
+  }
   _tmRenderSubtasks();
   _todoRenderTaskList();
   /* Bascule immédiatement sur la sous-tâche pour forcer Type & Statut */
@@ -720,9 +727,9 @@ function _tmRenderRight() {
           ${folders.map(f => `<option value="${f.id}" ${task.folderId === f.id ? 'selected' : ''}>${_esc(f.name)}</option>`).join('')}
         </select>
       </div>
-    </div>
+    </div>` : ''}
 
-    <!-- Partage (parent seulement) -->
+    <!-- Partage (parent et sous-tâche) -->
     <div class="todo-prop">
       <div class="todo-prop-label">Partager avec</div>
       <div class="todo-share-list" id="tmShareList">
@@ -738,7 +745,7 @@ function _tmRenderRight() {
           </div>`).join('')}
       </div>
       ${_tmSharePickerHtml()}
-    </div>` : ''}`;
+    </div>`;
 }
 
 /* ── Setters propriétés (ciblent _tmActiveSubId ou parent) ── */
@@ -884,8 +891,9 @@ function _tmShareSearch(val) {
   if (!drop) return;
   const q = val.trim().toLowerCase();
   if (!q) { drop.style.display = 'none'; return; }
-  const task    = _todoData.tasks.find(t => t.id === _todoModalTaskId);
-  const already = (task?.sharedWith || []);
+  const activeId = _tmActiveSubId || _todoModalTaskId;
+  const task     = _todoFindTask(activeId);
+  const already  = (task?.sharedWith || []);
   const matches = _todoGetResources().filter(name => {
     if (name.toLowerCase().indexOf(q) === -1) return false;
     const email = _resourceToEmail(name);
@@ -909,7 +917,7 @@ function _tmShareWithResource(name) {
     _todoShowToast('Impossible de déterminer l\'email de cette ressource');
     return;
   }
-  _todoShareTask(_todoModalTaskId, email);
+  _todoShareTask(_tmActiveSubId || _todoModalTaskId, email);
   const inp = document.getElementById('tmShareInput');
   if (inp) inp.value = '';
   document.getElementById('tmShareDropdown').style.display = 'none';
@@ -918,7 +926,7 @@ function _tmShareWithResource(name) {
 }
 
 function _tmUnshare(uid) {
-  _todoUnshareTask(_todoModalTaskId, uid);
+  _todoUnshareTask(_tmActiveSubId || _todoModalTaskId, uid);
   _tmRenderRight();
 }
 
