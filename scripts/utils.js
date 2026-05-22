@@ -64,7 +64,69 @@ function diff(a,b){return Math.round((b-a)/86400000);}
 function escH(s){return String(s||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
 /* Normalise une chaîne pour la recherche : minuscules + sans accents */
 function normalizeStr(s){return(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();}
-/* Génère l'email @4cad.fr d'une ressource : "Gaël Homère" → "ghomere@4cad.fr"
+/* Retrouve le nom de ressource correspondant à un email @4cad.fr dans une liste.
+   Même algorithme que le calendrier : gère prénoms composés, particules, noms
+   composés. Insensible à la casse et aux accents.
+   Retourne le nom trouvé ou '' si aucune correspondance.
+
+   email   : "ghomere@4cad.fr"
+   names   : ["Gaël Homère", "Jean Martin", ...]
+   → "Gaël Homère"                                                               */
+function _emailToResource(email, names) {
+  if (!email || !email.includes('@')) return '';
+  const local = normalizeStr(email.split('@')[0]);
+  if (local.length < 2) return '';
+
+  const PARTICLES = new Set(['de','du','des','le','la','les','d','van','von','der',
+                              'del','di','da','au','aux','l','el']);
+
+  const getInit = s =>
+    s.split(/[\s\-]+/).filter(Boolean).map(p => normalizeStr(p)[0] || '').join('');
+
+  function lastVariants(lastStr) {
+    const tokens = normalizeStr(lastStr).split(/[\s\-]+/).filter(Boolean);
+    const v = new Set();
+    v.add(tokens.join(''));
+    for (let i = 1; i < tokens.length; i++) v.add(tokens.slice(i).join(''));
+    tokens.forEach(t => { if (t.length > 2 && !PARTICLES.has(t)) v.add(t); });
+    const sig = tokens.filter(t => !PARTICLES.has(t));
+    if (sig.length && sig.length < tokens.length) v.add(sig.join(''));
+    return v;
+  }
+
+  function candidates(fullName) {
+    const tokens = fullName.trim().split(/\s+/).filter(Boolean);
+    const out = [];
+    for (let s = 1; s < tokens.length; s++) {
+      out.push({
+        init: getInit(tokens.slice(0, s).join(' ')),
+        vars: lastVariants(tokens.slice(s).join(' '))
+      });
+    }
+    return out;
+  }
+
+  function tryMatch(exactInitials) {
+    for (let i = 1; i <= Math.min(4, local.length - 1); i++) {
+      const ei = local.slice(0, i);
+      const el = local.slice(i);
+      for (const name of names) {
+        for (const { init, vars } of candidates(name)) {
+          const initOk = exactInitials ? init === ei : init.startsWith(ei);
+          if (!initOk) continue;
+          if (vars.has(el)) return name;
+          if (el.length >= 3) for (const v of vars) if (v.startsWith(el)) return name;
+        }
+      }
+    }
+    return '';
+  }
+
+  return tryMatch(true) || tryMatch(false);
+}
+
+/* Génère l'email @4cad.fr depuis un nom de ressource : "Gaël Homère" → "ghomere@4cad.fr"
+   Utilisé pour le picker de partage (sens inverse de _emailToResource).
    Retourne null si le nom est insuffisant (moins de 2 mots). */
 function _resourceToEmail(name) {
   const parts = (name || '').trim().split(/\s+/).filter(Boolean);
