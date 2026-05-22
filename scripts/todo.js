@@ -149,7 +149,9 @@ function _startTodoLoad(userId) {
     });
   }
 
-  /* Écoute des tâches partagées avec moi */
+  /* Écoute des tâches partagées avec moi
+     Les refs sont indexées par email (seul identifiant connu du partageur) */
+  const sharesKey = _todoIsAdmin() ? null : (currentUserEmail || null);
   if (_todoIsAdmin()) {
     /* Admin : écoute de toutes les tâches partagées dans la base */
     if (typeof window._fbOnAllSharedTasks === 'function') {
@@ -165,8 +167,8 @@ function _startTodoLoad(userId) {
         if (currentView === 'todo') _todoRender();
       });
     }
-  } else if (typeof window._fbOnTodoShares === 'function') {
-    window._fbOnTodoShares(userId, refs => {
+  } else if (sharesKey && typeof window._fbOnTodoShares === 'function') {
+    window._fbOnTodoShares(sharesKey, refs => {
       _todoSharedTasks = {};
       _todoSharedTasksOwner = {};
       const ids = Object.keys(refs || {});
@@ -528,10 +530,11 @@ function _todoShareTask(taskId, targetUserId) {
     }
   });
 
-  /* Ajout des références chez le destinataire (merge, pas remplacement) */
+  /* Ajout des références chez le destinataire (clé = email destinataire, valeur = email propriétaire) */
   if (typeof window._fbAddTodoShares === 'function') {
-    const refs = { [task.id]: currentUserId };
-    subtasks.forEach(sub => { refs[sub.id] = currentUserId; });
+    const ownerKey = currentUserEmail || currentUserId;
+    const refs = { [task.id]: ownerKey };
+    subtasks.forEach(sub => { refs[sub.id] = ownerKey; });
     window._fbAddTodoShares(targetUserId, refs);
   }
   _todoSave();
