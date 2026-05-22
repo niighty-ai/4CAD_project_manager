@@ -192,10 +192,9 @@ function _startTodoLoad(userId) {
         if (!sharedVersion.updatedBy || sharedVersion.updatedBy === currentUserEmail) return;
         const localTask = _todoData.tasks.find(t => t.id === sharedVersion.id);
         if (!localTask) return;
-        ['status', 'assignees', 'comments', 'completed', 'completedAt'].forEach(field => {
+        ['status', 'assignees', 'comments', 'completed', 'completedAt', 'updatedAt', 'updatedBy'].forEach(field => {
           localTask[field] = sharedVersion[field];
         });
-        localTask.updatedAt = sharedVersion.updatedAt;
         changed = true;
       });
       if (changed) {
