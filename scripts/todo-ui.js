@@ -345,7 +345,7 @@ function _todoRenderTaskList() {
   if (filters)       baseTasks = _todoApplyViewFilters(baseTasks, filters);
   if (hideCompleted) baseTasks = baseTasks.filter(t => !t.completed);
   if (hideShared && _todoSelectedFolderId !== 'shared')
-    baseTasks = baseTasks.filter(t => !_todoIsReceivedShared(t.id) && !(t.sharedWith && t.sharedWith.length > 0));
+    baseTasks = baseTasks.filter(t => !_todoIsReceivedShared(t.id));
 
   /* Si une sous-tâche correspond au filtre, s'assurer que sa tâche parente est incluse */
   if (filters) {
