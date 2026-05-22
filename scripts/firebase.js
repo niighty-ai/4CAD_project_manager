@@ -105,22 +105,26 @@ window._fbGetSharedTask = (taskId, cb) =>
       catch(e) { cb(null); }
     }).catch(() => cb(null));
 
+/* Firebase interdit . # $ [ ] dans les noms de clés — encode l'email en remplaçant '.' par ',' */
+function _fbEncodeKey(email) { return (email || '').replace(/\./g, ','); }
+
 /* ── Références de partage par utilisateur ── */
 window._fbSetTodoShares = (userId, refs) =>
-  set(ref(_fbDb, 'todo_shares/' + userId), refs || null);
+  set(ref(_fbDb, 'todo_shares/' + _fbEncodeKey(userId)), refs || null);
 window._fbOnTodoShares = (userId, cb) =>
-  onValue(ref(_fbDb, 'todo_shares/' + userId), snap => cb(snap.val() || {}));
+  onValue(ref(_fbDb, 'todo_shares/' + _fbEncodeKey(userId)), snap => cb(snap.val() || {}));
 
 /* Ajoute des entrées dans les références de partage sans écraser les existantes */
 window._fbAddTodoShares = (userId, newRefs) => {
   const updates = {};
-  Object.keys(newRefs).forEach(k => { updates['todo_shares/' + userId + '/' + k] = newRefs[k]; });
+  const key = _fbEncodeKey(userId);
+  Object.keys(newRefs).forEach(k => { updates['todo_shares/' + key + '/' + k] = newRefs[k]; });
   return update(ref(_fbDb), updates);
 };
 
 /* Supprime une référence de partage spécifique */
 window._fbRemoveTodoShare = (userId, taskId) =>
-  remove(ref(_fbDb, 'todo_shares/' + userId + '/' + taskId));
+  remove(ref(_fbDb, 'todo_shares/' + _fbEncodeKey(userId) + '/' + taskId));
 
 /* Écoute de toutes les tâches partagées (accès admin) */
 window._fbOnAllSharedTasks = (cb) =>
