@@ -1,5 +1,5 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-import { getDatabase, ref, set, onValue, get, remove, onDisconnect } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+import { getDatabase, ref, set, update, onValue, get, remove, onDisconnect } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
 import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged }
   from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 
@@ -110,3 +110,25 @@ window._fbSetTodoShares = (userId, refs) =>
   set(ref(_fbDb, 'todo_shares/' + userId), refs || null);
 window._fbOnTodoShares = (userId, cb) =>
   onValue(ref(_fbDb, 'todo_shares/' + userId), snap => cb(snap.val() || {}));
+
+/* Ajoute des entrées dans les références de partage sans écraser les existantes */
+window._fbAddTodoShares = (userId, newRefs) => {
+  const updates = {};
+  Object.keys(newRefs).forEach(k => { updates['todo_shares/' + userId + '/' + k] = newRefs[k]; });
+  return update(ref(_fbDb), updates);
+};
+
+/* Supprime une référence de partage spécifique */
+window._fbRemoveTodoShare = (userId, taskId) =>
+  remove(ref(_fbDb, 'todo_shares/' + userId + '/' + taskId));
+
+/* Écoute de toutes les tâches partagées (accès admin) */
+window._fbOnAllSharedTasks = (cb) =>
+  onValue(ref(_fbDb, 'todo_shared'), snap => {
+    const val = snap.val() || {};
+    const tasks = [];
+    Object.values(val).forEach(v => {
+      try { if (v?.d) tasks.push(JSON.parse(v.d)); } catch(e) {}
+    });
+    cb(tasks);
+  });

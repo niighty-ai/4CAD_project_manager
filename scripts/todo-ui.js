@@ -67,13 +67,14 @@ function _todoRenderSidebar() {
   const el = document.getElementById('todoSidebar');
   if (!el) return;
 
-  const allCount     = _todoAllTasks().filter(t => !t.completed).length;
+  const allCount     = _todoData.tasks.filter(t => !t.completed).length;
   const inboxCount   = _todoData.tasks.filter(t => !t.folderId && !t.completed).length;
   const _today = new Date(); _today.setHours(0, 0, 0, 0);
   const overdueCount = _todoAllTasks().filter(t => !t.completed && t.dueDate && new Date(t.dueDate) < _today).length;
+  const sharedCount  = _todoReceivedSharedTasks().filter(t => !t.completed).length;
 
   let html = `
-    <!-- Vue globale + Boîte de réception + En retard -->
+    <!-- Vue globale + Boîte de réception + En retard + Tâches partagées -->
     <div class="todo-sidebar-section" style="margin-top:4px;">
       <div class="todo-sidebar-item ${_todoSelectedFolderId === null ? 'active' : ''}"
            onclick="_todoSelectFolder(null)">
@@ -103,6 +104,16 @@ function _todoRenderSidebar() {
         </svg>
         En retard
         ${overdueCount ? `<span class="todo-sidebar-count" style="background:rgba(219,64,53,.15);color:#db4035">${overdueCount}</span>` : '<span class="todo-sidebar-count">0</span>'}
+      </div>
+      <div class="todo-sidebar-item ${_todoSelectedFolderId === 'shared' ? 'active' : ''}"
+           onclick="_todoSelectFolder('shared')">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/>
+          <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/>
+          <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
+        </svg>
+        Tâches partagées
+        ${sharedCount ? `<span class="todo-sidebar-count" style="background:rgba(99,102,241,.15);color:#6366f1">${sharedCount}</span>` : '<span class="todo-sidebar-count">0</span>'}
       </div>
     </div>`;
 
@@ -302,6 +313,14 @@ function _todoRenderTaskList() {
   } else if (_todoSelectedFolderId === 'overdue') {
     title   = 'En retard';
     filters = { dateFilter: 'overdue', showNoDate: false };
+  } else if (_todoSelectedFolderId === 'shared') {
+    title     = 'Tâches partagées';
+    baseTasks = _todoReceivedSharedTasks();
+    /* Les sous-tâches partagées seules (sans parent dans la liste) deviennent des racines */
+    const sharedIds = new Set(baseTasks.map(t => t.id));
+    baseTasks.forEach(t => {
+      if (t.parentId && !sharedIds.has(t.parentId)) t._sharedOrphan = true;
+    });
   } else if (_todoSelectedFolderId && _todoSelectedFolderId.startsWith('view:')) {
     const vid  = _todoSelectedFolderId.slice(5);
     const view = _todoData.views.find(v => v.id === vid);
@@ -338,7 +357,7 @@ function _todoRenderTaskList() {
     title     = `Résultats : "${_todoSearchQuery}"`;
   }
 
-  const rootTasks   = baseTasks.filter(t => !t.parentId);
+  const rootTasks   = baseTasks.filter(t => !t.parentId || t._sharedOrphan);
   const sortedTasks = _todoSortTasksBy(rootTasks, sort);
   /* Expose l'ordre courant pour la navigation dans la modale */
   window._todoVisibleTaskIds = sortedTasks.map(t => t.id);
@@ -654,12 +673,12 @@ function _todoTaskRowHtml(task, isSub) {
           <polyline points="20 6 9 17 4 12"/>
         </svg>
       </div>
-      <div class="todo-task-content" onclick="${isSub ? `_todoOpenModalSub('${task.id}','${task.parentId}')` : `_todoOpenModal('${task.id}')`}">
+      <div class="todo-task-content" onclick="${(isSub && !task._sharedOrphan) ? `_todoOpenModalSub('${task.id}','${task.parentId}')` : `_todoOpenModal('${task.id}')`}">
         <div class="todo-task-title">${_todoLinkify(task.title)}</div>
         ${meta ? `<div class="todo-task-meta">${meta}</div>` : ''}
       </div>
       <div class="todo-task-actions">
-        <div class="todo-task-action-btn" title="Modifier" onclick="event.stopPropagation();${isSub ? `_todoOpenModalSub('${task.id}','${task.parentId}')` : `_todoOpenModal('${task.id}')`}">
+        <div class="todo-task-action-btn" title="Modifier" onclick="event.stopPropagation();${(isSub && !task._sharedOrphan) ? `_todoOpenModalSub('${task.id}','${task.parentId}')` : `_todoOpenModal('${task.id}')`}">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
             <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>

@@ -15,6 +15,7 @@ let _todoLoaded           = false;
 let _todoSaveTimer        = null;
 let _todoSaveTs           = 0;
 let _todoSharedTasks      = {}; /* taskId → taskData (tâches partagées avec moi) */
+let _todoSharedTasksOwner = {}; /* taskId → ownerUserId */
 
 /* ── Helpers ──────────────────────────────────────────────────────────────── */
 function _todoId() {
@@ -149,13 +150,30 @@ function _startTodoLoad(userId) {
   }
 
   /* Écoute des tâches partagées avec moi */
-  if (typeof window._fbOnTodoShares === 'function') {
+  if (_todoIsAdmin()) {
+    /* Admin : écoute de toutes les tâches partagées dans la base */
+    if (typeof window._fbOnAllSharedTasks === 'function') {
+      window._fbOnAllSharedTasks(tasks => {
+        _todoSharedTasks = {};
+        _todoSharedTasksOwner = {};
+        tasks.forEach(t => {
+          if (t && t.id) {
+            _todoSharedTasks[t.id] = t;
+            if (t.createdBy) _todoSharedTasksOwner[t.id] = t.createdBy;
+          }
+        });
+        if (currentView === 'todo') _todoRender();
+      });
+    }
+  } else if (typeof window._fbOnTodoShares === 'function') {
     window._fbOnTodoShares(userId, refs => {
       _todoSharedTasks = {};
+      _todoSharedTasksOwner = {};
       const ids = Object.keys(refs || {});
       let remaining = ids.length;
-      if (remaining === 0) return;
+      if (remaining === 0) { if (currentView === 'todo') _todoRender(); return; }
       ids.forEach(taskId => {
+        _todoSharedTasksOwner[taskId] = refs[taskId];
         window._fbGetSharedTask(taskId, data => {
           if (data) _todoSharedTasks[taskId] = data;
           remaining--;
@@ -166,12 +184,47 @@ function _startTodoLoad(userId) {
   }
 }
 
+/* ── Helpers partage ──────────────────────────────────────────────────────── */
+
+/* L'utilisateur est admin s'il n'a pas d'email @4cad.fr */
+function _todoIsAdmin() {
+  return !!(currentUserEmail && !currentUserEmail.toLowerCase().endsWith('@4cad.fr'));
+}
+
+/* Cherche une tâche dans les données propres OU dans les partagées */
+function _todoFindTask(id) {
+  return _todoData.tasks.find(t => t.id === id) || _todoSharedTasks[id] || null;
+}
+
+/* Vrai si la tâche est reçue (dans _todoSharedTasks mais pas dans _todoData.tasks) */
+function _todoIsReceivedShared(taskId) {
+  return !!(_todoSharedTasks[taskId] && !_todoData.tasks.find(t => t.id === taskId));
+}
+
+/* Met à jour une tâche reçue (statut, responsable, complétion) et sync Firebase */
+function _todoUpdateSharedTask(taskId, updates) {
+  const task = _todoSharedTasks[taskId];
+  if (!task) return;
+  Object.assign(task, updates, {
+    updatedAt: new Date().toISOString(),
+    updatedBy: (typeof currentUserEmail !== 'undefined' && currentUserEmail) ? currentUserEmail : null
+  });
+  if (typeof window._fbSetSharedTask === 'function') {
+    window._fbSetSharedTask(taskId, task);
+  }
+}
+
 /* ── Accès aux tâches (propres + partagées) ───────────────────────────────── */
 function _todoAllTasks() {
   const shared = Object.values(_todoSharedTasks).filter(t =>
     t && !_todoData.tasks.find(lt => lt.id === t.id)
   );
   return [..._todoData.tasks, ...shared];
+}
+
+/* Tâches reçues uniquement (ni propres, ni sous-tâches de tâches propres) */
+function _todoReceivedSharedTasks() {
+  return Object.values(_todoSharedTasks).filter(t => t && !_todoData.tasks.find(lt => lt.id === t.id));
 }
 
 /* ── CRUD Dossiers ────────────────────────────────────────────────────────── */
@@ -301,6 +354,18 @@ function _todoDeleteTask(taskId) {
 }
 
 function _todoCompleteTask(taskId) {
+  /* Tâche reçue : mise à jour limitée sur Firebase */
+  if (_todoIsReceivedShared(taskId)) {
+    const task = _todoSharedTasks[taskId];
+    const done = !task.completed;
+    _todoUpdateSharedTask(taskId, {
+      completed:   done,
+      completedAt: done ? new Date().toISOString() : null
+    });
+    _todoRenderTaskList();
+    if (typeof _todoRenderSidebar === 'function') _todoRenderSidebar();
+    return;
+  }
   const task = _todoData.tasks.find(t => t.id === taskId);
   if (!task) return;
   if (!task.completed) {
@@ -360,6 +425,20 @@ function _todoCompleteTask(taskId) {
 /* ── CRUD Commentaires ────────────────────────────────────────────────────── */
 function _todoAddComment(taskId, text) {
   if (!text.trim()) return;
+  if (_todoIsReceivedShared(taskId)) {
+    const task = _todoSharedTasks[taskId];
+    if (!task.comments) task.comments = [];
+    task.comments.push({
+      id:         _todoId(),
+      text:       text.trim(),
+      authorId:   currentUserId,
+      authorName: currentUserEmail,
+      createdAt:  new Date().toISOString(),
+      updatedAt:  null
+    });
+    _todoUpdateSharedTask(taskId, { comments: task.comments });
+    return;
+  }
   const task = _todoData.tasks.find(t => t.id === taskId);
   if (!task) return;
   if (!task.comments) task.comments = [];
@@ -377,6 +456,15 @@ function _todoAddComment(taskId, text) {
 }
 
 function _todoEditComment(taskId, commentId, text) {
+  if (_todoIsReceivedShared(taskId)) {
+    const task = _todoSharedTasks[taskId];
+    const c = (task?.comments || []).find(c => c.id === commentId);
+    if (!c || !text.trim()) return;
+    c.text = text.trim();
+    c.updatedAt = new Date().toISOString();
+    _todoUpdateSharedTask(taskId, { comments: task.comments });
+    return;
+  }
   const task = _todoData.tasks.find(t => t.id === taskId);
   if (!task) return;
   const c = (task.comments || []).find(c => c.id === commentId);
@@ -389,6 +477,13 @@ function _todoEditComment(taskId, commentId, text) {
 }
 
 function _todoDeleteComment(taskId, commentId) {
+  if (_todoIsReceivedShared(taskId)) {
+    const task = _todoSharedTasks[taskId];
+    if (!task) return;
+    task.comments = (task.comments || []).filter(c => c.id !== commentId);
+    _todoUpdateSharedTask(taskId, { comments: task.comments });
+    return;
+  }
   const task = _todoData.tasks.find(t => t.id === taskId);
   if (!task) return;
   task.comments = (task.comments || []).filter(c => c.id !== commentId);
@@ -401,7 +496,15 @@ function _todoDeleteComment(taskId, commentId) {
 function _todoSyncShared(task) {
   if (!task.sharedWith || task.sharedWith.length === 0) return;
   if (typeof window._fbSetSharedTask === 'function') {
-    window._fbSetSharedTask(task.id, task);
+    const folder = task.folderId ? _todoData.folders.find(f => f.id === task.folderId) : null;
+    const payload = Object.assign({}, task, {
+      _ownerSettings: {
+        taskStatuses: _todoData.settings.taskStatuses,
+        taskTypes:    _todoData.settings.taskTypes
+      },
+      _ownerFolderName: folder ? folder.name : null
+    });
+    window._fbSetSharedTask(task.id, payload);
   }
 }
 
@@ -413,11 +516,23 @@ function _todoShareTask(taskId, targetUserId) {
   task.sharedWith.push(targetUserId);
   task.updatedAt = new Date().toISOString();
   _todoSyncShared(task);
-  /* Écriture de la référence chez le destinataire */
-  if (typeof window._fbSetTodoShares === 'function') {
-    const refs = {};
-    refs[task.id] = currentUserId;
-    window._fbSetTodoShares(targetUserId, refs);
+
+  /* Partager aussi toutes les sous-tâches */
+  const subtasks = _todoData.tasks.filter(t => t.parentId === taskId);
+  subtasks.forEach(sub => {
+    if (!sub.sharedWith) sub.sharedWith = [];
+    if (!sub.sharedWith.includes(targetUserId)) {
+      sub.sharedWith.push(targetUserId);
+      sub.updatedAt = new Date().toISOString();
+      _todoSyncShared(sub);
+    }
+  });
+
+  /* Ajout des références chez le destinataire (merge, pas remplacement) */
+  if (typeof window._fbAddTodoShares === 'function') {
+    const refs = { [task.id]: currentUserId };
+    subtasks.forEach(sub => { refs[sub.id] = currentUserId; });
+    window._fbAddTodoShares(targetUserId, refs);
   }
   _todoSave();
 }
@@ -427,11 +542,26 @@ function _todoUnshareTask(taskId, targetUserId) {
   if (!task) return;
   task.sharedWith = (task.sharedWith || []).filter(uid => uid !== targetUserId);
   task.updatedAt  = new Date().toISOString();
+
+  /* Déspartager aussi les sous-tâches */
+  const subtasks = _todoData.tasks.filter(t => t.parentId === taskId);
+  subtasks.forEach(sub => {
+    sub.sharedWith = (sub.sharedWith || []).filter(uid => uid !== targetUserId);
+    sub.updatedAt  = new Date().toISOString();
+    if (sub.sharedWith.length === 0) {
+      if (typeof window._fbRemoveSharedTask === 'function') window._fbRemoveSharedTask(sub.id);
+    } else {
+      _todoSyncShared(sub);
+    }
+    if (typeof window._fbRemoveTodoShare === 'function') window._fbRemoveTodoShare(targetUserId, sub.id);
+  });
+
   if (task.sharedWith.length === 0) {
     if (typeof window._fbRemoveSharedTask === 'function') window._fbRemoveSharedTask(taskId);
   } else {
     _todoSyncShared(task);
   }
+  if (typeof window._fbRemoveTodoShare === 'function') window._fbRemoveTodoShare(targetUserId, taskId);
   _todoSave();
 }
 

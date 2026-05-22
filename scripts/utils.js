@@ -64,6 +64,18 @@ function diff(a,b){return Math.round((b-a)/86400000);}
 function escH(s){return String(s||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
 /* Normalise une chaîne pour la recherche : minuscules + sans accents */
 function normalizeStr(s){return(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();}
+/* Génère l'email @4cad.fr d'une ressource : "Gaël Homère" → "ghomere@4cad.fr"
+   Retourne null si le nom est insuffisant (moins de 2 mots). */
+function _resourceToEmail(name) {
+  const parts = (name || '').trim().split(/\s+/).filter(Boolean);
+  if (parts.length < 2) return null;
+  const firstInit = normalizeStr(parts[0])[0];
+  if (!firstInit) return null;
+  const lastName = normalizeStr(parts.slice(1).join('')).replace(/[-\s]/g, '');
+  if (!lastName) return null;
+  return firstInit + lastName + '@4cad.fr';
+}
+
 function getColor(p){
   if(!projectColors[p]){const used=Object.values(projectColors);projectColors[p]=PALETTE.find(c=>!used.includes(c))||PALETTE[0];}
   return projectColors[p];
