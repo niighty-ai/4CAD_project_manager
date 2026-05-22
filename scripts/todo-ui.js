@@ -304,6 +304,7 @@ function _todoRenderTaskList() {
   const sort          = prefs.sort          || { field: 'order', dir: 'asc' };
   const group         = prefs.group         || 'none';
   const hideCompleted = prefs.hideCompleted !== false; /* true par défaut */
+  const hideShared    = prefs.hideShared    === true;  /* false par défaut */
 
   let title     = 'Toutes les tâches';
   let filters   = null;
@@ -341,8 +342,10 @@ function _todoRenderTaskList() {
     baseTasks = [..._todoData.tasks.filter(t => t.folderId === _todoSelectedFolderId), ...sharedForFolder];
   }
 
-  if (filters)        baseTasks = _todoApplyViewFilters(baseTasks, filters);
-  if (hideCompleted)  baseTasks = baseTasks.filter(t => !t.completed);
+  if (filters)       baseTasks = _todoApplyViewFilters(baseTasks, filters);
+  if (hideCompleted) baseTasks = baseTasks.filter(t => !t.completed);
+  if (hideShared && _todoSelectedFolderId !== 'shared')
+    baseTasks = baseTasks.filter(t => !_todoIsReceivedShared(t.id) && !(t.sharedWith && t.sharedWith.length > 0));
 
   /* Si une sous-tâche correspond au filtre, s'assurer que sa tâche parente est incluse */
   if (filters) {
@@ -415,6 +418,19 @@ function _todoRenderTaskList() {
         </svg>
         ${hideCompleted ? 'Masquer terminées' : 'Afficher terminées'}
       </button>
+
+      ${_todoSelectedFolderId !== 'shared' ? `
+      <button class="todo-sort-btn ${hideShared ? 'active' : ''}"
+              title="${hideShared ? 'Afficher partagées' : 'Masquer partagées'}"
+              onclick="_todoToggleHideShared()">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/>
+          <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/>
+          <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
+          ${hideShared ? '<line x1="1" y1="1" x2="23" y2="23"/>' : ''}
+        </svg>
+        ${hideShared ? 'Masquer partagées' : 'Afficher partagées'}
+      </button>` : ''}
 
       <div style="position:relative">
         <button class="todo-sort-btn ${groupsArr.length ? 'active' : ''}" onclick="_todoToggleGroupMenu(this)">
@@ -826,6 +842,14 @@ function _todoToggleHideCompleted() {
   const ctx   = _todoViewCtx();
   const prefs = _todoGetViewPrefs(ctx);
   _todoSetViewPrefs(ctx, { hideCompleted: prefs.hideCompleted === false });
+  _todoRenderTaskList();
+}
+
+/* ── Masquer partagées persisté ── */
+function _todoToggleHideShared() {
+  const ctx   = _todoViewCtx();
+  const prefs = _todoGetViewPrefs(ctx);
+  _todoSetViewPrefs(ctx, { hideShared: !prefs.hideShared });
   _todoRenderTaskList();
 }
 
