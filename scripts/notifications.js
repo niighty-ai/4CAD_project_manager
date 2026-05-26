@@ -64,8 +64,11 @@ function _notifInit(userEmail) {
   /* Fermer le dropdown au clic extérieur */
   document.addEventListener('click', e => {
     if (!_notifDropOpen) return;
-    const wrap = document.getElementById('notifWrap');
-    if (wrap && !wrap.contains(e.target)) _notifCloseDrop();
+    const btn  = document.getElementById('notifBtn');
+    const drop = document.getElementById('notifDrop');
+    if (btn  && btn.contains(e.target))  return;
+    if (drop && drop.contains(e.target)) return;
+    _notifCloseDrop();
   });
 }
 
@@ -166,14 +169,22 @@ function _notifFiltered() {
   return _notifData.filter(n => _notifPrefs[n.type] !== false);
 }
 
-/* ── Toggle dropdown ────────────────────────────────────────────────────────── */
+/* ── Toggle dropdown (position calculée via getBoundingClientRect) ───────────── */
 function _notifToggleDrop() {
   _notifDropOpen = !_notifDropOpen;
   const drop = document.getElementById('notifDrop');
+  const btn  = document.getElementById('notifBtn');
   if (!drop) return;
   if (_notifDropOpen) {
     _notifRenderDrop();
     drop.style.display = 'block';
+    /* Positionner après affichage pour avoir la largeur réelle */
+    if (btn) {
+      const rect       = btn.getBoundingClientRect();
+      const dropWidth  = drop.offsetWidth || 340;
+      drop.style.top   = (rect.bottom + 6) + 'px';
+      drop.style.left  = Math.max(8, rect.right - dropWidth) + 'px';
+    }
   } else {
     drop.style.display = 'none';
   }
