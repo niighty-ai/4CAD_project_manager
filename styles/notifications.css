@@ -2,14 +2,6 @@
    notifications.css — Cloche, badge, dropdown, toast, préférences
    ════════════════════════════════════════════════════════════════════ */
 
-/* ── Wrapper (position relative pour ancrer le dropdown) ── */
-#notifWrap {
-  position: relative;
-  display: flex;
-  align-items: center;
-  align-self: center;
-}
-
 /* ── Bouton cloche ── */
 .notif-btn {
   position: relative;
@@ -57,12 +49,10 @@
   line-height: 1;
 }
 
-/* ── Dropdown ── */
+/* ── Dropdown (positionné via JS getBoundingClientRect) ── */
 #notifDrop {
   display: none;
-  position: absolute;
-  top: calc(100% + 8px);
-  right: 0;
+  position: fixed;
   width: 340px;
   max-height: 500px;
   overflow-y: auto;
