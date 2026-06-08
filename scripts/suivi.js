@@ -299,7 +299,12 @@ function _suiviOpenLinkPanel(actionId, btnEl) {
   if (linkedTask) {
     html += `<div class="suivi-lp-current">
       <span class="suivi-lp-current-label">Liée :</span>
-      <span class="suivi-lp-current-name ${linkedTask.completed ? 'done' : ''}">${_suiviEsc(linkedTask.title)}</span>
+      <button class="suivi-lp-current-name ${linkedTask.completed ? 'done' : ''}"
+              onclick="_suiviOpenLinkedTaskModal('${linkedTask.id}')"
+              title="Ouvrir dans Todo">
+        ${_suiviEsc(linkedTask.title)}
+        <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+      </button>
       <button class="suivi-lp-unlink" onclick="_suiviUnlinkTask('${actionId}')">Délier</button>
     </div>`;
   }
@@ -311,13 +316,19 @@ function _suiviOpenLinkPanel(actionId, btnEl) {
 
   if (folderTasks.length) {
     html += `<div class="suivi-lp-sep">Tâches existantes — ${_suiviEsc(p.client)}</div>`;
-    html += `<div class="suivi-lp-list">` + folderTasks.map(t =>
-      `<div class="suivi-lp-task ${action.todoTaskId === t.id ? 'selected' : ''}"
-            onclick="_suiviLinkToTask('${actionId}','${t.id}')">
+    html += `<div class="suivi-lp-list">` + folderTasks.map(t => {
+      const isLinked = action.todoTaskId === t.id;
+      const clickFn  = isLinked
+        ? `_suiviOpenLinkedTaskModal('${t.id}')`
+        : `_suiviLinkToTask('${actionId}','${t.id}')`;
+      const itemTitle = isLinked ? 'Ouvrir dans Todo' : 'Lier cette tâche';
+      return `<div class="suivi-lp-task ${isLinked ? 'selected' : ''}"
+                   onclick="${clickFn}" title="${itemTitle}">
         <span class="suivi-lp-check ${t.completed ? 'done' : ''}">${t.completed ? '✓' : '○'}</span>
         <span class="suivi-lp-task-title">${_suiviEsc(t.title)}</span>
-       </div>`
-    ).join('') + `</div>`;
+        ${isLinked ? `<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;color:var(--accent)"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>` : ''}
+      </div>`;
+    }).join('') + `</div>`;
   } else {
     html += `<div class="suivi-lp-empty">Aucune tâche dans ce dossier</div>`;
   }
@@ -340,6 +351,14 @@ function _suiviCloseLinkPanel() {
   _suiviLinkPanelActionId = null;
   const panel = document.getElementById('suiviLinkPanel');
   if (panel) panel.style.display = 'none';
+}
+
+/* Ferme le panel et ouvre le modal Todo de la tâche liée */
+function _suiviOpenLinkedTaskModal(taskId) {
+  _suiviCloseLinkPanel();
+  if (typeof _todoOpenModal === 'function') {
+    setTimeout(() => _todoOpenModal(taskId), 50);
+  }
 }
 
 function _suiviCreateLinkTask(actionId) {
@@ -390,8 +409,9 @@ function _suiviSyncSuiviToTodo(action) {
   const task = _suiviGetTodoTask(action.todoTaskId);
   if (!task) return;
   const shouldBeDone = action.statut === 'done';
-  if (task.completed !== shouldBeDone && typeof _todoToggleComplete === 'function') {
-    _todoToggleComplete(task.id);
+  /* _todoCompleteTask bascule l'état — n'appeler que si l'état diffère */
+  if (task.completed !== shouldBeDone && typeof _todoCompleteTask === 'function') {
+    _todoCompleteTask(task.id);
   }
 }
 
