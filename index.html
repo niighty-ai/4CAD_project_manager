@@ -16,6 +16,7 @@
 <link rel="stylesheet" href="styles/calendar.css">
 <link rel="stylesheet" href="styles/todo.css">
 <link rel="stylesheet" href="styles/notifications.css">
+<link rel="stylesheet" href="styles/suivi.css">
 <script type="module" src="scripts/firebase.js"></script>
 </head>
 <body>
@@ -128,6 +129,9 @@
     </a>
     <a class="nav-tab" data-view="todo" href="#todo" onclick="_navClick(event,'todo')">
       <span class="nav-tab-icon"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></span> To Do
+    </a>
+    <a class="nav-tab" data-view="suivi" href="#suivi" onclick="_navClick(event,'suivi')">
+      <span class="nav-tab-icon"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg></span> Suivi
     </a>
   </nav>
   <div class="toolbar">
@@ -557,6 +561,105 @@
      ══════════════════════════════════════════════ -->
 <div id="viewTodo" style="display:none;"></div>
 
+<!-- ══════════════════════════════════════════════
+     VUE SUIVI COPROJ
+     ══════════════════════════════════════════════ -->
+<div id="viewSuivi">
+  <div class="suivi-layout">
+    <!-- Sidebar -->
+    <div class="suivi-sidebar">
+      <div class="suivi-sidebar-header">
+        <span class="suivi-sidebar-title">Clients</span>
+        <button class="suivi-btn-new" onclick="_suiviNewProject()">+ Nouveau</button>
+      </div>
+      <div class="suivi-project-list" id="suiviProjectList"></div>
+      <div class="suivi-sidebar-footer">
+        <button class="suivi-btn-io" onclick="_suiviExportAllJSON()">
+          <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          Exporter tout (JSON)
+        </button>
+        <label class="suivi-btn-io" style="cursor:pointer">
+          <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          Importer (JSON)
+          <input type="file" accept=".json" style="display:none" onchange="_suiviImportJSON(this)">
+        </label>
+      </div>
+    </div>
+
+    <!-- Main -->
+    <div class="suivi-main">
+      <div class="suivi-topbar">
+        <input id="suiviTitleInput" type="text" class="suivi-title-input" placeholder="Nom du client…"
+          oninput="_suiviUpdateProjectName(this.value)" disabled>
+        <div class="suivi-save-indicator">
+          <div class="suivi-save-dot"></div> Sauvegardé
+        </div>
+        <button class="suivi-btn-export" id="suiviBtnExportJson" onclick="_suiviExportProjectJSON()" style="display:none">
+          <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          JSON
+        </button>
+        <button class="suivi-btn-export" id="suiviBtnExportPptx" onclick="_suiviExportPPTX()" style="display:none">
+          📊 PPTX
+        </button>
+      </div>
+
+      <div class="suivi-content">
+        <!-- Empty state -->
+        <div class="suivi-empty" id="suiviEmpty">
+          <div class="suivi-empty-icon">📋</div>
+          <h2>Aucun client sélectionné</h2>
+          <p>Créez un nouveau client ou importez un JSON</p>
+        </div>
+
+        <!-- Project view -->
+        <div id="suiviProjectView" style="display:none">
+          <!-- Actions & alertes -->
+          <div class="suivi-section">
+            <div class="suivi-section-header">
+              <span class="suivi-section-title">Suivi — Actions, Alertes &amp; Commentaires</span>
+              <button class="suivi-btn-add-small" onclick="_suiviAddAction()">+ Ajouter</button>
+            </div>
+            <div class="suivi-table-wrapper">
+              <table class="suivi-table">
+                <thead>
+                  <tr>
+                    <th class="suivi-col-type center">Type</th>
+                    <th class="suivi-col-action">Contenu</th>
+                    <th class="suivi-col-resp center">Responsable</th>
+                    <th class="suivi-col-ech">Échéance</th>
+                    <th class="suivi-col-statut center">Statut</th>
+                    <th class="suivi-col-del"></th>
+                  </tr>
+                </thead>
+                <tbody id="suiviActionsTbody"></tbody>
+              </table>
+            </div>
+            <button class="suivi-btn-add-row" onclick="_suiviAddAction()">+ Ajouter une ligne</button>
+          </div>
+
+          <!-- Interventions -->
+          <div class="suivi-section" id="suiviIntvSection" style="display:none">
+            <div class="suivi-section-header">
+              <span class="suivi-section-title">Planning des interventions</span>
+              <button class="suivi-btn-add-small" onclick="_suiviAddIntvRow()">+ Ligne</button>
+            </div>
+            <div class="suivi-intv-table-wrapper">
+              <table class="suivi-intv-table">
+                <thead id="suiviIntvThead"></thead>
+                <tbody id="suiviIntvTbody"></tbody>
+              </table>
+            </div>
+            <button class="suivi-btn-add-row" onclick="_suiviAddIntvRow()">+ Ajouter une date</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="suivi-toast"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/pptxgenjs@3.12.0/dist/pptxgen.bundle.js"></script>
 <script src="scripts/xml_import.js?v=6"></script>
 <script src="scripts/utils.js?v=6"></script>
 <script src="scripts/data.js?v=7"></script>
@@ -577,6 +680,7 @@
 <script src="scripts/todo-modal.js?v=8"></script>
 <script src="scripts/todo-ai.js?v=10"></script>
 <script src="scripts/notifications.js?v=1"></script>
+<script src="scripts/suivi.js?v=1"></script>
 <script src="scripts/router.js?v=6"></script>
 <script src="scripts/app.js?v=6"></script>
 </body></html>

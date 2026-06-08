@@ -30,6 +30,7 @@
           _startWalletLoad(user.uid);
           _startFoldersLoad(user.uid);
           if (typeof _startTodoLoad === 'function') _startTodoLoad(user.uid);
+          if (typeof _startSuiviLoad === 'function') _startSuiviLoad(user.uid);
           if (typeof _notifInit === 'function') _notifInit(user.email);
         } else {
           /* Non connecté → réinitialise l'état utilisateur */

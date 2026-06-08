@@ -1,10 +1,10 @@
 /* ═══════════════════════════════════════════
    router.js — Navigation entre les vues de l'application
-   Vues : 'projets' | 'ressources' | 'calendrier' | 'todo'
+   Vues : 'projets' | 'ressources' | 'calendrier' | 'todo' | 'suivi'
    Hash routing : location.hash = '#<vue>'
    ═══════════════════════════════════════════ */
 
-const _VALID_VIEWS = ['projets', 'ressources', 'calendrier', 'todo'];
+const _VALID_VIEWS = ['projets', 'ressources', 'calendrier', 'todo', 'suivi'];
 
 function _hashView() {
   const h = location.hash.replace(/^#/, '');
@@ -25,12 +25,14 @@ function _applyView(view) {
   const viewRessources = document.getElementById('viewRessources');
   const viewCalendar   = document.getElementById('viewCalendar');
   const viewTodo       = document.getElementById('viewTodo');
+  const viewSuivi      = document.getElementById('viewSuivi');
   const navSidebar     = document.getElementById('navSidebar');
 
   viewProjets.style.display    = 'none';
   viewRessources.style.display = 'none';
   viewCalendar.style.display   = 'none';
-  if (viewTodo) viewTodo.style.display = 'none';
+  if (viewTodo)   viewTodo.style.display   = 'none';
+  if (viewSuivi)  viewSuivi.style.display  = 'none';
 
   if (view === 'projets') {
     viewProjets.style.display = '';
@@ -51,6 +53,11 @@ function _applyView(view) {
     if (viewTodo) viewTodo.style.display = 'flex';
     navSidebar.style.display = 'none';
     if (typeof renderTodoView === 'function') renderTodoView();
+
+  } else if (view === 'suivi') {
+    if (viewSuivi) viewSuivi.style.display = '';
+    navSidebar.style.display = 'none';
+    if (typeof renderSuiviView === 'function') renderSuiviView();
   }
 }
 
@@ -90,13 +97,15 @@ document.addEventListener('DOMContentLoaded', () => {
   const viewRessources = document.getElementById('viewRessources');
   const viewCalendar   = document.getElementById('viewCalendar');
   const viewTodo       = document.getElementById('viewTodo');
+  const viewSuivi      = document.getElementById('viewSuivi');
   const navSidebar     = document.getElementById('navSidebar');
   if (!viewProjets) return;
 
   viewProjets.style.display    = 'none';
   viewRessources.style.display = 'none';
   viewCalendar.style.display   = 'none';
-  if (viewTodo) viewTodo.style.display = 'none';
+  if (viewTodo)   viewTodo.style.display   = 'none';
+  if (viewSuivi)  viewSuivi.style.display  = 'none';
 
   if (view === 'projets') {
     viewProjets.style.display = '';
@@ -109,6 +118,9 @@ document.addEventListener('DOMContentLoaded', () => {
     if (navSidebar) navSidebar.style.display = 'none';
   } else if (view === 'todo') {
     if (viewTodo) viewTodo.style.display = 'flex';
+    if (navSidebar) navSidebar.style.display = 'none';
+  } else if (view === 'suivi') {
+    if (viewSuivi) viewSuivi.style.display = '';
     if (navSidebar) navSidebar.style.display = 'none';
   }
 });

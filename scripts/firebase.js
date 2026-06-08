@@ -199,3 +199,12 @@ window._fbGetNotifPrefs = (userKey, cb) =>
 
 window._fbSetNotifPrefs = (userKey, prefs) =>
   set(ref(_fbDb, 'notification_prefs/' + userKey), prefs);
+
+/* ── Données Suivi COPROJ par utilisateur ── */
+window._fbSetSuiviData = (userId, data) =>
+  set(ref(_fbDb, 'suivi_data/' + userId), { d: JSON.stringify(data) });
+window._fbOnSuiviData = (userId, cb) =>
+  onValue(ref(_fbDb, 'suivi_data/' + userId), snap => {
+    try { const v = snap.val(); cb(v?.d ? JSON.parse(v.d) : null); }
+    catch(e) { cb(null); }
+  });
