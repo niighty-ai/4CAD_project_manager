@@ -261,70 +261,6 @@ function _suiviUpdateAction(id, field, value) {
   if (field === 'type' || field === 'statut' || field === 'echeance') _suiviRenderActionsTbody();
 }
 
-function _suiviToggleResp(id) {
-  const p = _suiviGetActive(); if (!p) return;
-  const a = p.actions.find(a => a.id === id); if (!a) return;
-  a.responsable = a.responsable === '4CAD' ? 'client' : '4CAD';
-  p.updatedAt = new Date().toISOString();
-  _suiviSave();
-  _suiviRenderActionsTbody();
-}
-
-/* ── Import / Export JSON ── */
-function _suiviExportAllJSON() {
-  const blob = new Blob([JSON.stringify(_suiviState, null, 2)], { type:'application/json' });
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = `suivi_coproj_all_${new Date().toISOString().slice(0,10)}.json`;
-  a.click();
-  _suiviToast('Export JSON complet ✓');
-}
-
-function _suiviExportProjectJSON() {
-  const p = _suiviGetActive(); if (!p) return;
-  const blob = new Blob([JSON.stringify(p, null, 2)], { type:'application/json' });
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = `suivi_${p.client.replace(/\s+/g,'_')}_${new Date().toISOString().slice(0,10)}.json`;
-  a.click();
-  _suiviToast(`Export JSON : ${p.client} ✓`);
-}
-
-function _suiviImportJSON(input) {
-  const file = input.files[0]; if (!file) return;
-  const reader = new FileReader();
-  reader.onload = e => {
-    try {
-      const data = JSON.parse(e.target.result);
-      if (data.projects) {
-        if (confirm('Remplacer toutes les données ?\nOK = Remplacer  |  Annuler = Fusionner')) {
-          _suiviMigrateState(data);
-          _suiviState = data;
-        } else {
-          data.projects.forEach(p => {
-            const idx = _suiviState.projects.findIndex(x => x.client === p.client);
-            _suiviMigrateProject(p);
-            if (idx >= 0) _suiviState.projects[idx] = p;
-            else _suiviState.projects.push(p);
-          });
-          if (data.activeId) _suiviState.activeId = data.activeId;
-        }
-      } else if (data.client && data.actions) {
-        _suiviMigrateProject(data);
-        const idx = _suiviState.projects.findIndex(x => x.client === data.client);
-        if (idx >= 0) _suiviState.projects[idx] = data;
-        else _suiviState.projects.push(data);
-        _suiviState.activeId = data.client;
-      } else { throw new Error('Format invalide'); }
-      _suiviSave();
-      _suiviRender();
-      _suiviToast('Import réussi ✓');
-    } catch(e) { _suiviToast('Erreur de format JSON', 'error'); }
-  };
-  reader.readAsText(file);
-  input.value = '';
-}
-
 /* ── Export PPTX ── */
 async function _suiviExportPPTX() {
   const p = _suiviGetActive();
@@ -398,13 +334,18 @@ async function _suiviExportPPTX() {
       { text:'Statut',           options:{ bold:true, color:WHITE, fill:HDR_FILL, fontSize:11, fontFace:FONT, align:'center', valign:'middle' } }
     ];
 
-    const dataRows = p.actions.map(a => {
+    const dataRows = _suiviSortActions(p.actions).map(a => {
       const type      = a.type || 'action';
       const isAction  = type === 'action';
       const typeLabel = _SUIVI_TYPE_LABELS[type] || type;
       const typeColor = _SUIVI_TYPE_COL_PPTX[type] || GRAY;
-      const respLabel = a.responsable === '4CAD' ? '4CAD' : (p.client || 'Client');
-      const respColor = a.responsable === '4CAD' ? ORANGE : LBLUE;
+      const clientName = p.client || 'Client';
+      const respLabel = a.responsable === '4CAD' ? '4CAD'
+                      : a.responsable === 'both'  ? '4CAD + ' + clientName
+                      : clientName;
+      const respColor = a.responsable === '4CAD' ? ORANGE
+                      : a.responsable === 'both'  ? '3fb950'
+                      : LBLUE;
       const statLabel = isAction ? (_SUIVI_STATUT_LABELS[a.statut] || a.statut) : '-';
       const statColor = isAction ? (_SUIVI_STATUT_COL[a.statut] || GRAY) : GRAY;
       const dateStr   = isAction ? (_suiviFmtDate(a.echeance) || '-') : '-';
@@ -642,8 +583,7 @@ function _suiviRenderActionsTbody() {
   tbody.innerHTML = _suiviSortActions(p.actions).map(a => {
     const type      = a.type || 'action';
     const isAction  = type === 'action';
-    const respClass = a.responsable === '4CAD' ? 'suivi-resp-4cad' : 'suivi-resp-client';
-    const respLabel = a.responsable === '4CAD' ? '4CAD' : clientLabel;
+    const resp      = a.responsable || '4CAD';
     const overdueClass = (isAction && a.statut !== 'done' && _suiviIsOverdue(a.echeance)) ? ' overdue' : '';
     const rowClass = isAction ? '' : ' suivi-row-nonaction';
 
@@ -655,6 +595,16 @@ function _suiviRenderActionsTbody() {
       <option value="info"    ${type==='info'    ?'selected':''}>Info</option>
       <option value="alert"   ${type==='alert'   ?'selected':''}>Alerte</option>
     </select>`;
+
+    /* Responsable : liste déroulante 3 options */
+    const respSelect = isAction
+      ? `<select class="suivi-resp-select suivi-resp-${resp}"
+            onchange="_suiviUpdateAction('${a.id}','responsable',this.value)">
+          <option value="4CAD"   ${resp==='4CAD'  ?'selected':''}>4CAD</option>
+          <option value="client" ${resp==='client' ?'selected':''}>Client</option>
+          <option value="both"   ${resp==='both'   ?'selected':''}>4CAD + Client</option>
+        </select>`
+      : `<span class="suivi-statut-badge suivi-s-todo" style="cursor:default">—</span>`;
 
     /* Statut : liste déroulante colorée (actions seulement) */
     const statutCell = isAction
@@ -673,10 +623,7 @@ function _suiviRenderActionsTbody() {
           onblur="_suiviUpdateAction('${a.id}','action',this.value)"
           onkeydown="if(event.key==='Enter')this.blur()">
       </td>
-      <td class="suivi-col-resp">
-        <span class="suivi-resp-badge ${respClass}" onclick="${isAction ? `_suiviToggleResp('${a.id}')` : 'void(0)'}"
-          title="${isAction ? 'Cliquer pour basculer' : ''}">${_suiviEsc(respLabel)}</span>
-      </td>
+      <td class="suivi-col-resp">${respSelect}</td>
       <td class="suivi-col-ech">
         <input type="date" class="suivi-date-input${overdueClass}" value="${_suiviEsc(a.echeance||'')}"
           onchange="_suiviUpdateAction('${a.id}','echeance',this.value)">
@@ -733,15 +680,13 @@ function _suiviRenderIntvTbody() {
     const dateLabel = row.date ? _suiviFmtIntvDate(row.date) : 'Choisir une date…';
     const dateLabelClass = row.date ? '' : 'empty';
 
-    /* Cellule date : label + label-bouton avec input overlay pour picker bien positionné */
-    const dateCellHtml = `<div class="suivi-date-cell">
+    /* Cellule date : label couvre toute la zone → clic sur texte ou icône ouvre le picker */
+    const dateCellHtml = `<label class="suivi-date-cell" title="Choisir une date">
       <span class="suivi-date-label ${dateLabelClass}">${dateLabel}</span>
-      <label class="suivi-cal-btn" title="Choisir une date">
-        ${_SUIVI_CAL_ICON}
-        <input type="date" class="suivi-date-picker-overlay" value="${_suiviEsc(row.date||'')}"
-          onchange="_suiviUpdateIntvDate('${row.id}',this.value)">
-      </label>
-    </div>`;
+      <span class="suivi-cal-icon">${_SUIVI_CAL_ICON}</span>
+      <input type="date" class="suivi-date-picker-overlay" value="${_suiviEsc(row.date||'')}"
+        onchange="_suiviUpdateIntvDate('${row.id}',this.value)">
+    </label>`;
 
     const cellsHtml = ints.map(name => {
       const cell  = row.cells[name] || null;
@@ -801,7 +746,6 @@ function _suiviRender() {
   const empty = document.getElementById('suiviEmpty');
   const view  = document.getElementById('suiviProjectView');
   const title = document.getElementById('suiviTitleInput');
-  const btnExportJson = document.getElementById('suiviBtnExportJson');
   const btnExportPptx = document.getElementById('suiviBtnExportPptx');
   if (!empty || !view) return;
 
@@ -809,7 +753,6 @@ function _suiviRender() {
     empty.style.display = 'flex';
     view.style.display  = 'none';
     if (title) { title.value = ''; }
-    if (btnExportJson) btnExportJson.style.display = 'none';
     if (btnExportPptx) btnExportPptx.style.display = 'none';
     return;
   }
@@ -825,7 +768,6 @@ function _suiviRender() {
     const dot = document.getElementById('suiviTitleDot');
     if (dot) dot.style.background = color;
   }
-  if (btnExportJson) btnExportJson.style.display = '';
   if (btnExportPptx) btnExportPptx.style.display = '';
   _suiviRenderActionsTbody();
   _suiviRenderIntvTable();

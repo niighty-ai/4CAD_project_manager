@@ -580,17 +580,6 @@
         </div>
       </div>
       <div class="suivi-project-list" id="suiviProjectList"></div>
-      <div class="suivi-sidebar-footer">
-        <button class="suivi-btn-io" onclick="_suiviExportAllJSON()">
-          <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-          Exporter tout (JSON)
-        </button>
-        <label class="suivi-btn-io" style="cursor:pointer">
-          <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-          Importer (JSON)
-          <input type="file" accept=".json" style="display:none" onchange="_suiviImportJSON(this)">
-        </label>
-      </div>
     </div>
 
     <!-- Main -->
@@ -598,10 +587,6 @@
       <div class="suivi-topbar">
         <div class="suivi-title-dot" id="suiviTitleDot"></div>
         <input id="suiviTitleInput" type="text" class="suivi-title-input" placeholder="Aucun client sélectionné" readonly>
-        <button class="suivi-btn-export" id="suiviBtnExportJson" onclick="_suiviExportProjectJSON()" style="display:none">
-          <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-          JSON
-        </button>
         <button class="suivi-btn-export" id="suiviBtnExportPptx" onclick="_suiviExportPPTX()" style="display:none">
           📊 PPTX
         </button>
@@ -612,7 +597,7 @@
         <div class="suivi-empty" id="suiviEmpty">
           <div class="suivi-empty-icon">📋</div>
           <h2>Aucun client sélectionné</h2>
-          <p>Créez un nouveau client ou importez un JSON</p>
+          <p>Sélectionnez ou créez un client dans la barre latérale</p>
         </div>
 
         <!-- Project view -->

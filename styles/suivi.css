@@ -329,11 +329,11 @@
 .suivi-table tbody tr:hover { background: var(--surface2); }
 .suivi-table tbody td { padding: 5px 8px; vertical-align: middle; }
 
-.suivi-col-type    { width: 100px; text-align: center; }
+.suivi-col-type    { width: 125px; min-width: 125px; text-align: center; }
 .suivi-col-action  { min-width: 200px; }
-.suivi-col-resp    { width: 100px; text-align: center; }
+.suivi-col-resp    { width: 130px; min-width: 130px; text-align: center; }
 .suivi-col-ech     { width: 120px; }
-.suivi-col-statut  { width: 100px; text-align: center; }
+.suivi-col-statut  { width: 100px; min-width: 100px; text-align: center; }
 .suivi-col-del     { width: 30px; text-align: center; }
 
 /* ── Type select (liste déroulante colorée) ── */
@@ -385,21 +385,29 @@
 .suivi-s-done { background-color: rgba(63,185,80,.15); color: var(--green); }
 .suivi-statut-select option { background: var(--surface); color: var(--text); font-weight: 600; }
 
-/* Resp badge (reste un toggle) */
-.suivi-resp-badge {
-  display: inline-block;
-  padding: 2px 8px;
+/* Responsable select */
+.suivi-resp-select {
   border-radius: 10px;
   font-size: 10px;
   font-weight: 700;
   cursor: pointer;
-  user-select: none;
-  transition: opacity 0.1s;
-  white-space: nowrap;
+  padding: 3px 6px;
+  outline: none;
+  border: none;
+  font-family: Arial, sans-serif;
+  width: 100%;
+  text-align: center;
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='5' viewBox='0 0 8 5'%3E%3Cpath d='M0 0l4 5 4-5z' fill='%23727F8E'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 5px center;
+  padding-right: 18px;
 }
-.suivi-resp-badge:hover { opacity: 0.8; }
-.suivi-resp-4cad   { background: rgba(236,114,6,.18); color: var(--accent); }
-.suivi-resp-client { background: rgba(114,182,236,.18); color: var(--blue); }
+.suivi-resp-4CAD   { background-color: rgba(236,114,6,.18); color: #EC7206; }
+.suivi-resp-client { background-color: rgba(114,182,236,.18); color: #72B6EC; }
+.suivi-resp-both   { background-color: rgba(63,185,80,.15); color: var(--green); }
+.suivi-resp-select option { background: var(--surface); color: var(--text); font-weight: 600; }
 
 /* Statut badge (non-action rows) */
 .suivi-statut-badge {
