@@ -128,6 +128,7 @@
   display: flex;
   align-items: center;
   gap: 8px;
+  user-select: none;
   padding: 7px 14px;
   cursor: pointer;
   transition: background 0.1s;
@@ -522,10 +523,12 @@ tr:hover .suivi-btn-del { opacity: 1; }
 
 /* Cellule date des interventions */
 .suivi-date-cell {
+  position: relative;
   display: inline-flex;
   align-items: center;
   gap: 6px;
   width: 100%;
+  overflow: hidden;
 }
 .suivi-date-label {
   font-size: 12px;

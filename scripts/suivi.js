@@ -161,6 +161,17 @@ function _startSuiviLoad(userId) {
   } else {
     _suiviLoaded = true;
   }
+
+  /* Abonnement secondaire aux données Todo pour rafraîchir la sidebar Suivi dès
+     que _todoData.folders est disponible (le chargement Todo est asynchrone). */
+  if (typeof window._fbOnTodoData === 'function') {
+    window._fbOnTodoData(userId, () => {
+      /* Différer d'un tick pour que todo.js ait eu le temps de mettre à jour _todoData */
+      setTimeout(() => {
+        if (currentView === 'suivi') _suiviRenderSidebar();
+      }, 0);
+    });
+  }
 }
 
 /* ── Nouveau client : dropdown depuis les clients du portfolio ── */
