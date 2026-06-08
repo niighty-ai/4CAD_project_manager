@@ -154,6 +154,10 @@ function _startFirebaseLoad() {
           setFbStatus('☁ Vide', '#f7971e');
         }
         _fbInitLoaded = true;
+        /* La sidebar Suivi dépend du portfolio (filtre par client) : re-rendre si nécessaire */
+        if (currentView === 'suivi' && typeof _suiviRenderSidebar === 'function') {
+          _suiviRenderSidebar();
+        }
       });
     } else if (attempts > 60) {
       clearInterval(iv);

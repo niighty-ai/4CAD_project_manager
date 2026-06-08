@@ -163,13 +163,13 @@ function _startSuiviLoad(userId) {
   }
 
   /* Abonnement secondaire aux données Todo :
-     - rafraîchit la sidebar (les dossiers Todo peuvent charger après l'ouverture de Suivi)
+     - rafraîchit la vue complète (sidebar dépend à la fois de _todoData ET de portfolio)
      - synchronise les statuts Todo → Suivi en temps réel */
   if (typeof window._fbOnTodoData === 'function') {
     window._fbOnTodoData(userId, () => {
       /* Différer d'un tick pour que todo.js ait eu le temps de mettre à jour _todoData */
       setTimeout(() => {
-        if (currentView === 'suivi') _suiviRenderSidebar();
+        if (currentView === 'suivi') _suiviRender();
         _suiviSyncTodoToSuivi();
       }, 0);
     });
@@ -358,7 +358,10 @@ function _suiviCreateLinkTask(actionId) {
   _suiviSave();
   _suiviCloseLinkPanel();
   _suiviRenderActionsTbody();
-  _suiviToast('Tâche Todo créée et liée ✓');
+  /* Ouvre le modal Todo pour que l'utilisateur complète Type, Statut et renomme si besoin */
+  if (typeof _todoOpenModal === 'function') {
+    setTimeout(() => _todoOpenModal(task.id), 50);
+  }
 }
 
 function _suiviLinkToTask(actionId, taskId) {
@@ -390,6 +393,22 @@ function _suiviSyncSuiviToTodo(action) {
   if (task.completed !== shouldBeDone && typeof _todoToggleComplete === 'function') {
     _todoToggleComplete(task.id);
   }
+}
+
+/* Retourne l'ensemble des IDs de tâches Todo liées à des actions Suivi */
+function _suiviGetLinkedTaskIds() {
+  const ids = new Set();
+  _suiviState.projects.forEach(proj => {
+    (proj.actions || []).forEach(a => { if (a.todoTaskId) ids.add(a.todoTaskId); });
+  });
+  return ids;
+}
+
+/* Ouvre le date picker natif pour une ligne d'intervention */
+function _suiviOpenIntvDate(rowId) {
+  const inp = document.getElementById('suiviDP-' + rowId);
+  if (!inp) return;
+  try { inp.showPicker(); } catch(e) { inp.focus(); inp.click(); }
 }
 
 /* Todo → Suivi : quand _todoData change, met à jour le statut des actions liées */
@@ -802,14 +821,15 @@ function _suiviRenderActionsTbody() {
         </select>`
       : `<span class="suivi-statut-badge suivi-s-todo" style="cursor:default">—</span>`;
 
-    /* Bouton de lien Todo */
-    const linkedTask = a.todoTaskId ? _suiviGetTodoTask(a.todoTaskId) : null;
+    /* Bouton de lien Todo — visible uniquement pour les actions 4CAD ou 4CAD+Client */
+    const canLink    = isAction && (resp === '4CAD' || resp === 'both');
+    const linkedTask = canLink && a.todoTaskId ? _suiviGetTodoTask(a.todoTaskId) : null;
     const taskDone   = linkedTask?.completed === true;
     const linkBtnClass = a.todoTaskId ? (taskDone ? 'suivi-link-btn linked done' : 'suivi-link-btn linked') : 'suivi-link-btn';
     const linkTitle  = linkedTask
       ? `Liée à : ${linkedTask.title}${taskDone ? ' ✓' : ''}`
       : 'Lier à une tâche Todo';
-    const linkBtnHtml = isAction
+    const linkBtnHtml = canLink
       ? `<button class="${linkBtnClass}" onclick="_suiviOpenLinkPanel('${a.id}',this)" title="${_suiviEsc(linkTitle)}">${taskDone ? _SUIVI_DONE_LINK_ICON : _SUIVI_LINK_ICON}</button>`
       : '';
 
@@ -878,13 +898,13 @@ function _suiviRenderIntvTbody() {
     const dateLabel = row.date ? _suiviFmtIntvDate(row.date) : 'Choisir une date…';
     const dateLabelClass = row.date ? '' : 'empty';
 
-    /* Cellule date : label couvre toute la zone → clic sur texte ou icône ouvre le picker */
-    const dateCellHtml = `<label class="suivi-date-cell" title="Choisir une date">
+    /* Cellule date : clic sur texte ou icône appelle showPicker() sur l'input caché */
+    const dateCellHtml = `<div class="suivi-date-cell" onclick="_suiviOpenIntvDate('${row.id}')" title="Choisir une date">
       <span class="suivi-date-label ${dateLabelClass}">${dateLabel}</span>
       <span class="suivi-cal-icon">${_SUIVI_CAL_ICON}</span>
-      <input type="date" class="suivi-date-picker-overlay" value="${_suiviEsc(row.date||'')}"
+      <input type="date" id="suiviDP-${row.id}" class="suivi-date-picker-hidden" value="${_suiviEsc(row.date||'')}"
         onchange="_suiviUpdateIntvDate('${row.id}',this.value)">
-    </label>`;
+    </div>`;
 
     const cellsHtml = ints.map(name => {
       const cell  = row.cells[name] || null;

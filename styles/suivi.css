@@ -529,7 +529,7 @@ tr:hover .suivi-btn-del { opacity: 1; }
   align-items: center;
   gap: 6px;
   width: 100%;
-  overflow: hidden;
+  cursor: pointer;
 }
 .suivi-date-label {
   font-size: 12px;
@@ -562,17 +562,19 @@ tr:hover .suivi-btn-del { opacity: 1; }
 }
 .suivi-cal-btn:hover { border-color: var(--accent); color: var(--accent); }
 
-/* L'input date est positionné en overlay sur le label pour que le picker s'ouvre au bon endroit */
-.suivi-date-picker-overlay {
+/* Input date caché ancré au centre de la cellule — showPicker() l'utilise comme ancre */
+.suivi-date-picker-hidden {
   position: absolute;
-  inset: 0;
+  top: 50%;
+  left: 50%;
+  transform: translateY(-50%);
+  width: 0;
+  height: 0;
   opacity: 0;
-  cursor: pointer;
-  width: 100%;
-  height: 100%;
   border: none;
   padding: 0;
   margin: 0;
+  pointer-events: none;
   font-size: 0;
 }
 
@@ -860,3 +862,18 @@ tr:hover .suivi-btn-rm-row { opacity: 1; }
 .suivi-lp-check.done   { color: var(--green); }
 .suivi-lp-task-title   { font-size: 12px; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .suivi-lp-empty { font-size: 12px; color: var(--muted); font-style: italic; padding: 4px 0; }
+
+/* ── Badge Suivi affiché sur les tâches Todo liées ── */
+.todo-suivi-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 9px;
+  font-weight: 700;
+  color: var(--accent);
+  background: rgba(236,114,6,.12);
+  border: 1px solid rgba(236,114,6,.25);
+  border-radius: 8px;
+  padding: 1px 5px;
+  white-space: nowrap;
+}
