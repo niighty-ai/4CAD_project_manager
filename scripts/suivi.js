@@ -162,13 +162,15 @@ function _startSuiviLoad(userId) {
     _suiviLoaded = true;
   }
 
-  /* Abonnement secondaire aux données Todo pour rafraîchir la sidebar Suivi dès
-     que _todoData.folders est disponible (le chargement Todo est asynchrone). */
+  /* Abonnement secondaire aux données Todo :
+     - rafraîchit la sidebar (les dossiers Todo peuvent charger après l'ouverture de Suivi)
+     - synchronise les statuts Todo → Suivi en temps réel */
   if (typeof window._fbOnTodoData === 'function') {
     window._fbOnTodoData(userId, () => {
       /* Différer d'un tick pour que todo.js ait eu le temps de mettre à jour _todoData */
       setTimeout(() => {
         if (currentView === 'suivi') _suiviRenderSidebar();
+        _suiviSyncTodoToSuivi();
       }, 0);
     });
   }
@@ -236,14 +238,183 @@ function _suiviSelectNewClient(name) {
   _suiviRender();
 }
 
-/* Ferme le panel si on clique ailleurs */
+/* Ferme les panels flottants si on clique ailleurs */
 document.addEventListener('click', e => {
-  const panel = document.getElementById('suiviNewClientPanel');
-  const btn   = document.querySelector('.suivi-btn-new');
-  if (panel && panel.style.display !== 'none' && !panel.contains(e.target) && e.target !== btn) {
-    panel.style.display = 'none';
+  const newClientPanel = document.getElementById('suiviNewClientPanel');
+  const newBtn = document.querySelector('.suivi-btn-new');
+  if (newClientPanel && newClientPanel.style.display !== 'none' &&
+      !newClientPanel.contains(e.target) && e.target !== newBtn) {
+    newClientPanel.style.display = 'none';
+  }
+  const linkPanel = document.getElementById('suiviLinkPanel');
+  if (linkPanel && linkPanel.style.display !== 'none' &&
+      !linkPanel.contains(e.target) && !e.target.closest('.suivi-link-btn')) {
+    _suiviCloseLinkPanel();
   }
 }, true);
+
+/* ── Lien Todo ── */
+
+let _suiviLinkPanelActionId = null;
+
+const _SUIVI_LINK_ICON = `<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>`;
+const _SUIVI_DONE_LINK_ICON = `<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>`;
+
+function _suiviGetClientFolderId() {
+  const p = _suiviGetActive();
+  if (!p) return null;
+  const folder = (typeof _todoData !== 'undefined' ? _todoData.folders || [] : []).find(f => f.name === p.client);
+  return folder ? folder.id : null;
+}
+
+function _suiviGetTodoTask(taskId) {
+  if (!taskId || typeof _todoData === 'undefined') return null;
+  return (_todoData.tasks || []).find(t => t.id === taskId) || null;
+}
+
+function _suiviOpenLinkPanel(actionId, btnEl) {
+  if (_suiviLinkPanelActionId === actionId) { _suiviCloseLinkPanel(); return; }
+  _suiviLinkPanelActionId = actionId;
+
+  const p = _suiviGetActive();
+  if (!p) return;
+  const action = p.actions.find(a => a.id === actionId);
+  if (!action) return;
+
+  let panel = document.getElementById('suiviLinkPanel');
+  if (!panel) {
+    panel = document.createElement('div');
+    panel.id = 'suiviLinkPanel';
+    panel.className = 'suivi-link-panel';
+    document.body.appendChild(panel);
+  }
+
+  const folderId = _suiviGetClientFolderId();
+  const allTasks = typeof _todoData !== 'undefined' ? _todoData.tasks || [] : [];
+  const folderTasks = folderId ? allTasks.filter(t => t.folderId === folderId && !t.parentId) : [];
+  const linkedTask = action.todoTaskId ? _suiviGetTodoTask(action.todoTaskId) : null;
+
+  let html = `<div class="suivi-lp-title">Lier à une tâche Todo</div>`;
+
+  if (linkedTask) {
+    html += `<div class="suivi-lp-current">
+      <span class="suivi-lp-current-label">Liée :</span>
+      <span class="suivi-lp-current-name ${linkedTask.completed ? 'done' : ''}">${_suiviEsc(linkedTask.title)}</span>
+      <button class="suivi-lp-unlink" onclick="_suiviUnlinkTask('${actionId}')">Délier</button>
+    </div>`;
+  }
+
+  html += `<button class="suivi-lp-create" onclick="_suiviCreateLinkTask('${actionId}')">
+    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+    Créer une nouvelle tâche
+  </button>`;
+
+  if (folderTasks.length) {
+    html += `<div class="suivi-lp-sep">Tâches existantes — ${_suiviEsc(p.client)}</div>`;
+    html += `<div class="suivi-lp-list">` + folderTasks.map(t =>
+      `<div class="suivi-lp-task ${action.todoTaskId === t.id ? 'selected' : ''}"
+            onclick="_suiviLinkToTask('${actionId}','${t.id}')">
+        <span class="suivi-lp-check ${t.completed ? 'done' : ''}">${t.completed ? '✓' : '○'}</span>
+        <span class="suivi-lp-task-title">${_suiviEsc(t.title)}</span>
+       </div>`
+    ).join('') + `</div>`;
+  } else {
+    html += `<div class="suivi-lp-empty">Aucune tâche dans ce dossier</div>`;
+  }
+
+  panel.innerHTML = html;
+  panel.style.display = 'block';
+
+  const r = btnEl.getBoundingClientRect();
+  panel.style.top  = (r.bottom + 4) + 'px';
+  panel.style.left = r.left + 'px';
+
+  requestAnimationFrame(() => {
+    const pr = panel.getBoundingClientRect();
+    if (pr.right > window.innerWidth - 8)  panel.style.left = (window.innerWidth - pr.width - 8) + 'px';
+    if (pr.bottom > window.innerHeight - 8) panel.style.top  = (r.top - pr.height - 4) + 'px';
+  });
+}
+
+function _suiviCloseLinkPanel() {
+  _suiviLinkPanelActionId = null;
+  const panel = document.getElementById('suiviLinkPanel');
+  if (panel) panel.style.display = 'none';
+}
+
+function _suiviCreateLinkTask(actionId) {
+  const p = _suiviGetActive(); if (!p) return;
+  const action = p.actions.find(a => a.id === actionId); if (!action) return;
+  const folderId = _suiviGetClientFolderId();
+  if (!folderId) { _suiviToast('Dossier Todo introuvable pour ce client', 'error'); return; }
+  if (typeof _todoCreateTask !== 'function') { _suiviToast('Module Todo indisponible', 'error'); return; }
+  const title = action.action && action.action.trim() ? action.action.trim() : 'Nouvelle tâche';
+  const task = _todoCreateTask(title, folderId, null);
+  if (action.echeance && typeof _todoUpdateTask === 'function') {
+    _todoUpdateTask(task.id, { dueDate: action.echeance });
+  }
+  action.todoTaskId = task.id;
+  p.updatedAt = new Date().toISOString();
+  _suiviSave();
+  _suiviCloseLinkPanel();
+  _suiviRenderActionsTbody();
+  _suiviToast('Tâche Todo créée et liée ✓');
+}
+
+function _suiviLinkToTask(actionId, taskId) {
+  const p = _suiviGetActive(); if (!p) return;
+  const action = p.actions.find(a => a.id === actionId); if (!action) return;
+  action.todoTaskId = taskId;
+  p.updatedAt = new Date().toISOString();
+  _suiviSave();
+  _suiviCloseLinkPanel();
+  _suiviRenderActionsTbody();
+}
+
+function _suiviUnlinkTask(actionId) {
+  const p = _suiviGetActive(); if (!p) return;
+  const action = p.actions.find(a => a.id === actionId); if (!action) return;
+  delete action.todoTaskId;
+  p.updatedAt = new Date().toISOString();
+  _suiviSave();
+  _suiviCloseLinkPanel();
+  _suiviRenderActionsTbody();
+}
+
+/* Suivi → Todo : quand l'action change de statut, synchronise la tâche liée */
+function _suiviSyncSuiviToTodo(action) {
+  if (!action?.todoTaskId) return;
+  const task = _suiviGetTodoTask(action.todoTaskId);
+  if (!task) return;
+  const shouldBeDone = action.statut === 'done';
+  if (task.completed !== shouldBeDone && typeof _todoToggleComplete === 'function') {
+    _todoToggleComplete(task.id);
+  }
+}
+
+/* Todo → Suivi : quand _todoData change, met à jour le statut des actions liées */
+function _suiviSyncTodoToSuivi() {
+  if (typeof _todoData === 'undefined') return;
+  let changed = false;
+  _suiviState.projects.forEach(proj => {
+    (proj.actions || []).forEach(action => {
+      if (!action.todoTaskId) return;
+      const task = _suiviGetTodoTask(action.todoTaskId);
+      if (!task) return;
+      const taskDone = task.completed === true;
+      const actionDone = action.statut === 'done';
+      if (taskDone !== actionDone) {
+        action.statut = taskDone ? 'done' : 'todo';
+        action.updatedAt = new Date().toISOString();
+        changed = true;
+      }
+    });
+  });
+  if (changed) {
+    _suiviSave();
+    if (currentView === 'suivi') _suiviRenderActionsTbody();
+  }
+}
 
 /* ── CRUD Actions ── */
 function _suiviAddAction() {
@@ -267,8 +438,12 @@ function _suiviRemoveAction(id) {
 function _suiviUpdateAction(id, field, value) {
   const p = _suiviGetActive(); if (!p) return;
   const a = p.actions.find(a => a.id === id);
-  if (a) { a[field] = value; p.updatedAt = new Date().toISOString(); _suiviSave(); }
-  /* Re-render pour actualiser la classe CSS du select type/statut */
+  if (a) {
+    a[field] = value;
+    p.updatedAt = new Date().toISOString();
+    _suiviSave();
+    if (field === 'statut') _suiviSyncSuiviToTodo(a);
+  }
   if (field === 'type' || field === 'statut' || field === 'echeance') _suiviRenderActionsTbody();
 }
 
@@ -627,7 +802,19 @@ function _suiviRenderActionsTbody() {
         </select>`
       : `<span class="suivi-statut-badge suivi-s-todo" style="cursor:default">—</span>`;
 
+    /* Bouton de lien Todo */
+    const linkedTask = a.todoTaskId ? _suiviGetTodoTask(a.todoTaskId) : null;
+    const taskDone   = linkedTask?.completed === true;
+    const linkBtnClass = a.todoTaskId ? (taskDone ? 'suivi-link-btn linked done' : 'suivi-link-btn linked') : 'suivi-link-btn';
+    const linkTitle  = linkedTask
+      ? `Liée à : ${linkedTask.title}${taskDone ? ' ✓' : ''}`
+      : 'Lier à une tâche Todo';
+    const linkBtnHtml = isAction
+      ? `<button class="${linkBtnClass}" onclick="_suiviOpenLinkPanel('${a.id}',this)" title="${_suiviEsc(linkTitle)}">${taskDone ? _SUIVI_DONE_LINK_ICON : _SUIVI_LINK_ICON}</button>`
+      : '';
+
     return `<tr class="${rowClass}">
+      <td class="suivi-col-link">${linkBtnHtml}</td>
       <td class="suivi-col-type">${typeSelect}</td>
       <td class="suivi-col-action">
         <input class="suivi-action-input" value="${_suiviEsc(a.action)}" placeholder="Saisir le contenu…"
