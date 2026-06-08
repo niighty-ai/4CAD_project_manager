@@ -1,6 +1,7 @@
 /* ═══════════════════════════════════════════
    suivi.js — Suivi COPROJ : état, Firebase sync, CRUD
    Firebase path : suivi_data/{userId}
+   La liste des clients est pilotée par les dossiers Todo liés aux clients du portfolio.
    ═══════════════════════════════════════════ */
 
 /* ── État global ── */
@@ -26,9 +27,33 @@ function _suiviUid() {
 function _suiviEsc(s) {
   return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
+
+/* Retourne le projet actif depuis _suiviState.projects (keyed par client name) */
 function _suiviGetActive() {
-  return _suiviState.projects.find(p => p.id === _suiviState.activeId) || null;
+  if (!_suiviState.activeId) return null;
+  let p = _suiviState.projects.find(p => p.client === _suiviState.activeId);
+  if (!p) {
+    /* Auto-création d'un projet vierge si le dossier existe mais pas encore de données */
+    p = {
+      client: _suiviState.activeId,
+      actions: [],
+      interventions: { intervenants: ['Consultant 1'], rows: [] },
+      updatedAt: new Date().toISOString()
+    };
+    _suiviState.projects.push(p);
+  }
+  return p;
 }
+
+/* Retourne les dossiers Todo dont le nom correspond à un client du portfolio */
+function _suiviGetLinkedClients() {
+  const portfolioClients = new Set(
+    (typeof portfolio !== 'undefined' ? portfolio : []).map(p => p.client || '').filter(Boolean)
+  );
+  const folders = (typeof _todoData !== 'undefined' ? _todoData.folders || [] : []);
+  return folders.filter(f => portfolioClients.has(f.name));
+}
+
 function _suiviFmtDate(iso) {
   if (!iso) return '';
   const [y,m,d] = iso.split('-');
@@ -84,6 +109,11 @@ function _suiviMigrateProject(p) {
 }
 function _suiviMigrateState(s) {
   if (s?.projects) s.projects.forEach(_suiviMigrateProject);
+  /* Migration activeId : si c'est un UID (ancien format), tenter de retrouver le client */
+  if (s?.activeId && s?.projects) {
+    const byId = s.projects.find(p => p.id === s.activeId);
+    if (byId) s.activeId = byId.client;
+  }
   return s;
 }
 
@@ -133,49 +163,76 @@ function _startSuiviLoad(userId) {
   }
 }
 
-/* ── CRUD Projets ── */
+/* ── Nouveau client : dropdown depuis les clients du portfolio ── */
 function _suiviNewProject() {
-  const color = _SUIVI_COLORS[_suiviState.projects.length % _SUIVI_COLORS.length];
-  const p = {
-    id: _suiviUid(), client: 'Nouveau client', color,
-    createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
-    actions: [
-      { id: _suiviUid(), type:'action',  action:'', responsable:'4CAD',   echeance:'', statut:'todo' },
-      { id: _suiviUid(), type:'comment', action:'', responsable:'client', echeance:'', statut:'todo' }
-    ],
-    interventions: { intervenants:['Consultant 1'], rows:[] }
-  };
-  _suiviState.projects.push(p);
-  _suiviState.activeId = p.id;
-  _suiviSave();
-  _suiviRender();
-  setTimeout(() => {
-    const i = document.getElementById('suiviTitleInput');
-    if (i) { i.focus(); i.select(); }
-  }, 60);
+  const panel = document.getElementById('suiviNewClientPanel');
+  if (!panel) return;
+  const isOpen = panel.style.display !== 'none';
+  panel.style.display = isOpen ? 'none' : '';
+  if (!isOpen) {
+    _suiviFilterNewClientList('');
+    const inp = panel.querySelector('.suivi-new-client-search');
+    if (inp) { inp.value = ''; inp.focus(); }
+  }
 }
 
-function _suiviDeleteProject(id) {
-  if (!confirm('Supprimer ce client ?')) return;
-  _suiviState.projects = _suiviState.projects.filter(p => p.id !== id);
-  if (_suiviState.activeId === id)
-    _suiviState.activeId = _suiviState.projects[0]?.id || null;
+function _suiviFilterNewClientList(q) {
+  const list = document.getElementById('suiviNewClientList');
+  if (!list) return;
+  const portfolioClients = [...new Set(
+    (typeof portfolio !== 'undefined' ? portfolio : []).map(p => p.client || '').filter(Boolean)
+  )].sort();
+  const existingFolderNames = new Set(
+    (typeof _todoData !== 'undefined' ? _todoData.folders || [] : []).map(f => f.name)
+  );
+  const filtered = q
+    ? portfolioClients.filter(c => c.toLowerCase().includes(q.toLowerCase()))
+    : portfolioClients;
+
+  if (!filtered.length) {
+    list.innerHTML = '<div class="suivi-new-client-empty">Aucun client trouvé</div>';
+    return;
+  }
+  list.innerHTML = filtered.map(c => {
+    const exists = existingFolderNames.has(c);
+    return `<div class="suivi-new-client-item" onclick="_suiviSelectNewClient('${_suiviEsc(c)}')">
+      <span>${_suiviEsc(c)}</span>
+      ${exists ? '<span class="suivi-client-tag">✓ ajouté</span>' : ''}
+    </div>`;
+  }).join('');
+}
+
+function _suiviSelectNewClient(name) {
+  if (!name) return;
+  /* Créer le dossier Todo si inexistant */
+  if (typeof _todoData !== 'undefined') {
+    if (!_todoData.folders) _todoData.folders = [];
+    const exists = _todoData.folders.find(f => f.name === name);
+    if (!exists) {
+      const color = _SUIVI_COLORS[_todoData.folders.length % _SUIVI_COLORS.length];
+      if (typeof _todoCreateFolder === 'function') {
+        _todoCreateFolder(name, color);
+      } else {
+        _todoData.folders.push({ id: _suiviUid(), name, color, order: _todoData.folders.length });
+        if (typeof _todoSave === 'function') _todoSave();
+      }
+    }
+  }
+  _suiviState.activeId = name;
   _suiviSave();
+  const panel = document.getElementById('suiviNewClientPanel');
+  if (panel) panel.style.display = 'none';
   _suiviRender();
 }
 
-function _suiviSetActive(id) {
-  _suiviState.activeId = id;
-  _suiviRender();
-}
-
-function _suiviUpdateProjectName(name) {
-  const p = _suiviGetActive(); if (!p) return;
-  p.client = name; p.updatedAt = new Date().toISOString();
-  _suiviSave();
-  _suiviRenderSidebar();
-  _suiviRenderActionsTbody();
-}
+/* Ferme le panel si on clique ailleurs */
+document.addEventListener('click', e => {
+  const panel = document.getElementById('suiviNewClientPanel');
+  const btn   = document.querySelector('.suivi-btn-new');
+  if (panel && panel.style.display !== 'none' && !panel.contains(e.target) && e.target !== btn) {
+    panel.style.display = 'none';
+  }
+}, true);
 
 /* ── CRUD Actions ── */
 function _suiviAddAction() {
@@ -200,33 +257,14 @@ function _suiviUpdateAction(id, field, value) {
   const p = _suiviGetActive(); if (!p) return;
   const a = p.actions.find(a => a.id === id);
   if (a) { a[field] = value; p.updatedAt = new Date().toISOString(); _suiviSave(); }
-  if (field === 'echeance') _suiviRenderActionsTbody();
+  /* Re-render pour actualiser la classe CSS du select type/statut */
+  if (field === 'type' || field === 'statut' || field === 'echeance') _suiviRenderActionsTbody();
 }
 
 function _suiviToggleResp(id) {
   const p = _suiviGetActive(); if (!p) return;
   const a = p.actions.find(a => a.id === id); if (!a) return;
   a.responsable = a.responsable === '4CAD' ? 'client' : '4CAD';
-  p.updatedAt = new Date().toISOString();
-  _suiviSave();
-  _suiviRenderActionsTbody();
-}
-
-function _suiviCycleStatut(id) {
-  const p = _suiviGetActive(); if (!p) return;
-  const a = p.actions.find(a => a.id === id); if (!a) return;
-  const idx = _SUIVI_STATUTS.indexOf(a.statut);
-  a.statut = _SUIVI_STATUTS[(idx+1) % _SUIVI_STATUTS.length];
-  p.updatedAt = new Date().toISOString();
-  _suiviSave();
-  _suiviRenderActionsTbody();
-}
-
-function _suiviCycleType(id) {
-  const p = _suiviGetActive(); if (!p) return;
-  const a = p.actions.find(a => a.id === id); if (!a) return;
-  const idx = _SUIVI_TYPES.indexOf(a.type||'action');
-  a.type = _SUIVI_TYPES[(idx+1) % _SUIVI_TYPES.length];
   p.updatedAt = new Date().toISOString();
   _suiviSave();
   _suiviRenderActionsTbody();
@@ -264,19 +302,19 @@ function _suiviImportJSON(input) {
           _suiviState = data;
         } else {
           data.projects.forEach(p => {
-            const idx = _suiviState.projects.findIndex(x => x.id === p.id);
+            const idx = _suiviState.projects.findIndex(x => x.client === p.client);
             _suiviMigrateProject(p);
             if (idx >= 0) _suiviState.projects[idx] = p;
             else _suiviState.projects.push(p);
           });
           if (data.activeId) _suiviState.activeId = data.activeId;
         }
-      } else if (data.id && data.actions) {
+      } else if (data.client && data.actions) {
         _suiviMigrateProject(data);
-        const idx = _suiviState.projects.findIndex(x => x.id === data.id);
+        const idx = _suiviState.projects.findIndex(x => x.client === data.client);
         if (idx >= 0) _suiviState.projects[idx] = data;
         else _suiviState.projects.push(data);
-        _suiviState.activeId = data.id;
+        _suiviState.activeId = data.client;
       } else { throw new Error('Format invalide'); }
       _suiviSave();
       _suiviRender();
@@ -333,7 +371,6 @@ async function _suiviExportPPTX() {
 
     const today = new Date().toLocaleDateString('fr-FR', {day:'numeric',month:'long',year:'numeric'});
 
-    /* Slide 1 : Titre */
     const s1 = pptx.addSlide();
     s1.background = { color: NAVY };
     addBadge(s1);
@@ -344,7 +381,6 @@ async function _suiviExportPPTX() {
     s1.addText(today,    { x:0.55, y:4.7,  w:8, h:0.45, fontSize:13, color:GRAY, fontFace:FONT });
     s1.addText('4CAD, FOR YOUR INDUSTRY', { x:0.55, y:6.6, w:8, h:0.35, fontSize:9, bold:true, color:ORANGE, fontFace:FONT, charSpacing:2 });
 
-    /* Slide 2 : Actions */
     const s2 = pptx.addSlide();
     s2.background = { color: NAVY };
     addBadge(s2);
@@ -373,11 +409,10 @@ async function _suiviExportPPTX() {
       const statColor = isAction ? (_SUIVI_STATUT_COL[a.statut] || GRAY) : GRAY;
       const dateStr   = isAction ? (_suiviFmtDate(a.echeance) || '-') : '-';
       const dateColor = (isAction && a.statut !== 'done' && _suiviIsOverdue(a.echeance)) ? 'f85149' : GRAY;
-      const respStr   = isAction ? respLabel : '-';
       return [
         { text:typeLabel,        options:{ color:typeColor, fontSize:11, fontFace:FONT, align:'center', valign:'middle', fill:ROW_FILL, bold:true } },
         { text:a.action || '-',  options:{ color:WHITE,     fontSize:11, fontFace:FONT, align:'left',   valign:'middle', fill:ROW_FILL } },
-        { text:respStr,          options:{ color:isAction?respColor:GRAY, fontSize:11, fontFace:FONT, align:'center', valign:'middle', fill:ROW_FILL, bold:isAction } },
+        { text:isAction ? respLabel : '-', options:{ color:isAction?respColor:GRAY, fontSize:11, fontFace:FONT, align:'center', valign:'middle', fill:ROW_FILL, bold:isAction } },
         { text:dateStr,          options:{ color:dateColor, fontSize:11, fontFace:FONT, align:'center', valign:'middle', fill:ROW_FILL } },
         { text:statLabel,        options:{ color:statColor, fontSize:11, fontFace:FONT, align:'center', valign:'middle', fill:ROW_FILL, bold:isAction } }
       ];
@@ -393,7 +428,6 @@ async function _suiviExportPPTX() {
     }
     addFooter(s2, today);
 
-    /* Slide 3 : Interventions */
     if (p.interventions && p.interventions.rows.length > 0) {
       const intv = p.interventions;
       const s3 = pptx.addSlide();
@@ -452,8 +486,6 @@ function _suiviToast(msg, type = 'success') {
 }
 
 /* ── Interventions CRUD ── */
-function _suiviGetIntv() { return _suiviGetActive()?.interventions || null; }
-
 function _suiviAddIntvRow() {
   const p = _suiviGetActive(); if (!p) return;
   if (!p.interventions) p.interventions = { intervenants:['Intervenant 1'], rows:[] };
@@ -563,6 +595,9 @@ function _suiviOnDurChange(eid, dur) {
   perSel.style.display = (isJournee || !dur) ? 'none' : '';
 }
 
+/* ── SVG calendrier (même icône que les onglets) ── */
+const _SUIVI_CAL_ICON = `<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>`;
+
 /* ── Render ── */
 function _suiviSortActions(actions) {
   const typeOrder   = { action:0, comment:1, info:2, alert:3 };
@@ -574,15 +609,25 @@ function _suiviSortActions(actions) {
   });
 }
 
+function _suiviSetActive(clientName) {
+  _suiviState.activeId = clientName;
+  _suiviSave();
+  _suiviRender();
+}
+
 function _suiviRenderSidebar() {
   const list = document.getElementById('suiviProjectList');
   if (!list) return;
-  list.innerHTML = _suiviState.projects.map(p => `
-    <div class="suivi-project-item ${p.id === _suiviState.activeId ? 'active' : ''}"
-         onclick="_suiviSetActive('${p.id}')">
-      <div class="suivi-project-dot" style="background:${p.color}"></div>
-      <span class="suivi-project-name">${_suiviEsc(p.client)}</span>
-      <button class="suivi-project-delete" onclick="event.stopPropagation();_suiviDeleteProject('${p.id}')" title="Supprimer">×</button>
+  const folders = _suiviGetLinkedClients();
+  if (!folders.length) {
+    list.innerHTML = '<div class="suivi-sidebar-empty">Aucun dossier Todo lié à un client.<br>Cliquez "+ Nouveau" pour en créer un.</div>';
+    return;
+  }
+  list.innerHTML = folders.map(f => `
+    <div class="suivi-project-item ${f.name === _suiviState.activeId ? 'active' : ''}"
+         onclick="_suiviSetActive('${_suiviEsc(f.name)}')">
+      <div class="suivi-project-dot" style="background:${f.color}"></div>
+      <span class="suivi-project-name">${_suiviEsc(f.name)}</span>
     </div>
   `).join('');
 }
@@ -593,20 +638,36 @@ function _suiviRenderActionsTbody() {
   if (!tbody) return;
   if (!p) { tbody.innerHTML = ''; return; }
   const clientLabel = p.client || 'Client';
+
   tbody.innerHTML = _suiviSortActions(p.actions).map(a => {
     const type      = a.type || 'action';
     const isAction  = type === 'action';
-    const typeLabel = _SUIVI_TYPE_LABELS[type] || type;
     const respClass = a.responsable === '4CAD' ? 'suivi-resp-4cad' : 'suivi-resp-client';
     const respLabel = a.responsable === '4CAD' ? '4CAD' : clientLabel;
-    const statClass = 'suivi-s-' + a.statut;
-    const statLabel = _SUIVI_STATUT_LABELS[a.statut] || a.statut;
     const overdueClass = (isAction && a.statut !== 'done' && _suiviIsOverdue(a.echeance)) ? ' overdue' : '';
     const rowClass = isAction ? '' : ' suivi-row-nonaction';
+
+    /* Type : liste déroulante colorée */
+    const typeSelect = `<select class="suivi-type-select suivi-type-${type}"
+        onchange="_suiviUpdateAction('${a.id}','type',this.value)">
+      <option value="action"  ${type==='action'  ?'selected':''}>Action</option>
+      <option value="comment" ${type==='comment' ?'selected':''}>Commentaire</option>
+      <option value="info"    ${type==='info'    ?'selected':''}>Info</option>
+      <option value="alert"   ${type==='alert'   ?'selected':''}>Alerte</option>
+    </select>`;
+
+    /* Statut : liste déroulante colorée (actions seulement) */
+    const statutCell = isAction
+      ? `<select class="suivi-statut-select suivi-s-${a.statut}"
+            onchange="_suiviUpdateAction('${a.id}','statut',this.value)">
+          <option value="todo" ${a.statut==='todo'?'selected':''}>À faire</option>
+          <option value="wip"  ${a.statut==='wip' ?'selected':''}>En cours</option>
+          <option value="done" ${a.statut==='done'?'selected':''}>Terminé</option>
+        </select>`
+      : `<span class="suivi-statut-badge suivi-s-todo" style="cursor:default">—</span>`;
+
     return `<tr class="${rowClass}">
-      <td class="suivi-col-type">
-        <span class="suivi-type-badge suivi-type-${type}" onclick="_suiviCycleType('${a.id}')" title="Cliquer pour changer">${typeLabel}</span>
-      </td>
+      <td class="suivi-col-type">${typeSelect}</td>
       <td class="suivi-col-action">
         <input class="suivi-action-input" value="${_suiviEsc(a.action)}" placeholder="Saisir le contenu…"
           onblur="_suiviUpdateAction('${a.id}','action',this.value)"
@@ -620,10 +681,7 @@ function _suiviRenderActionsTbody() {
         <input type="date" class="suivi-date-input${overdueClass}" value="${_suiviEsc(a.echeance||'')}"
           onchange="_suiviUpdateAction('${a.id}','echeance',this.value)">
       </td>
-      <td class="suivi-col-statut">
-        <span class="suivi-statut-badge ${statClass}" onclick="${isAction ? `_suiviCycleStatut('${a.id}')` : 'void(0)'}"
-          title="${isAction ? 'Cliquer pour changer' : ''}">${statLabel}</span>
-      </td>
+      <td class="suivi-col-statut">${statutCell}</td>
       <td class="suivi-col-del">
         <button class="suivi-btn-del" onclick="_suiviRemoveAction('${a.id}')" title="Supprimer">🗑</button>
       </td>
@@ -648,7 +706,7 @@ function _suiviRenderIntvThead() {
   const thead = document.getElementById('suiviIntvThead');
   if (!thead) return;
   thead.innerHTML = `<tr>
-    <th style="width:175px">Date</th>
+    <th style="width:185px">Date</th>
     ${ints.map((n, i) => `
       <th>
         <div class="suivi-th-wrap">
@@ -670,9 +728,21 @@ function _suiviRenderIntvTbody() {
   const sorted = [...p.interventions.rows].sort((a,b) => (a.date||'') < (b.date||'') ? -1 : 1);
   const tbody = document.getElementById('suiviIntvTbody');
   if (!tbody) return;
+
   tbody.innerHTML = sorted.map(row => {
     const dateLabel = row.date ? _suiviFmtIntvDate(row.date) : 'Choisir une date…';
     const dateLabelClass = row.date ? '' : 'empty';
+
+    /* Cellule date : label + label-bouton avec input overlay pour picker bien positionné */
+    const dateCellHtml = `<div class="suivi-date-cell">
+      <span class="suivi-date-label ${dateLabelClass}">${dateLabel}</span>
+      <label class="suivi-cal-btn" title="Choisir une date">
+        ${_SUIVI_CAL_ICON}
+        <input type="date" class="suivi-date-picker-overlay" value="${_suiviEsc(row.date||'')}"
+          onchange="_suiviUpdateIntvDate('${row.id}',this.value)">
+      </label>
+    </div>`;
+
     const cellsHtml = ints.map(name => {
       const cell  = row.cells[name] || null;
       const text  = _suiviFmtCell(cell) || '·';
@@ -681,7 +751,6 @@ function _suiviRenderIntvTbody() {
       const dur   = cell ? cell.duration : '';
       const per   = cell ? cell.period : 'Matin';
       const note  = cell ? cell.note : '';
-      const eid   = `${row.id}-${name}`;
       const eEid  = `${row.id}-${CSS.escape(name)}`;
       return `<td class="suivi-intv-cell">
         <div class="suivi-intv-slot" id="suiviSlot-${eEid}">
@@ -708,15 +777,9 @@ function _suiviRenderIntvTbody() {
         </div>
       </td>`;
     }).join('');
+
     return `<tr>
-      <td>
-        <div class="suivi-date-cell">
-          <span class="suivi-date-label ${dateLabelClass}">${dateLabel}</span>
-          <button class="suivi-cal-btn" onclick="document.getElementById('suiviDp-${row.id}').showPicker()" title="Choisir une date">📅</button>
-          <input type="date" class="suivi-date-picker" id="suiviDp-${row.id}" value="${_suiviEsc(row.date||'')}"
-            onchange="_suiviUpdateIntvDate('${row.id}',this.value)">
-        </div>
-      </td>
+      <td>${dateCellHtml}</td>
       ${cellsHtml}
       <td style="width:26px;text-align:center;padding:4px 2px">
         <button class="suivi-btn-rm-row" onclick="_suiviRemoveIntvRow('${row.id}')">🗑</button>
@@ -727,6 +790,13 @@ function _suiviRenderIntvTbody() {
 
 function _suiviRender() {
   _suiviRenderSidebar();
+  const activeFolder = _suiviGetLinkedClients().find(f => f.name === _suiviState.activeId);
+  /* Si le client actif n'est plus lié (dossier supprimé), réinitialiser */
+  if (_suiviState.activeId && !activeFolder) {
+    const first = _suiviGetLinkedClients()[0];
+    _suiviState.activeId = first ? first.name : null;
+  }
+
   const p = _suiviGetActive();
   const empty = document.getElementById('suiviEmpty');
   const view  = document.getElementById('suiviProjectView');
@@ -738,14 +808,23 @@ function _suiviRender() {
   if (!p) {
     empty.style.display = 'flex';
     view.style.display  = 'none';
-    if (title) { title.value = ''; title.disabled = true; }
+    if (title) { title.value = ''; }
     if (btnExportJson) btnExportJson.style.display = 'none';
     if (btnExportPptx) btnExportPptx.style.display = 'none';
     return;
   }
+
+  /* Couleur de la pastille depuis le dossier Todo */
+  const color = activeFolder ? activeFolder.color : '';
+
   empty.style.display = 'none';
   view.style.display  = '';
-  if (title) { title.value = p.client; title.disabled = false; }
+  if (title) {
+    title.value = p.client;
+    /* Pastille de couleur dans le topbar */
+    const dot = document.getElementById('suiviTitleDot');
+    if (dot) dot.style.background = color;
+  }
   if (btnExportJson) btnExportJson.style.display = '';
   if (btnExportPptx) btnExportPptx.style.display = '';
   _suiviRenderActionsTbody();
