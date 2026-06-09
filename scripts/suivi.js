@@ -1037,21 +1037,21 @@ function _suiviRenderIntvTbody() {
 }
 
 function _suiviInitActionDrag(tbody) {
-  let draggedTr  = null;
+  let draggedTr   = null;
   let placeholder = null;
 
-  function makePlaceholder(height) {
-    const ph = document.createElement('tr');
-    ph.className = 'suivi-drag-placeholder';
-    ph.innerHTML = `<td colspan="99" style="height:${height}px"></td>`;
-    return ph;
+  function cleanup() {
+    document.querySelectorAll('.suivi-drag-placeholder').forEach(el => el.remove());
+    document.querySelectorAll('.suivi-row-dragging').forEach(el => el.classList.remove('suivi-row-dragging'));
+    draggedTr   = null;
+    placeholder = null;
+    _suiviDragRowId = null;
   }
 
   function movePlaceholder(overTr, clientY) {
     if (!placeholder || !overTr || overTr === draggedTr || overTr === placeholder) return;
     const rect = overTr.getBoundingClientRect();
-    const insertBefore = clientY < rect.top + rect.height / 2;
-    if (insertBefore) {
+    if (clientY < rect.top + rect.height / 2) {
       overTr.parentNode.insertBefore(placeholder, overTr);
     } else {
       overTr.parentNode.insertBefore(placeholder, overTr.nextSibling);
@@ -1061,49 +1061,51 @@ function _suiviInitActionDrag(tbody) {
   tbody.addEventListener('dragstart', e => {
     const tr = e.target.closest('tr[data-rid]');
     if (!tr) return;
+
+    /* Nettoyage de tout état orphelin avant de commencer */
+    cleanup();
+
     draggedTr = tr;
     _suiviDragRowId = tr.dataset.rid;
     e.dataTransfer.effectAllowed = 'move';
-    placeholder = makePlaceholder(tr.offsetHeight);
-    /* requestAnimationFrame pour que le navigateur capture l'image de drag AVANT
-       qu'on modifie l'opacité et insère le placeholder */
-    requestAnimationFrame(() => {
-      tr.classList.add('suivi-row-dragging');
-      tr.parentNode.insertBefore(placeholder, tr.nextSibling);
-    });
+
+    /* Image de drag explicite (clone au rendu normal) pour éviter le flash
+       lié à l'opacité appliquée juste après */
+    const ghost = tr.cloneNode(true);
+    ghost.style.cssText = `position:fixed;top:-9999px;left:-9999px;width:${tr.offsetWidth}px`;
+    document.body.appendChild(ghost);
+    e.dataTransfer.setDragImage(ghost, e.offsetX, e.offsetY);
+    setTimeout(() => ghost.remove(), 0);
+
+    /* Placeholder + opacité : immédiat, pas de rAF */
+    placeholder = document.createElement('tr');
+    placeholder.className = 'suivi-drag-placeholder';
+    placeholder.innerHTML = `<td colspan="99" style="height:${tr.offsetHeight}px"></td>`;
+    tr.classList.add('suivi-row-dragging');
+    tr.parentNode.insertBefore(placeholder, tr.nextSibling);
   });
 
   tbody.addEventListener('dragover', e => {
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
-    const tr = e.target.closest('tr[data-rid]');
-    movePlaceholder(tr, e.clientY);
+    movePlaceholder(e.target.closest('tr[data-rid]'), e.clientY);
   });
 
   tbody.addEventListener('dragend', () => {
-    if (draggedTr) draggedTr.classList.remove('suivi-row-dragging');
-    if (placeholder && placeholder.parentNode) placeholder.parentNode.removeChild(placeholder);
-    draggedTr  = null;
-    placeholder = null;
-    _suiviDragRowId = null;
+    cleanup();
   });
 
   tbody.addEventListener('drop', e => {
     e.preventDefault();
     if (!draggedTr || !placeholder || !placeholder.parentNode) return;
-    /* Insérer la ligne glissée à la place du placeholder */
     placeholder.parentNode.insertBefore(draggedTr, placeholder);
-    placeholder.parentNode.removeChild(placeholder);
-    draggedTr.classList.remove('suivi-row-dragging');
-    /* Synchroniser le modèle de données sur l'ordre DOM */
-    const p = _suiviGetActive(); if (!p) return;
-    const newOrder = [...tbody.querySelectorAll('tr[data-rid]')].map(tr => tr.dataset.rid);
-    p.actions.sort((a, b) => newOrder.indexOf(a.id) - newOrder.indexOf(b.id));
-    _suiviSave();
-    draggedTr  = null;
-    placeholder = null;
-    _suiviDragRowId = null;
-    /* Re-render léger pour recâbler les événements (picker, etc.) */
+    const p = _suiviGetActive();
+    if (p) {
+      const newOrder = [...tbody.querySelectorAll('tr[data-rid]')].map(tr => tr.dataset.rid);
+      p.actions.sort((a, b) => newOrder.indexOf(a.id) - newOrder.indexOf(b.id));
+      _suiviSave();
+    }
+    cleanup();
     _suiviRenderActionsTbody();
   });
 }
