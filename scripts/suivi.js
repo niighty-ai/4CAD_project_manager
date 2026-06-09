@@ -939,7 +939,7 @@ function _suiviRenderActionsTbody() {
       ? `<button class="${linkBtnClass}" onclick="_suiviOpenLinkPanel('${a.id}',this)" title="${_suiviEsc(linkTitle)}">${taskDone ? _SUIVI_DONE_LINK_ICON : _SUIVI_LINK_ICON}</button>`
       : '';
 
-    return `<tr class="${rowClass}" draggable="true" data-rid="${a.id}">
+    return `<tr class="${rowClass}" data-rid="${a.id}">
       <td class="suivi-drag-handle" title="Glisser pour réordonner">
         <svg width="12" height="16" viewBox="0 0 12 16" fill="currentColor">
           <circle cx="4" cy="3" r="1.5"/><circle cx="8" cy="3" r="1.5"/>
@@ -1083,16 +1083,35 @@ function _suiviInitActionDrag(tbody) {
   if (tbody._dragReady) return;   /* déjà initialisé sur ce tbody — ne pas ajouter de doublons */
   tbody._dragReady = true;
 
-  let draggedTr   = null;
-  let placeholder = null;
+  let draggedTr     = null;
+  let placeholder   = null;
+  let dragFromHandle = false;
 
   function cleanup() {
     document.querySelectorAll('.suivi-drag-placeholder').forEach(el => el.remove());
     document.querySelectorAll('.suivi-row-dragging').forEach(el => el.classList.remove('suivi-row-dragging'));
-    draggedTr   = null;
-    placeholder = null;
+    tbody.querySelectorAll('tr[data-rid]').forEach(tr => tr.removeAttribute('draggable'));
+    draggedTr      = null;
+    placeholder    = null;
+    dragFromHandle = false;
     _suiviDragRowId = null;
   }
+
+  /* Activer draggable uniquement sur la poignée → ne plus bloquer le curseur dans la textarea */
+  tbody.addEventListener('mousedown', e => {
+    dragFromHandle = !!e.target.closest('.suivi-drag-handle');
+    if (dragFromHandle) {
+      const tr = e.target.closest('tr[data-rid]');
+      if (tr) tr.setAttribute('draggable', 'true');
+    }
+  });
+  document.addEventListener('mouseup', () => {
+    if (!draggedTr) {
+      /* Pas de drag en cours : retirer draggable sur tous les tr */
+      tbody.querySelectorAll('tr[data-rid]').forEach(tr => tr.removeAttribute('draggable'));
+      dragFromHandle = false;
+    }
+  });
 
   function movePlaceholder(overTr, clientY) {
     if (!placeholder || !overTr || overTr === draggedTr || overTr === placeholder) return;
@@ -1106,12 +1125,7 @@ function _suiviInitActionDrag(tbody) {
 
   tbody.addEventListener('dragstart', e => {
     const tr = e.target.closest('tr[data-rid]');
-    if (!tr) return;
-    /* N'accepter le drag QUE depuis la poignée */
-    if (!e.target.closest('.suivi-drag-handle')) {
-      e.preventDefault();
-      return;
-    }
+    if (!tr || !dragFromHandle) { e.preventDefault(); return; }
 
     /* Nettoyage de tout état orphelin avant de commencer */
     cleanup();
