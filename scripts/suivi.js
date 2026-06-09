@@ -100,9 +100,14 @@ function _suiviDurOptsHtml(cur) {
       return `<option value="${val}"${cur===val?' selected':''}>${_suiviFmtDur(val)}</option>`;
     }).join('');
 }
+function _suiviDurHasPeriod(dur) {
+  const h = parseFloat(dur);
+  return dur && isFinite(h) && h <= 4;
+}
 function _suiviFmtCell(cell) {
   if (!cell || !cell.duration) return '';
   let s = _suiviFmtDur(cell.duration);
+  if (_suiviDurHasPeriod(cell.duration) && cell.period) s += ' ' + cell.period;
   if (cell.note) s += ' ' + cell.note;
   return s;
 }
@@ -800,9 +805,11 @@ function _suiviCloseIntvEditor(rowId, name) {
 function _suiviSaveAndCloseIntvEditor(rowId, name) {
   const eid    = `${rowId}-${CSS.escape(name)}`;
   const dur    = document.getElementById(`suiviDur-${eid}`)?.value || '';
+  const per    = _suiviDurHasPeriod(dur)
+    ? (document.getElementById(`suiviPer-${eid}`)?.value || 'Matin') : '';
   const note   = document.getElementById(`suiviNote-${eid}`)?.value || '';
   const valide = document.getElementById(`suiviVal-${eid}`)?.dataset.valide === '1';
-  _suiviSetCell(rowId, name, { duration:dur, note:note.trim(), valide });
+  _suiviSetCell(rowId, name, { duration:dur, period:per, note:note.trim(), valide });
   _suiviCloseIntvEditor(rowId, name);
   _suiviRenderIntvTbody();
 }
@@ -817,7 +824,10 @@ function _suiviToggleCellValide(rowId, name) {
   btn.className = 'suivi-btn-valid ' + (cur ? 'v-no' : 'v-yes');
 }
 
-function _suiviOnDurChange(_eid, _dur) { /* period select removed */ }
+function _suiviOnDurChange(eid, dur) {
+  const perSel = document.getElementById('suiviPer-' + eid);
+  if (perSel) perSel.style.display = _suiviDurHasPeriod(dur) ? '' : 'none';
+}
 
 /* ── SVG calendrier (même icône que les onglets) ── */
 const _SUIVI_CAL_ICON = `<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>`;
@@ -1013,14 +1023,19 @@ function _suiviRenderIntvTbody() {
       const textClass = cell ? (cell.valide ? 'filled' : 'a-valider') : '';
       const valide = cell ? !!cell.valide : true;
       const dur   = cell ? cell.duration : '';
+      const per   = cell ? (cell.period || 'Matin') : 'Matin';
       const note  = cell ? cell.note : '';
       const eEid  = `${row.id}-${CSS.escape(name)}`;
       return `<td class="suivi-intv-cell">
         <div class="suivi-intv-slot" id="suiviSlot-${eEid}">
           <span class="suivi-slot-text ${textClass}" onclick="_suiviOpenIntvEditor('${row.id}','${_suiviEsc(name)}')">${_suiviEsc(text)}</span>
           <div class="suivi-slot-controls">
-            <select class="suivi-intv-select" id="suiviDur-${eEid}">
+            <select class="suivi-intv-select" id="suiviDur-${eEid}" onchange="_suiviOnDurChange('${eEid}',this.value)">
               ${_suiviDurOptsHtml(dur)}
+            </select>
+            <select class="suivi-intv-select" id="suiviPer-${eEid}" style="${_suiviDurHasPeriod(dur) ? '' : 'display:none'}">
+              <option value="Matin"      ${per==='Matin'      ? 'selected' : ''}>Matin</option>
+              <option value="Après-midi" ${per==='Après-midi' ? 'selected' : ''}>Après-midi</option>
             </select>
             <input class="suivi-intv-note" id="suiviNote-${eEid}" placeholder="Note (ex: ADV)" value="${_suiviEsc(note)}">
             <div class="suivi-slot-row">
