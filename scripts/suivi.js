@@ -826,8 +826,8 @@ function _suiviRenderActionsTbody() {
       ? `<select class="suivi-resp-select suivi-resp-${resp}"
             onchange="_suiviUpdateAction('${a.id}','responsable',this.value)">
           <option value="4CAD"   ${resp==='4CAD'  ?'selected':''}>4CAD</option>
-          <option value="client" ${resp==='client' ?'selected':''}>Client</option>
-          <option value="both"   ${resp==='both'   ?'selected':''}>4CAD + Client</option>
+          <option value="client" ${resp==='client' ?'selected':''}>${clientLabel}</option>
+          <option value="both"   ${resp==='both'   ?'selected':''}>4CAD + ${clientLabel}</option>
         </select>`
       : `<span class="suivi-statut-badge suivi-s-todo" style="cursor:default">—</span>`;
 
