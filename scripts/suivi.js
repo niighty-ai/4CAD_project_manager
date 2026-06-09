@@ -90,10 +90,15 @@ function _suiviFmtCell(cell) {
 
 /* ── Helpers responsables ── */
 function _suiviInitials(name) {
-  const parts = (name || '').trim().split(/\s+/).filter(Boolean);
+  const PARTICLES = new Set(['du','de','la','le','les','des','d','l','au','aux','en','et','sur','sous','von','van']);
+  const parts = (name || '').trim()
+    .split(/[\s'‘’ʼ\-]+/)
+    .map(p => p.replace(/[^a-zA-ZÀ-ɏ]/g, ''))
+    .filter(p => p.length > 0 && !PARTICLES.has(p.toLowerCase()));
   if (!parts.length) return '?';
   if (parts.length === 1) return parts[0].slice(0, 3).toUpperCase();
-  return (parts[0][0] + parts[parts.length - 1].slice(0, 2)).toUpperCase();
+  if (parts.length === 2) return (parts[0][0] + parts[1].slice(0, 2)).toUpperCase();
+  return parts.map(p => p[0]).join('').toUpperCase();
 }
 function _suiviRespPillColor(name) {
   let h = 0;
