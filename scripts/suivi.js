@@ -130,9 +130,20 @@ function _suiviRespPillColor(name) {
   return _SUIVI_COLORS[h % _SUIVI_COLORS.length];
 }
 function _suiviGetAllResources() {
-  if (typeof _todoGetResources === 'function') return _todoGetResources();
-  if (typeof resources !== 'undefined') return resources.map(r => r.nom || r.fullName || '').filter(Boolean).sort();
-  return [];
+  const base = typeof _todoGetResources === 'function' ? _todoGetResources()
+    : (typeof resources !== 'undefined' ? resources.map(r => r.nom || r.fullName || '').filter(Boolean) : []);
+  const set = new Set(base);
+  (_suiviState.projects || []).forEach(proj => {
+    (proj.actions || []).forEach(a => {
+      (a.responsables || []).forEach(r => { if (r.name) set.add(r.name); });
+    });
+  });
+  if (typeof _todoData !== 'undefined' && _todoData?.tasks) {
+    _todoData.tasks.forEach(t => {
+      (t.assignees || []).forEach(a => { if (a.name) set.add(a.name); });
+    });
+  }
+  return [...set].sort((a, b) => a.localeCompare(b, 'fr', { sensitivity: 'base' }));
 }
 function _suiviRespPillsHtml(responsables) {
   const max = 3;
@@ -167,7 +178,7 @@ function _suiviMigrateProject(p) {
   /* Migration responsable → societe + init responsables[] */
   (p?.actions || []).forEach(a => {
     if (a.responsable !== undefined && a.societe === undefined) a.societe = a.responsable;
-    if (!a.societe) a.societe = '4CAD';
+    if (!a.societe && (a.type === 'action' || !a.type)) a.societe = '4CAD';
     if (!a.responsables) a.responsables = [];
   });
   return p;
@@ -876,7 +887,7 @@ function _suiviRenderActionsTbody() {
   tbody.innerHTML = p.actions.map(a => {
     const type      = a.type || 'action';
     const isAction  = type === 'action';
-    const societe   = a.societe || a.responsable || '4CAD';
+    const societe   = isAction ? (a.societe || a.responsable || '4CAD') : (a.societe || '');
     const overdueClass = (isAction && a.statut !== 'done' && _suiviIsOverdue(a.echeance)) ? ' overdue' : '';
     const rowClass = isAction ? '' : ' suivi-row-nonaction';
 
@@ -889,15 +900,15 @@ function _suiviRenderActionsTbody() {
       <option value="alert"   ${type==='alert'   ?'selected':''}>Alerte</option>
     </select>`;
 
-    /* Société : liste déroulante 3 options (ex-Responsable) */
-    const societeSelect = isAction
-      ? `<select class="suivi-resp-select suivi-resp-${societe}"
-            onchange="_suiviUpdateAction('${a.id}','societe',this.value)">
-          <option value="4CAD"   ${societe==='4CAD'  ?'selected':''}>4CAD</option>
-          <option value="client" ${societe==='client' ?'selected':''}>${clientLabel}</option>
-          <option value="both"   ${societe==='both'   ?'selected':''}>4CAD + ${clientLabel}</option>
-        </select>`
-      : `<span class="suivi-statut-badge suivi-s-todo" style="cursor:default">—</span>`;
+    /* Société : liste déroulante (toutes lignes, vide optionnel pour non-actions) */
+    const societeClass = societe ? `suivi-resp-${societe}` : 'suivi-resp-none';
+    const societeSelect = `<select class="suivi-resp-select ${societeClass}"
+          onchange="_suiviUpdateAction('${a.id}','societe',this.value)">
+        ${!isAction ? `<option value="" ${!societe?'selected':''}></option>` : ''}
+        <option value="4CAD"   ${societe==='4CAD'  ?'selected':''}>4CAD</option>
+        <option value="client" ${societe==='client' ?'selected':''}>${clientLabel}</option>
+        <option value="both"   ${societe==='both'   ?'selected':''}>4CAD + ${clientLabel}</option>
+      </select>`;
 
     /* Responsable : pastilles colorées + picker au clic */
     const persCell = `<div class="suivi-resp-cell" data-aid="${a.id}"
@@ -940,9 +951,11 @@ function _suiviRenderActionsTbody() {
       <td class="suivi-col-type">${typeSelect}</td>
       <td class="suivi-col-action">
         <div class="suivi-action-cell-wrap">
-          <input class="suivi-action-input" data-aid="${a.id}" value="${_suiviEsc(a.action)}" placeholder="Saisir le contenu…"
+          <textarea class="suivi-action-input" data-aid="${a.id}" rows="1" placeholder="Saisir le contenu…"
             onblur="_suiviUpdateAction('${a.id}','action',this.value)"
-            onkeydown="if(event.key==='Enter')this.blur()">
+            onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();this.blur()}"
+            oninput="this.style.height='auto';this.style.height=this.scrollHeight+'px'"
+          >${_suiviEsc(a.action)}</textarea>
           <button class="suivi-ai-inline-btn" onclick="event.stopPropagation();_suiviAiCorrect('${a.id}',this)" title="Correction IA">
             <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
           </button>
@@ -960,6 +973,14 @@ function _suiviRenderActionsTbody() {
       </td>
     </tr>`;
   }).join('');
+
+  /* Auto-resize des textareas après injection dans le DOM */
+  requestAnimationFrame(() => {
+    tbody.querySelectorAll('textarea.suivi-action-input').forEach(ta => {
+      ta.style.height = 'auto';
+      ta.style.height = ta.scrollHeight + 'px';
+    });
+  });
 
   _suiviInitActionDrag(tbody);
 }
@@ -1188,7 +1209,7 @@ function renderSuiviView() {
    ═══════════════════════════════════════════ */
 
 async function _suiviAiCorrect(actionId, btnEl) {
-  const inp = document.querySelector(`input.suivi-action-input[data-aid="${actionId}"]`);
+  const inp = document.querySelector(`textarea.suivi-action-input[data-aid="${actionId}"]`);
   if (!inp) return;
   const text = inp.value.trim();
   if (!text) return;
@@ -1239,9 +1260,11 @@ function _suiviAiApplyCorrect(actionId) {
   const textEl = document.getElementById('suiviAiPopupText');
   if (!textEl) return;
   const corrected = textEl.textContent;
-  const inp = document.querySelector(`input.suivi-action-input[data-aid="${actionId}"]`);
+  const inp = document.querySelector(`textarea.suivi-action-input[data-aid="${actionId}"]`);
   if (inp) {
     inp.value = corrected;
+    inp.style.height = 'auto';
+    inp.style.height = inp.scrollHeight + 'px';
     _suiviUpdateAction(actionId, 'action', corrected);
   }
   document.getElementById('suiviAiInlinePopup')?.remove();
@@ -1616,10 +1639,6 @@ function _suiviRenderRespPickerList(filter) {
     });
 
   list.innerHTML = '';
-  if (!filtered.length) {
-    list.innerHTML = '<div class="suivi-resp-picker-empty">Aucune ressource trouvée</div>';
-    return;
-  }
   filtered.forEach(name => {
     const isChecked = selected.has(name);
     const item = document.createElement('div');
@@ -1638,4 +1657,28 @@ function _suiviRenderRespPickerList(filter) {
     });
     list.appendChild(item);
   });
+
+  /* Bouton "Ajouter" si le filtre ne correspond à aucune ressource exacte */
+  const trimmed = (filter || '').trim();
+  const exactMatch = trimmed && allRes.some(n => n.toLowerCase() === trimmed.toLowerCase());
+  if (trimmed && !exactMatch) {
+    const ini = _suiviInitials(trimmed);
+    const col = _suiviRespPillColor(trimmed);
+    const addEl = document.createElement('div');
+    addEl.className = 'suivi-resp-picker-item suivi-resp-picker-add-row';
+    addEl.innerHTML = `
+      <span class="suivi-resp-pill sm" style="background:${col}">${ini}</span>
+      <span class="suivi-resp-picker-name">Ajouter « ${_suiviEsc(trimmed)} »</span>
+      <span class="suivi-resp-add-icon">＋</span>`;
+    addEl.addEventListener('click', e => {
+      e.stopPropagation();
+      _suiviToggleActionResp(_suiviRespPickerAid, trimmed);
+      const searchEl = document.getElementById('suiviRespPickerSearch');
+      if (searchEl) searchEl.value = '';
+      _suiviRenderRespPickerList('');
+    });
+    list.appendChild(addEl);
+  } else if (!filtered.length) {
+    list.innerHTML = '<div class="suivi-resp-picker-empty">Aucune ressource trouvée</div>';
+  }
 }

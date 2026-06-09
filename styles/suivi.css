@@ -411,6 +411,7 @@
 .suivi-resp-4CAD   { background-color: rgba(236,114,6,.18); color: #EC7206; }
 .suivi-resp-client { background-color: rgba(114,182,236,.18); color: #72B6EC; }
 .suivi-resp-both   { background-color: rgba(63,185,80,.15); color: var(--green); }
+.suivi-resp-none   { background-color: transparent; color: var(--muted); border-color: var(--border); }
 .suivi-resp-select option { background: var(--surface); color: var(--text); font-weight: 600; }
 
 /* Statut badge (non-action rows) */
@@ -424,12 +425,15 @@
   color: var(--muted);
 }
 
-/* Action input */
+/* Action textarea */
 .suivi-action-input {
   width: 100%;
   background: transparent;
   border: none;
   outline: none;
+  resize: none;
+  overflow: hidden;
+  line-height: 1.45;
   color: var(--text);
   font-size: 12px;
   font-family: Arial, sans-serif;
@@ -1002,10 +1006,10 @@ tr:hover .suivi-btn-rm-row { opacity: 1; }
 }
 .suivi-btn-ai:hover { background: linear-gradient(135deg, rgba(236,114,6,.25), rgba(188,140,255,.25)); border-color: var(--accent); }
 
-/* ── Cellule action : wrap input + bouton étoile ── */
+/* ── Cellule action : wrap textarea + bouton étoile ── */
 .suivi-action-cell-wrap {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 4px;
   width: 100%;
 }
@@ -1013,6 +1017,16 @@ tr:hover .suivi-btn-rm-row { opacity: 1; }
   flex: 1;
   min-width: 0;
 }
+
+/* ── Picker : ligne "Ajouter" ── */
+.suivi-resp-picker-add-row {
+  border-top: 1px solid var(--border);
+  margin-top: 2px;
+  padding-top: 6px;
+  opacity: 0.85;
+}
+.suivi-resp-picker-add-row:hover { opacity: 1; }
+.suivi-resp-add-icon { font-size: 13px; font-weight: 700; color: var(--accent); flex-shrink: 0; }
 
 /* Bouton étoile IA inline */
 .suivi-ai-inline-btn {
