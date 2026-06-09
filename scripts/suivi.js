@@ -903,7 +903,7 @@ function _suiviRenderActionsTbody() {
     /* Société : liste déroulante (toutes lignes, vide optionnel pour non-actions) */
     const societeClass = societe ? `suivi-resp-${societe}` : 'suivi-resp-none';
     const societeSelect = `<select class="suivi-resp-select ${societeClass}"
-          onchange="_suiviUpdateAction('${a.id}','societe',this.value)">
+          onchange="this.className='suivi-resp-select '+(this.value?'suivi-resp-'+this.value:'suivi-resp-none');_suiviUpdateAction('${a.id}','societe',this.value)">
         ${!isAction ? `<option value="" ${!societe?'selected':''}></option>` : ''}
         <option value="4CAD"   ${societe==='4CAD'  ?'selected':''}>4CAD</option>
         <option value="client" ${societe==='client' ?'selected':''}>${clientLabel}</option>
@@ -1107,6 +1107,11 @@ function _suiviInitActionDrag(tbody) {
   tbody.addEventListener('dragstart', e => {
     const tr = e.target.closest('tr[data-rid]');
     if (!tr) return;
+    /* N'accepter le drag QUE depuis la poignée */
+    if (!e.target.closest('.suivi-drag-handle')) {
+      e.preventDefault();
+      return;
+    }
 
     /* Nettoyage de tout état orphelin avant de commencer */
     cleanup();
