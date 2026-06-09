@@ -79,11 +79,30 @@ function _suiviFmtIntvDate(iso) {
   const mm = String(d.getMonth()+1).padStart(2,'0');
   return `${JOURS[d.getDay()]} ${dd}/${mm}/${d.getFullYear()}`;
 }
+function _suiviFmtDur(dur) {
+  if (!dur) return '';
+  const LEGACY = { '0,25J':'2h', '0,5J':'4h', '0,75J':'6h', '1J':'Journée' };
+  if (LEGACY[dur]) return LEGACY[dur];
+  const h = parseFloat(dur);
+  if (!isFinite(h)) return dur;
+  if (h >= 8) return 'Journée';
+  const hours = Math.floor(h);
+  const mins  = Math.round((h - hours) * 60);
+  if (hours === 0) return `${mins}min`;
+  if (mins === 0)  return `${hours}h`;
+  return `${hours}h${mins}`;
+}
+function _suiviDurOptsHtml(cur) {
+  const steps = [0.5,1,1.5,2,2.5,3,3.5,4,4.5,5,5.5,6,6.5,7,7.5,8];
+  return '<option value="">— vide —</option>' +
+    steps.map(h => {
+      const val = String(h);
+      return `<option value="${val}"${cur===val?' selected':''}>${_suiviFmtDur(val)}</option>`;
+    }).join('');
+}
 function _suiviFmtCell(cell) {
   if (!cell || !cell.duration) return '';
-  let s = cell.duration;
-  const needPeriod = cell.duration === '0,25J' || cell.duration === '0,5J';
-  if (needPeriod && cell.period) s += ' ' + cell.period;
+  let s = _suiviFmtDur(cell.duration);
   if (cell.note) s += ' ' + cell.note;
   return s;
 }
@@ -779,13 +798,11 @@ function _suiviCloseIntvEditor(rowId, name) {
 }
 
 function _suiviSaveAndCloseIntvEditor(rowId, name) {
-  const eid = `${rowId}-${CSS.escape(name)}`;
-  const dur  = document.getElementById(`suiviDur-${eid}`)?.value || '';
-  const isJournee = dur === '0,75J' || dur === '1J';
-  const per  = isJournee ? 'Journée' : (document.getElementById(`suiviPer-${eid}`)?.value || 'Matin');
-  const note = document.getElementById(`suiviNote-${eid}`)?.value || '';
+  const eid    = `${rowId}-${CSS.escape(name)}`;
+  const dur    = document.getElementById(`suiviDur-${eid}`)?.value || '';
+  const note   = document.getElementById(`suiviNote-${eid}`)?.value || '';
   const valide = document.getElementById(`suiviVal-${eid}`)?.dataset.valide === '1';
-  _suiviSetCell(rowId, name, { duration:dur, period:per, note:note.trim(), valide });
+  _suiviSetCell(rowId, name, { duration:dur, note:note.trim(), valide });
   _suiviCloseIntvEditor(rowId, name);
   _suiviRenderIntvTbody();
 }
@@ -800,12 +817,7 @@ function _suiviToggleCellValide(rowId, name) {
   btn.className = 'suivi-btn-valid ' + (cur ? 'v-no' : 'v-yes');
 }
 
-function _suiviOnDurChange(eid, dur) {
-  const perSel = document.getElementById('suiviPer-' + eid);
-  if (!perSel) return;
-  const isJournee = dur === '0,75J' || dur === '1J';
-  perSel.style.display = (isJournee || !dur) ? 'none' : '';
-}
+function _suiviOnDurChange(_eid, _dur) { /* period select removed */ }
 
 /* ── SVG calendrier (même icône que les onglets) ── */
 const _SUIVI_CAL_ICON = `<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>`;
@@ -1001,23 +1013,14 @@ function _suiviRenderIntvTbody() {
       const textClass = cell ? (cell.valide ? 'filled' : 'a-valider') : '';
       const valide = cell ? !!cell.valide : true;
       const dur   = cell ? cell.duration : '';
-      const per   = cell ? cell.period : 'Matin';
       const note  = cell ? cell.note : '';
       const eEid  = `${row.id}-${CSS.escape(name)}`;
       return `<td class="suivi-intv-cell">
         <div class="suivi-intv-slot" id="suiviSlot-${eEid}">
           <span class="suivi-slot-text ${textClass}" onclick="_suiviOpenIntvEditor('${row.id}','${_suiviEsc(name)}')">${_suiviEsc(text)}</span>
           <div class="suivi-slot-controls">
-            <select class="suivi-intv-select" id="suiviDur-${eEid}" onchange="_suiviOnDurChange('${eEid}',this.value)">
-              <option value=""     ${!dur         ? 'selected' : ''}>— vide —</option>
-              <option value="0,25J"${dur==='0,25J'? 'selected' : ''}>0,25J</option>
-              <option value="0,5J" ${dur==='0,5J' ? 'selected' : ''}>0,5J</option>
-              <option value="0,75J"${dur==='0,75J'? 'selected' : ''}>0,75J</option>
-              <option value="1J"   ${dur==='1J'   ? 'selected' : ''}>1J</option>
-            </select>
-            <select class="suivi-intv-select" id="suiviPer-${eEid}" style="${(!dur||dur==='0,75J'||dur==='1J') ? 'display:none' : ''}">
-              <option value="Matin"      ${per==='Matin'      ? 'selected' : ''}>Matin</option>
-              <option value="Après-midi" ${per==='Après-midi' ? 'selected' : ''}>Après-midi</option>
+            <select class="suivi-intv-select" id="suiviDur-${eEid}">
+              ${_suiviDurOptsHtml(dur)}
             </select>
             <input class="suivi-intv-note" id="suiviNote-${eEid}" placeholder="Note (ex: ADV)" value="${_suiviEsc(note)}">
             <div class="suivi-slot-row">
