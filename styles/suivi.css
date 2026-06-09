@@ -383,9 +383,10 @@
   background-position: right 5px center;
   padding-right: 18px;
 }
-.suivi-s-todo { background-color: rgba(114,127,142,.15); color: var(--muted); }
-.suivi-s-wip  { background-color: rgba(242,147,24,.18); color: #F29318; }
-.suivi-s-done { background-color: rgba(63,185,80,.15); color: var(--green); }
+.suivi-s-todo    { background-color: rgba(114,127,142,.15); color: var(--muted); }
+.suivi-s-planned { background-color: rgba(114,182,236,.18); color: #72B6EC; }
+.suivi-s-wip     { background-color: rgba(242,147,24,.18); color: #F29318; }
+.suivi-s-done    { background-color: rgba(63,185,80,.15); color: var(--green); }
 .suivi-statut-select option { background: var(--surface); color: var(--text); font-weight: 600; }
 
 /* Responsable select */

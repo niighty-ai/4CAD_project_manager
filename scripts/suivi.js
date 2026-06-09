@@ -13,9 +13,9 @@ let _suiviOpenEditor = null;
 
 /* ── Constantes ── */
 const _SUIVI_COLORS  = ['#EC7206','#72B6EC','#3fb950','#bc8cff','#F29318','#f85149','#56d364','#ffa657'];
-const _SUIVI_STATUTS = ['todo','wip','done'];
-const _SUIVI_STATUT_LABELS = { todo:'À faire', wip:'En cours', done:'Terminé' };
-const _SUIVI_STATUT_COL    = { todo:'727F8E', wip:'F29318', done:'3fb950' };
+const _SUIVI_STATUTS = ['todo','planned','wip','done'];
+const _SUIVI_STATUT_LABELS = { todo:'À faire', planned:'Planifié', wip:'En cours', done:'Terminé' };
+const _SUIVI_STATUT_COL    = { todo:'727F8E', planned:'72B6EC', wip:'F29318', done:'3fb950' };
 const _SUIVI_TYPES  = ['action','comment','info','alert'];
 const _SUIVI_TYPE_LABELS   = { action:'Action', comment:'Commentaire', info:'Info', alert:'Alerte' };
 const _SUIVI_TYPE_COL_PPTX = { action:'EC7206', comment:'bc8cff', info:'72B6EC', alert:'f85149' };
@@ -810,7 +810,7 @@ const _SUIVI_CAL_ICON = `<svg xmlns="http://www.w3.org/2000/svg" width="13" heig
 /* ── Render ── */
 function _suiviSortActions(actions) {
   const typeOrder   = { action:0, comment:1, info:2, alert:3 };
-  const statutOrder = { done:0, wip:1, todo:2 };
+  const statutOrder = { done:0, wip:1, planned:2, todo:3 };
   return [...actions].sort((a,b) => {
     const t = (typeOrder[a.type||'action']??9) - (typeOrder[b.type||'action']??9);
     if (t !== 0) return t;
@@ -884,9 +884,10 @@ function _suiviRenderActionsTbody() {
     const statutCell = isAction
       ? `<select class="suivi-statut-select suivi-s-${a.statut}"
             onchange="_suiviUpdateAction('${a.id}','statut',this.value)">
-          <option value="todo" ${a.statut==='todo'?'selected':''}>À faire</option>
-          <option value="wip"  ${a.statut==='wip' ?'selected':''}>En cours</option>
-          <option value="done" ${a.statut==='done'?'selected':''}>Terminé</option>
+          <option value="todo"    ${a.statut==='todo'    ?'selected':''}>À faire</option>
+          <option value="planned" ${a.statut==='planned' ?'selected':''}>Planifié</option>
+          <option value="wip"     ${a.statut==='wip'     ?'selected':''}>En cours</option>
+          <option value="done"    ${a.statut==='done'    ?'selected':''}>Terminé</option>
         </select>`
       : `<span class="suivi-statut-badge suivi-s-todo" style="cursor:default">—</span>`;
 
