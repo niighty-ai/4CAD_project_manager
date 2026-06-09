@@ -658,3 +658,489 @@ tr:hover .suivi-btn-rm-row { opacity: 1; }
 #suivi-toast.show { transform: translateY(0); opacity: 1; }
 #suivi-toast.success { border-left: 3px solid var(--green); }
 #suivi-toast.error   { border-left: 3px solid #f85149; }
+
+/* ── Bouton de lien Todo ── */
+.suivi-link-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 5px;
+  border: 1px solid transparent;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
+  flex-shrink: 0;
+  padding: 0;
+}
+.suivi-link-btn:hover { background: var(--surface2); border-color: var(--border); color: var(--text); }
+.suivi-link-btn.linked { color: var(--accent); border-color: rgba(236,114,6,.3); background: rgba(236,114,6,.08); }
+.suivi-link-btn.linked:hover { background: rgba(236,114,6,.15); }
+.suivi-link-btn.done   { color: var(--green); border-color: rgba(63,185,80,.3); background: rgba(63,185,80,.08); }
+.suivi-link-btn.done:hover { background: rgba(63,185,80,.15); }
+
+/* ── Panel de lien Todo (position: fixed, appendé au body) ── */
+.suivi-link-panel {
+  display: none;
+  position: fixed;
+  z-index: 9999;
+  min-width: 260px;
+  max-width: 340px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 8px 32px var(--shadow);
+  padding: 10px;
+  font-size: 13px;
+}
+.suivi-lp-title {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-bottom: 8px;
+}
+.suivi-lp-current {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(63,185,80,.08);
+  border: 1px solid rgba(63,185,80,.25);
+  border-radius: 6px;
+  padding: 5px 8px;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+.suivi-lp-current-label { font-size: 11px; color: var(--muted); flex-shrink: 0; }
+.suivi-lp-current-name {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 12px; color: var(--accent); font-weight: 500;
+  flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  background: none; border: none; padding: 0; cursor: pointer; text-align: left;
+  text-decoration: underline; text-decoration-color: rgba(236,114,6,.4);
+}
+.suivi-lp-current-name:hover { text-decoration-color: var(--accent); }
+.suivi-lp-current-name.done { color: var(--green); text-decoration: line-through; text-decoration-color: var(--green); }
+.suivi-lp-unlink {
+  flex-shrink: 0;
+  font-size: 11px;
+  color: #f85149;
+  background: none;
+  border: 1px solid rgba(248,81,73,.3);
+  border-radius: 4px;
+  padding: 1px 6px;
+  cursor: pointer;
+}
+.suivi-lp-unlink:hover { background: rgba(248,81,73,.1); }
+.suivi-lp-create {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  text-align: left;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 7px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent);
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s;
+  margin-bottom: 8px;
+}
+.suivi-lp-create:hover { background: rgba(236,114,6,.08); border-color: rgba(236,114,6,.3); }
+.suivi-lp-sep {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin: 4px 0 6px;
+}
+.suivi-lp-list { max-height: 200px; overflow-y: auto; }
+.suivi-lp-task {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 6px;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+.suivi-lp-task:hover    { background: var(--surface2); }
+.suivi-lp-task.selected { background: rgba(236,114,6,.1); }
+.suivi-lp-check { font-size: 11px; color: var(--muted); flex-shrink: 0; width: 14px; text-align: center; }
+.suivi-lp-check.done   { color: var(--green); }
+.suivi-lp-task-title   { font-size: 12px; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.suivi-lp-empty { font-size: 12px; color: var(--muted); font-style: italic; padding: 4px 0; }
+
+/* ── Bouton IA dans la topbar ── */
+.suivi-btn-ai {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  background: linear-gradient(135deg, rgba(236,114,6,.15), rgba(188,140,255,.15));
+  border: 1px solid rgba(236,114,6,.35);
+  color: var(--accent);
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+  white-space: nowrap;
+}
+.suivi-btn-ai:hover { background: linear-gradient(135deg, rgba(236,114,6,.25), rgba(188,140,255,.25)); border-color: var(--accent); }
+
+/* ── Cellule action : wrap input + bouton étoile ── */
+.suivi-action-cell-wrap {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+}
+.suivi-action-cell-wrap .suivi-action-input {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Bouton étoile IA inline */
+.suivi-ai-inline-btn {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s, color 0.15s, background 0.15s;
+}
+tr:hover .suivi-ai-inline-btn,
+.suivi-ai-inline-btn:focus { opacity: 1; }
+.suivi-ai-inline-btn:hover { color: var(--accent); background: rgba(236,114,6,.1); }
+.suivi-ai-inline-btn:disabled { opacity: .35; cursor: default; }
+
+/* ── Popup correction IA inline ── */
+.suivi-ai-popup {
+  position: fixed;
+  z-index: 9500;
+  min-width: 260px;
+  max-width: 400px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0,0,0,.18);
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.suivi-ai-popup-label {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--accent);
+  text-transform: uppercase;
+  letter-spacing: .06em;
+}
+.suivi-ai-popup-text {
+  font-size: 12px;
+  color: var(--text);
+  line-height: 1.5;
+  background: var(--surface2);
+  border-radius: 5px;
+  padding: 6px 8px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.suivi-ai-popup-actions {
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
+}
+.suivi-ai-popup-accept {
+  padding: 4px 12px;
+  border-radius: 5px;
+  font-size: 11px;
+  font-weight: 700;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  cursor: pointer;
+}
+.suivi-ai-popup-accept:hover { opacity: .85; }
+.suivi-ai-popup-cancel {
+  padding: 4px 10px;
+  border-radius: 5px;
+  font-size: 11px;
+  background: none;
+  color: var(--muted);
+  border: 1px solid var(--border);
+  cursor: pointer;
+}
+.suivi-ai-popup-cancel:hover { color: var(--text); }
+
+/* ── Overlay / modale transcript Suivi ── */
+.suivi-ai-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9100;
+  background: rgba(0,0,0,.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.suivi-ai-modal {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 16px 48px rgba(0,0,0,.22);
+  width: 540px;
+  max-width: calc(100vw - 32px);
+  max-height: calc(100vh - 64px);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+.suivi-ai-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px 10px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.suivi-ai-modal-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.suivi-ai-modal-x {
+  background: none;
+  border: none;
+  font-size: 16px;
+  color: var(--muted);
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+.suivi-ai-modal-x:hover { color: var(--text); background: var(--surface2); }
+.suivi-ai-modal-body {
+  padding: 16px 18px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  flex: 1;
+}
+.suivi-ai-label {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  color: var(--muted);
+  margin-bottom: 5px;
+  display: block;
+}
+.suivi-ai-textarea {
+  width: 100%;
+  min-height: 120px;
+  resize: vertical;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-size: 12px;
+  color: var(--text);
+  font-family: inherit;
+  box-sizing: border-box;
+}
+.suivi-ai-textarea:focus { outline: none; border-color: var(--accent); }
+.suivi-ai-btn {
+  padding: 6px 16px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  cursor: pointer;
+  transition: opacity 0.12s;
+}
+.suivi-ai-btn:hover { opacity: .85; }
+.suivi-ai-btn:disabled { opacity: .5; cursor: default; }
+.suivi-ai-status {
+  font-size: 11px;
+  color: var(--muted);
+}
+.suivi-ai-key-row {
+  font-size: 10px;
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.suivi-ai-key-link {
+  color: var(--accent);
+  cursor: pointer;
+  text-decoration: underline;
+  text-decoration-color: rgba(236,114,6,.4);
+}
+
+/* ── Review modal Suivi ── */
+.suivi-ai-review-modal {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 16px 48px rgba(0,0,0,.22);
+  width: 620px;
+  max-width: calc(100vw - 32px);
+  max-height: calc(100vh - 64px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.suivi-ai-review-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.suivi-ai-review-footer {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 18px;
+  border-top: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.suivi-ai-review-card {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  transition: opacity 0.15s;
+}
+.suivi-ai-review-card.excluded { opacity: .45; }
+.suivi-ai-card-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.suivi-ai-card-toggle {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  border-radius: 4px;
+  border: 2px solid var(--border);
+  background: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: transparent;
+  transition: border-color 0.12s, background 0.12s, color 0.12s;
+}
+.suivi-ai-card-toggle.on { border-color: var(--accent); background: var(--accent); color: #fff; }
+.suivi-ai-card-title {
+  flex: 1;
+  min-width: 0;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid transparent;
+  outline: none;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+  font-family: inherit;
+  padding: 0 2px;
+  width: 100%;
+}
+.suivi-ai-card-title:focus { border-bottom-color: var(--accent); }
+.suivi-ai-card-pills {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.suivi-ai-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 10px;
+  font-weight: 700;
+  cursor: pointer;
+  border: 1px solid transparent;
+  white-space: nowrap;
+  transition: opacity 0.1s;
+}
+.suivi-ai-pill:hover { opacity: .75; }
+.suivi-ai-pill-type   { background: rgba(114,182,236,.15); border-color: rgba(114,182,236,.3); color: #72B6EC; }
+.suivi-ai-pill-resp   { background: rgba(236,114,6,.12);   border-color: rgba(236,114,6,.3);   color: var(--accent); }
+.suivi-ai-pill-date   { background: rgba(63,185,80,.12);   border-color: rgba(63,185,80,.3);   color: var(--green); }
+.suivi-ai-pill-empty  { background: var(--surface3,var(--surface2)); border-color: var(--border); color: var(--muted); font-weight: 400; }
+.suivi-ai-pill-select {
+  position: fixed;
+  z-index: 9600;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  box-shadow: 0 6px 18px rgba(0,0,0,.18);
+  padding: 4px;
+  min-width: 130px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.suivi-ai-pill-opt {
+  padding: 5px 10px;
+  border-radius: 5px;
+  font-size: 11px;
+  cursor: pointer;
+  transition: background 0.1s;
+  color: var(--text);
+}
+.suivi-ai-pill-opt:hover { background: var(--surface2); }
+.suivi-ai-pill-opt.active { font-weight: 700; color: var(--accent); }
+.suivi-ai-date-input {
+  position: fixed;
+  opacity: 0;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+
+/* ── Badge Suivi affiché sur les tâches Todo liées ── */
+.todo-suivi-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 9px;
+  font-weight: 700;
+  color: var(--accent);
+  background: rgba(236,114,6,.12);
+  border: 1px solid rgba(236,114,6,.25);
+  border-radius: 8px;
+  padding: 1px 5px;
+  white-space: nowrap;
+}

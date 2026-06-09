@@ -608,9 +608,14 @@ function _suiviRenderActionsTbody() {
         <span class="suivi-type-badge suivi-type-${type}" onclick="_suiviCycleType('${a.id}')" title="Cliquer pour changer">${typeLabel}</span>
       </td>
       <td class="suivi-col-action">
-        <input class="suivi-action-input" value="${_suiviEsc(a.action)}" placeholder="Saisir le contenu…"
-          onblur="_suiviUpdateAction('${a.id}','action',this.value)"
-          onkeydown="if(event.key==='Enter')this.blur()">
+        <div class="suivi-action-cell-wrap">
+          <input class="suivi-action-input" data-aid="${a.id}" value="${_suiviEsc(a.action)}" placeholder="Saisir le contenu…"
+            onblur="_suiviUpdateAction('${a.id}','action',this.value)"
+            onkeydown="if(event.key==='Enter')this.blur()">
+          <button class="suivi-ai-inline-btn" onclick="event.stopPropagation();_suiviAiCorrect('${a.id}',this)" title="Correction IA">
+            <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+          </button>
+        </div>
       </td>
       <td class="suivi-col-resp">
         <span class="suivi-resp-badge ${respClass}" onclick="${isAction ? `_suiviToggleResp('${a.id}')` : 'void(0)'}"
@@ -733,6 +738,7 @@ function _suiviRender() {
   const title = document.getElementById('suiviTitleInput');
   const btnExportJson = document.getElementById('suiviBtnExportJson');
   const btnExportPptx = document.getElementById('suiviBtnExportPptx');
+  const btnAi         = document.getElementById('suiviBtnAi');
   if (!empty || !view) return;
 
   if (!p) {
@@ -741,6 +747,7 @@ function _suiviRender() {
     if (title) { title.value = ''; title.disabled = true; }
     if (btnExportJson) btnExportJson.style.display = 'none';
     if (btnExportPptx) btnExportPptx.style.display = 'none';
+    if (btnAi)         btnAi.style.display         = 'none';
     return;
   }
   empty.style.display = 'none';
@@ -748,6 +755,7 @@ function _suiviRender() {
   if (title) { title.value = p.client; title.disabled = false; }
   if (btnExportJson) btnExportJson.style.display = '';
   if (btnExportPptx) btnExportPptx.style.display = '';
+  if (btnAi)         btnAi.style.display         = '';
   _suiviRenderActionsTbody();
   _suiviRenderIntvTable();
 }
@@ -755,4 +763,364 @@ function _suiviRender() {
 /* Appelée par le routeur lors du switch vers cet onglet */
 function renderSuiviView() {
   _suiviRender();
+}
+
+/* ═══════════════════════════════════════════
+   IA — correction inline (bouton étoile)
+   ═══════════════════════════════════════════ */
+
+async function _suiviAiCorrect(actionId, btnEl) {
+  const inp = document.querySelector(`input.suivi-action-input[data-aid="${actionId}"]`);
+  if (!inp) return;
+  const text = inp.value.trim();
+  if (!text) return;
+  if (typeof _aiKey === 'undefined' || !_aiKey()) {
+    _suiviToast('Clé API Gemini manquante — configurez-la dans l\'onglet Todo > IA');
+    return;
+  }
+  document.getElementById('suiviAiInlinePopup')?.remove();
+  btnEl.disabled = true;
+
+  const prompt = `Tu es un assistant de rédaction professionnel. Corrige et améliore ce texte d'action projet (orthographe, grammaire, concision). Retourne UNIQUEMENT le texte corrigé, sans guillemets ni explication.\n\nTexte :\n${text}`;
+  let corrected = '';
+  try {
+    corrected = (await _aiCall(prompt) || '').trim();
+  } catch(e) {
+    btnEl.disabled = false;
+    _suiviToast('Erreur Gemini : ' + (e.message || '?'));
+    return;
+  }
+  btnEl.disabled = false;
+
+  const popup = document.createElement('div');
+  popup.id = 'suiviAiInlinePopup';
+  popup.className = 'suivi-ai-popup';
+  const rect = btnEl.getBoundingClientRect();
+  const left = Math.max(8, Math.min(rect.left - 200, window.innerWidth - 420));
+  popup.style.cssText = `top:${rect.bottom + 6}px;left:${left}px`;
+  popup.innerHTML = `
+    <div class="suivi-ai-popup-label">✦ Suggestion IA</div>
+    <div class="suivi-ai-popup-text" id="suiviAiPopupText">${_suiviEsc(corrected)}</div>
+    <div class="suivi-ai-popup-actions">
+      <button class="suivi-ai-popup-accept" onclick="_suiviAiApplyCorrect('${actionId}')">Appliquer</button>
+      <button class="suivi-ai-popup-cancel" onclick="document.getElementById('suiviAiInlinePopup')?.remove()">Annuler</button>
+    </div>`;
+  document.body.appendChild(popup);
+
+  setTimeout(() => {
+    document.addEventListener('click', function _closeAiPopup(e) {
+      if (!popup.contains(e.target) && e.target !== btnEl) {
+        popup.remove();
+        document.removeEventListener('click', _closeAiPopup);
+      }
+    });
+  }, 50);
+}
+
+function _suiviAiApplyCorrect(actionId) {
+  const textEl = document.getElementById('suiviAiPopupText');
+  if (!textEl) return;
+  const corrected = textEl.textContent;
+  const inp = document.querySelector(`input.suivi-action-input[data-aid="${actionId}"]`);
+  if (inp) {
+    inp.value = corrected;
+    _suiviUpdateAction(actionId, 'action', corrected);
+  }
+  document.getElementById('suiviAiInlinePopup')?.remove();
+}
+
+/* ═══════════════════════════════════════════
+   IA — modale transcript → actions Suivi
+   ═══════════════════════════════════════════ */
+
+let _suiviAiDraftActions = [];
+
+async function _suiviOpenAiModal() {
+  document.getElementById('suiviAiOverlay')?.remove();
+  _suiviAiDraftActions = [];
+
+  const p = _suiviGetActive();
+  const clientLabel = p ? p.client : '';
+
+  const overlay = document.createElement('div');
+  overlay.id = 'suiviAiOverlay';
+  overlay.className = 'suivi-ai-overlay';
+  overlay.onclick = e => { if (e.target === overlay) overlay.remove(); };
+
+  overlay.innerHTML = `
+    <div class="suivi-ai-modal" onclick="event.stopPropagation()">
+      <div class="suivi-ai-modal-header">
+        <div class="suivi-ai-modal-title">✦ Import IA — Actions Suivi${clientLabel ? ' · ' + _suiviEsc(clientLabel) : ''}</div>
+        <button class="suivi-ai-modal-x" onclick="document.getElementById('suiviAiOverlay').remove()">&#x2715;</button>
+      </div>
+      <div class="suivi-ai-modal-body">
+        <div>
+          <label class="suivi-ai-label">Transcript de réunion</label>
+          <textarea class="suivi-ai-textarea" id="suiviAiTranscript"
+            placeholder="Collez votre transcript ici…"></textarea>
+        </div>
+        <div style="display:flex;align-items:center;gap:12px">
+          <button class="suivi-ai-btn" id="suiviAiAnalyzeBtn" onclick="_suiviAiAnalyze()">
+            Analyser avec Gemini
+          </button>
+          <span class="suivi-ai-status" id="suiviAiStatus"></span>
+        </div>
+        <div class="suivi-ai-key-row">
+          <select id="suiviAiModelSelect"
+            onchange="localStorage.setItem('${typeof _AI_MODEL_LS !== 'undefined' ? _AI_MODEL_LS : 'todoGeminiModel'}',this.value)"
+            style="font-size:10px;padding:2px 4px;border:1px solid var(--border);border-radius:4px;background:var(--surface2);color:var(--muted)">
+            <option value="">Chargement…</option>
+          </select>
+          &middot;
+          <span class="suivi-ai-key-link" onclick="_suiviAiEditKey()">Modifier la clé API</span>
+        </div>
+      </div>
+    </div>`;
+
+  document.body.appendChild(overlay);
+  setTimeout(() => document.getElementById('suiviAiTranscript')?.focus(), 50);
+
+  if (typeof _aiKey === 'undefined' || !_aiKey()) {
+    _suiviAiSetStatus('Clé API manquante — cliquez sur "Modifier la clé API"', true);
+  }
+  _suiviAiLoadModels();
+}
+
+async function _suiviAiLoadModels() {
+  const sel = document.getElementById('suiviAiModelSelect');
+  if (!sel || typeof _aiFetchModels === 'undefined') return;
+  try {
+    const models = await _aiFetchModels();
+    if (!models.length) { sel.innerHTML = '<option value="">Aucun modèle</option>'; return; }
+    const saved = typeof _aiModel !== 'undefined' ? _aiModel() : '';
+    sel.innerHTML = models.map(m =>
+      `<option value="${m.id}" ${(saved || models[0].id) === m.id ? 'selected' : ''}>${m.label}</option>`
+    ).join('');
+    if (!saved && typeof _AI_MODEL_LS !== 'undefined') localStorage.setItem(_AI_MODEL_LS, models[0].id);
+  } catch {
+    sel.innerHTML = '<option value="">Erreur chargement</option>';
+  }
+}
+
+function _suiviAiSetStatus(msg, isError = false) {
+  const el = document.getElementById('suiviAiStatus') || document.getElementById('suiviAiReviewStatus');
+  if (!el) return;
+  el.textContent = msg;
+  el.style.color = isError ? '#db4035' : 'var(--muted)';
+}
+
+async function _suiviAiAnalyze() {
+  const transcript = document.getElementById('suiviAiTranscript')?.value.trim();
+  if (!transcript) { _suiviAiSetStatus('Collez un transcript avant d\'analyser.', true); return; }
+  const btn = document.getElementById('suiviAiAnalyzeBtn');
+  if (btn) btn.disabled = true;
+  _suiviAiSetStatus('Analyse en cours…');
+  try {
+    await _suiviAiExtractActions(transcript);
+  } catch(e) {
+    _suiviAiSetStatus('Erreur : ' + (e.message || 'Réponse invalide'), true);
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
+async function _suiviAiExtractActions(transcript) {
+  const types  = _SUIVI_TYPES.join(', ');
+  const prompt = `Tu es un assistant de gestion de projet. Analyse ce transcript de réunion et extrais toutes les actions, décisions et points importants.
+
+Pour chaque élément, extrais :
+- action : texte court et clair (obligatoire)
+- type : l'un de (${types}) selon la nature (action=tâche à faire, comment=commentaire, info=information, alert=alerte)
+- resp : responsable parmi "4CAD", "client", "both" (both = les deux)
+- echeance : date au format YYYY-MM-DD si mentionnée, sinon null
+
+Retourne UNIQUEMENT un objet JSON valide :
+{"actions":[{"action":"...","type":"action","resp":"4CAD","echeance":null}]}
+
+Transcript :
+${transcript}`;
+
+  const raw    = await _aiCall(prompt);
+  const parsed = typeof _aiParseJson !== 'undefined' ? _aiParseJson(raw) : JSON.parse(raw.replace(/```json|```/g,'').trim());
+
+  if (!parsed.actions?.length) {
+    _suiviAiSetStatus('Aucune action détectée dans ce transcript.', true);
+    return;
+  }
+
+  _suiviAiDraftActions = parsed.actions.map(a => ({
+    action:   a.action || '',
+    type:     _SUIVI_TYPES.includes(a.type) ? a.type : 'action',
+    resp:     ['4CAD','client','both'].includes(a.resp) ? a.resp : '4CAD',
+    echeance: a.echeance || null,
+    _included: true
+  }));
+
+  _suiviAiShowReview();
+}
+
+function _suiviAiShowReview() {
+  document.getElementById('suiviAiOverlay')?.remove();
+  document.getElementById('suiviAiReviewOverlay')?.remove();
+
+  const overlay = document.createElement('div');
+  overlay.id = 'suiviAiReviewOverlay';
+  overlay.className = 'suivi-ai-overlay';
+  overlay.onclick = e => { if (e.target === overlay) overlay.remove(); };
+
+  overlay.innerHTML = `
+    <div class="suivi-ai-review-modal" onclick="event.stopPropagation()">
+      <div class="suivi-ai-modal-header">
+        <div class="suivi-ai-modal-title">
+          ${_suiviAiDraftActions.length} action(s) détectée(s)
+          <span style="font-size:11px;font-weight:400;color:var(--muted);margin-left:8px">Cliquez pour modifier</span>
+        </div>
+        <button class="suivi-ai-modal-x" onclick="document.getElementById('suiviAiReviewOverlay').remove()">&#x2715;</button>
+      </div>
+      <div class="suivi-ai-review-list" id="suiviAiReviewList"></div>
+      <div class="suivi-ai-review-footer">
+        <button class="suivi-ai-btn" onclick="_suiviAiConfirmReview()">Créer les actions sélectionnées</button>
+        <span class="suivi-ai-status" id="suiviAiReviewStatus"></span>
+      </div>
+    </div>`;
+
+  document.body.appendChild(overlay);
+  _suiviAiRenderReviewCards();
+}
+
+function _suiviAiRenderReviewCards() {
+  const list = document.getElementById('suiviAiReviewList');
+  if (!list) return;
+  list.innerHTML = _suiviAiDraftActions.map((a, i) => _suiviAiReviewCardHtml(a, i)).join('');
+}
+
+function _suiviAiReviewCardHtml(a, i) {
+  const typeLabel = _SUIVI_TYPE_LABELS[a.type] || a.type;
+  const respLabel = a.resp === 'both' ? '4CAD + Client' : a.resp;
+  const dateLabel = a.echeance ? _suiviFmtDate(a.echeance) : 'Échéance';
+  const typeCls  = 'suivi-ai-pill suivi-ai-pill-type';
+  const respCls  = 'suivi-ai-pill suivi-ai-pill-resp';
+  const dateCls  = a.echeance ? 'suivi-ai-pill suivi-ai-pill-date' : 'suivi-ai-pill suivi-ai-pill-empty';
+  const cardCls  = a._included ? 'suivi-ai-review-card' : 'suivi-ai-review-card excluded';
+  const tglCls   = a._included ? 'suivi-ai-card-toggle on' : 'suivi-ai-card-toggle';
+  const tglIcon  = a._included ? '✓' : '';
+
+  return `<div class="${cardCls}" id="suiviAiCard-${i}">
+    <div class="suivi-ai-card-top">
+      <button class="${tglCls}" onclick="_suiviAiDraftToggle(${i})">${tglIcon}</button>
+      <input class="suivi-ai-card-title" value="${_suiviEsc(a.action)}"
+        oninput="_suiviAiDraftActions[${i}].action=this.value" placeholder="Contenu…">
+    </div>
+    <div class="suivi-ai-card-pills">
+      <span class="${typeCls}" onclick="event.stopPropagation();_suiviAiPickPill(event,'type',${i})">${_suiviEsc(typeLabel)}</span>
+      <span class="${respCls}" onclick="event.stopPropagation();_suiviAiPickPill(event,'resp',${i})">${_suiviEsc(respLabel)}</span>
+      <span class="${dateCls}" onclick="event.stopPropagation();_suiviAiPickDate(${i},this)">${_suiviEsc(dateLabel)}</span>
+    </div>
+  </div>`;
+}
+
+function _suiviAiDraftToggle(i) {
+  _suiviAiDraftActions[i]._included = !_suiviAiDraftActions[i]._included;
+  _suiviAiRefreshCard(i);
+}
+
+function _suiviAiRefreshCard(i) {
+  const card = document.getElementById(`suiviAiCard-${i}`);
+  if (!card) return;
+  card.outerHTML = _suiviAiReviewCardHtml(_suiviAiDraftActions[i], i);
+}
+
+function _suiviAiPickPill(evt, field, i) {
+  document.getElementById('suiviAiPillSelect')?.remove();
+  const sel = document.createElement('div');
+  sel.id = 'suiviAiPillSelect';
+  sel.className = 'suivi-ai-pill-select';
+
+  let opts = [];
+  if (field === 'type') {
+    opts = _SUIVI_TYPES.map(t => ({ value: t, label: _SUIVI_TYPE_LABELS[t] }));
+  } else if (field === 'resp') {
+    const p = _suiviGetActive();
+    const cl = p ? p.client : 'Client';
+    opts = [
+      { value: '4CAD',   label: '4CAD' },
+      { value: 'client', label: cl },
+      { value: 'both',   label: '4CAD + ' + cl }
+    ];
+  }
+
+  sel.innerHTML = opts.map(o => {
+    const active = _suiviAiDraftActions[i][field] === o.value ? ' active' : '';
+    return `<div class="suivi-ai-pill-opt${active}" onclick="
+      event.stopPropagation();
+      _suiviAiDraftActions[${i}]['${field}']='${o.value}';
+      document.getElementById('suiviAiPillSelect')?.remove();
+      _suiviAiRefreshCard(${i})
+    ">${_suiviEsc(o.label)}</div>`;
+  }).join('');
+
+  const rect = evt.currentTarget.getBoundingClientRect();
+  sel.style.cssText = `top:${rect.bottom + 4}px;left:${rect.left}px`;
+  document.body.appendChild(sel);
+
+  setTimeout(() => {
+    document.addEventListener('click', function _closePill(e) {
+      if (!sel.contains(e.target)) {
+        sel.remove();
+        document.removeEventListener('click', _closePill);
+      }
+    });
+  }, 50);
+}
+
+function _suiviAiPickDate(i, pillEl) {
+  document.getElementById('suiviAiDatePicker')?.remove();
+  const inp = document.createElement('input');
+  inp.type = 'date';
+  inp.id = 'suiviAiDatePicker';
+  inp.className = 'suivi-ai-date-input';
+  if (_suiviAiDraftActions[i].echeance) inp.value = _suiviAiDraftActions[i].echeance;
+  inp.onchange = () => {
+    _suiviAiDraftActions[i].echeance = inp.value || null;
+    inp.remove();
+    _suiviAiRefreshCard(i);
+  };
+  const rect = pillEl.getBoundingClientRect();
+  inp.style.cssText = `top:${rect.bottom + 4}px;left:${rect.left}px`;
+  document.body.appendChild(inp);
+  try { inp.showPicker(); } catch { inp.click(); }
+}
+
+function _suiviAiConfirmReview() {
+  const p = _suiviGetActive();
+  if (!p) { _suiviAiSetStatus('Aucun client actif.', true); return; }
+
+  const toCreate = _suiviAiDraftActions.filter(a => a._included && a.action.trim());
+  if (!toCreate.length) { _suiviAiSetStatus('Aucune action sélectionnée.', true); return; }
+
+  toCreate.forEach(a => {
+    const newAction = {
+      id:       _suiviUid(),
+      type:     a.type,
+      action:   a.action.trim(),
+      resp:     a.resp,
+      echeance: a.echeance || '',
+      statut:   'todo',
+      linkedTaskId: null
+    };
+    if (!p.actions) p.actions = [];
+    p.actions.push(newAction);
+  });
+
+  _suiviSave();
+  document.getElementById('suiviAiReviewOverlay')?.remove();
+  _suiviToast(`${toCreate.length} action(s) créée(s)`);
+}
+
+function _suiviAiEditKey() {
+  const key = prompt('Entrez votre clé API Gemini :', typeof _aiKey !== 'undefined' ? _aiKey() : '');
+  if (key === null) return;
+  const LS = typeof _AI_KEY_LS !== 'undefined' ? _AI_KEY_LS : 'todoGeminiKey';
+  localStorage.setItem(LS, key.trim());
+  _suiviAiSetStatus('Clé enregistrée.');
 }
