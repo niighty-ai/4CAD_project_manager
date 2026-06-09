@@ -88,6 +88,36 @@ function _suiviFmtCell(cell) {
   return s;
 }
 
+/* ── Helpers responsables ── */
+function _suiviInitials(name) {
+  const parts = (name || '').trim().split(/\s+/).filter(Boolean);
+  if (!parts.length) return '?';
+  if (parts.length === 1) return parts[0].slice(0, 3).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1].slice(0, 2)).toUpperCase();
+}
+function _suiviRespPillColor(name) {
+  let h = 0;
+  for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) & 0xffff;
+  return _SUIVI_COLORS[h % _SUIVI_COLORS.length];
+}
+function _suiviGetAllResources() {
+  if (typeof _todoGetResources === 'function') return _todoGetResources();
+  if (typeof resources !== 'undefined') return resources.map(r => r.nom || r.fullName || '').filter(Boolean).sort();
+  return [];
+}
+function _suiviRespPillsHtml(responsables) {
+  const max = 3;
+  const pills = (responsables || []).slice(0, max).map(r => {
+    const ini = _suiviInitials(r.name);
+    const col = _suiviRespPillColor(r.name);
+    return `<span class="suivi-resp-pill" style="background:${col}" title="${_suiviEsc(r.name)}">${ini}</span>`;
+  }).join('');
+  const more = (responsables || []).length > max
+    ? `<span class="suivi-resp-pill-more">+${(responsables || []).length - max}</span>` : '';
+  const empty = !(responsables || []).length ? '<span class="suivi-resp-empty">＋</span>' : '';
+  return pills + more + empty;
+}
+
 /* ── Migration ── */
 function _suiviMigrateIntvDate(d) {
   if (!d) return '';
@@ -105,6 +135,12 @@ function _suiviMigrateIntvDate(d) {
 function _suiviMigrateProject(p) {
   if (p?.interventions?.rows)
     p.interventions.rows.forEach(r => { r.date = _suiviMigrateIntvDate(r.date||''); });
+  /* Migration responsable → societe + init responsables[] */
+  (p?.actions || []).forEach(a => {
+    if (a.responsable !== undefined && a.societe === undefined) a.societe = a.responsable;
+    if (!a.societe) a.societe = '4CAD';
+    if (!a.responsables) a.responsables = [];
+  });
   return p;
 }
 function _suiviMigrateState(s) {
@@ -458,7 +494,7 @@ function _suiviSyncTodoToSuivi() {
 /* ── CRUD Actions ── */
 function _suiviAddAction() {
   const p = _suiviGetActive(); if (!p) return;
-  p.actions.push({ id:_suiviUid(), type:'action', action:'', responsable:'4CAD', echeance:'', statut:'todo' });
+  p.actions.push({ id:_suiviUid(), type:'action', action:'', societe:'4CAD', responsables:[], echeance:'', statut:'todo' });
   _suiviSave();
   _suiviRenderActionsTbody();
   setTimeout(() => {
@@ -555,7 +591,8 @@ async function _suiviExportPPTX() {
       { text:'Type',             options:{ bold:true, color:WHITE, fill:HDR_FILL, fontSize:11, fontFace:FONT, align:'center', valign:'middle' } },
       { text:'Action / Contenu', options:{ bold:true, color:WHITE, fill:HDR_FILL, fontSize:11, fontFace:FONT, align:'left',   valign:'middle' } },
       { text:'Responsable',      options:{ bold:true, color:WHITE, fill:HDR_FILL, fontSize:11, fontFace:FONT, align:'center', valign:'middle' } },
-      { text:'Echeance',         options:{ bold:true, color:WHITE, fill:HDR_FILL, fontSize:11, fontFace:FONT, align:'center', valign:'middle' } },
+      { text:'Société',          options:{ bold:true, color:WHITE, fill:HDR_FILL, fontSize:11, fontFace:FONT, align:'center', valign:'middle' } },
+      { text:'Echéance',         options:{ bold:true, color:WHITE, fill:HDR_FILL, fontSize:11, fontFace:FONT, align:'center', valign:'middle' } },
       { text:'Statut',           options:{ bold:true, color:WHITE, fill:HDR_FILL, fontSize:11, fontFace:FONT, align:'center', valign:'middle' } }
     ];
 
@@ -565,29 +602,30 @@ async function _suiviExportPPTX() {
       const typeLabel = _SUIVI_TYPE_LABELS[type] || type;
       const typeColor = _SUIVI_TYPE_COL_PPTX[type] || GRAY;
       const clientName = p.client || 'Client';
-      const respLabel = a.responsable === '4CAD' ? '4CAD'
-                      : a.responsable === 'both'  ? '4CAD + ' + clientName
-                      : clientName;
-      const respColor = a.responsable === '4CAD' ? ORANGE
-                      : a.responsable === 'both'  ? '3fb950'
-                      : LBLUE;
+      const societe   = a.societe || a.responsable || '4CAD';
+      const societeLabel = societe === '4CAD' ? '4CAD'
+                         : societe === 'both'  ? '4CAD + ' + clientName
+                         : clientName;
+      const societeColor = societe === '4CAD' ? ORANGE : societe === 'both' ? '3fb950' : LBLUE;
+      const respInitials = (a.responsables || []).map(r => _suiviInitials(r.name)).join(', ') || '-';
       const statLabel = isAction ? (_SUIVI_STATUT_LABELS[a.statut] || a.statut) : '-';
       const statColor = isAction ? (_SUIVI_STATUT_COL[a.statut] || GRAY) : GRAY;
       const dateStr   = isAction ? (_suiviFmtDate(a.echeance) || '-') : '-';
       const dateColor = (isAction && a.statut !== 'done' && _suiviIsOverdue(a.echeance)) ? 'f85149' : GRAY;
       return [
-        { text:typeLabel,        options:{ color:typeColor, fontSize:11, fontFace:FONT, align:'center', valign:'middle', fill:ROW_FILL, bold:true } },
-        { text:a.action || '-',  options:{ color:WHITE,     fontSize:11, fontFace:FONT, align:'left',   valign:'middle', fill:ROW_FILL } },
-        { text:isAction ? respLabel : '-', options:{ color:isAction?respColor:GRAY, fontSize:11, fontFace:FONT, align:'center', valign:'middle', fill:ROW_FILL, bold:isAction } },
-        { text:dateStr,          options:{ color:dateColor, fontSize:11, fontFace:FONT, align:'center', valign:'middle', fill:ROW_FILL } },
-        { text:statLabel,        options:{ color:statColor, fontSize:11, fontFace:FONT, align:'center', valign:'middle', fill:ROW_FILL, bold:isAction } }
+        { text:typeLabel,                           options:{ color:typeColor,              fontSize:11, fontFace:FONT, align:'center', valign:'middle', fill:ROW_FILL, bold:true } },
+        { text:a.action || '-',                     options:{ color:WHITE,                  fontSize:11, fontFace:FONT, align:'left',   valign:'middle', fill:ROW_FILL } },
+        { text:isAction ? respInitials : '-',        options:{ color:WHITE,                  fontSize:11, fontFace:FONT, align:'center', valign:'middle', fill:ROW_FILL } },
+        { text:isAction ? societeLabel : '-',        options:{ color:isAction?societeColor:GRAY, fontSize:11, fontFace:FONT, align:'center', valign:'middle', fill:ROW_FILL, bold:isAction } },
+        { text:dateStr,                             options:{ color:dateColor,              fontSize:11, fontFace:FONT, align:'center', valign:'middle', fill:ROW_FILL } },
+        { text:statLabel,                           options:{ color:statColor,              fontSize:11, fontFace:FONT, align:'center', valign:'middle', fill:ROW_FILL, bold:isAction } }
       ];
     });
 
     if (dataRows.length) {
       s2.addTable([hdr, ...dataRows], {
         x:0.3, y:1.1, w:12.7,
-        colW:[1.7, 5.2, 2.1, 1.8, 1.9],
+        colW:[1.5, 4.5, 1.6, 1.8, 1.5, 1.8],
         rowH:0.42,
         border:{ type:'solid', color:'3d5972', pt:0.5 }
       });
@@ -807,7 +845,7 @@ function _suiviRenderActionsTbody() {
   tbody.innerHTML = _suiviSortActions(p.actions).map(a => {
     const type      = a.type || 'action';
     const isAction  = type === 'action';
-    const resp      = a.responsable || '4CAD';
+    const societe   = a.societe || a.responsable || '4CAD';
     const overdueClass = (isAction && a.statut !== 'done' && _suiviIsOverdue(a.echeance)) ? ' overdue' : '';
     const rowClass = isAction ? '' : ' suivi-row-nonaction';
 
@@ -820,15 +858,21 @@ function _suiviRenderActionsTbody() {
       <option value="alert"   ${type==='alert'   ?'selected':''}>Alerte</option>
     </select>`;
 
-    /* Responsable : liste déroulante 3 options */
-    const respSelect = isAction
-      ? `<select class="suivi-resp-select suivi-resp-${resp}"
-            onchange="_suiviUpdateAction('${a.id}','responsable',this.value)">
-          <option value="4CAD"   ${resp==='4CAD'  ?'selected':''}>4CAD</option>
-          <option value="client" ${resp==='client' ?'selected':''}>${clientLabel}</option>
-          <option value="both"   ${resp==='both'   ?'selected':''}>4CAD + ${clientLabel}</option>
+    /* Société : liste déroulante 3 options (ex-Responsable) */
+    const societeSelect = isAction
+      ? `<select class="suivi-resp-select suivi-resp-${societe}"
+            onchange="_suiviUpdateAction('${a.id}','societe',this.value)">
+          <option value="4CAD"   ${societe==='4CAD'  ?'selected':''}>4CAD</option>
+          <option value="client" ${societe==='client' ?'selected':''}>${clientLabel}</option>
+          <option value="both"   ${societe==='both'   ?'selected':''}>4CAD + ${clientLabel}</option>
         </select>`
       : `<span class="suivi-statut-badge suivi-s-todo" style="cursor:default">—</span>`;
+
+    /* Responsable : pastilles colorées + picker au clic */
+    const persCell = `<div class="suivi-resp-cell" data-aid="${a.id}"
+        onclick="_suiviOpenRespPicker('${a.id}',this)" title="Cliquer pour modifier">
+      ${_suiviRespPillsHtml(a.responsables)}
+    </div>`;
 
     /* Statut : liste déroulante colorée (actions seulement) */
     const statutCell = isAction
@@ -841,7 +885,7 @@ function _suiviRenderActionsTbody() {
       : `<span class="suivi-statut-badge suivi-s-todo" style="cursor:default">—</span>`;
 
     /* Bouton de lien Todo — visible uniquement pour les actions 4CAD ou 4CAD+Client */
-    const canLink    = isAction && (resp === '4CAD' || resp === 'both');
+    const canLink    = isAction && (societe === '4CAD' || societe === 'both');
     const linkedTask = canLink && a.todoTaskId ? _suiviGetTodoTask(a.todoTaskId) : null;
     const taskDone   = linkedTask?.completed === true;
     const linkBtnClass = a.todoTaskId ? (taskDone ? 'suivi-link-btn linked done' : 'suivi-link-btn linked') : 'suivi-link-btn';
@@ -865,7 +909,8 @@ function _suiviRenderActionsTbody() {
           </button>
         </div>
       </td>
-      <td class="suivi-col-resp">${respSelect}</td>
+      <td class="suivi-col-pers">${persCell}</td>
+      <td class="suivi-col-societe">${societeSelect}</td>
       <td class="suivi-col-ech">
         <input type="date" class="suivi-date-input${overdueClass}" value="${_suiviEsc(a.echeance||'')}"
           onchange="_suiviUpdateAction('${a.id}','echeance',this.value)">
@@ -1425,7 +1470,8 @@ function _suiviAiConfirmReview() {
       id:       _suiviUid(),
       type:     a.type,
       action:   a.action.trim(),
-      responsable: a.resp,
+      societe:      a.resp,
+      responsables: [],
       echeance: a.echeance || '',
       statut:   'todo',
       linkedTaskId: null
@@ -1445,4 +1491,96 @@ function _suiviAiEditKey() {
   const LS = typeof _AI_KEY_LS !== 'undefined' ? _AI_KEY_LS : 'todoGeminiKey';
   localStorage.setItem(LS, key.trim());
   _suiviAiSetStatus('Clé enregistrée.');
+}
+
+/* ═══════════════════════════════════════════
+   Picker responsables (pastilles colorées)
+   ═══════════════════════════════════════════ */
+
+let _suiviRespPickerAid = null;
+
+function _suiviToggleActionResp(actionId, name) {
+  const p = _suiviGetActive(); if (!p) return;
+  const a = p.actions.find(x => x.id === actionId); if (!a) return;
+  if (!a.responsables) a.responsables = [];
+  const idx = a.responsables.findIndex(r => r.name === name);
+  if (idx === -1) a.responsables.push({ name });
+  else a.responsables.splice(idx, 1);
+  p.updatedAt = new Date().toISOString();
+  _suiviSave();
+  /* Mise à jour de la cellule sans re-render complet */
+  const cell = document.querySelector(`.suivi-resp-cell[data-aid="${actionId}"]`);
+  if (cell) cell.innerHTML = _suiviRespPillsHtml(a.responsables);
+}
+
+function _suiviOpenRespPicker(actionId, cellEl) {
+  const existing = document.getElementById('suiviRespPickerPopup');
+  if (existing) {
+    existing.remove();
+    if (_suiviRespPickerAid === actionId) { _suiviRespPickerAid = null; return; }
+  }
+  _suiviRespPickerAid = actionId;
+
+  const popup = document.createElement('div');
+  popup.id = 'suiviRespPickerPopup';
+  popup.className = 'suivi-resp-picker';
+  const rect = cellEl.getBoundingClientRect();
+  const left = Math.min(rect.left, window.innerWidth - 230);
+  popup.style.cssText = `top:${rect.bottom + 4}px;left:${Math.max(4, left)}px`;
+  popup.innerHTML = `
+    <input class="suivi-resp-picker-search" id="suiviRespPickerSearch" placeholder="Rechercher…" autocomplete="off">
+    <div class="suivi-resp-picker-list" id="suiviRespPickerList"></div>`;
+
+  document.body.appendChild(popup);
+  _suiviRenderRespPickerList('');
+
+  const searchEl = document.getElementById('suiviRespPickerSearch');
+  searchEl.addEventListener('input', () => _suiviRenderRespPickerList(searchEl.value));
+  searchEl.focus();
+
+  setTimeout(() => {
+    document.addEventListener('click', function _closeRespPicker(e) {
+      const pop = document.getElementById('suiviRespPickerPopup');
+      if (!pop) { document.removeEventListener('click', _closeRespPicker); return; }
+      if (!pop.contains(e.target) && !e.target.closest('.suivi-resp-cell')) {
+        pop.remove();
+        _suiviRespPickerAid = null;
+        document.removeEventListener('click', _closeRespPicker);
+      }
+    });
+  }, 50);
+}
+
+function _suiviRenderRespPickerList(filter) {
+  const list = document.getElementById('suiviRespPickerList');
+  if (!list || !_suiviRespPickerAid) return;
+  const p = _suiviGetActive(); if (!p) return;
+  const a = p.actions.find(x => x.id === _suiviRespPickerAid); if (!a) return;
+  const selected = new Set((a.responsables || []).map(r => r.name));
+  const allRes = _suiviGetAllResources();
+  const filtered = filter ? allRes.filter(n => n.toLowerCase().includes(filter.toLowerCase())) : allRes;
+
+  list.innerHTML = '';
+  if (!filtered.length) {
+    list.innerHTML = '<div class="suivi-resp-picker-empty">Aucune ressource trouvée</div>';
+    return;
+  }
+  filtered.forEach(name => {
+    const isChecked = selected.has(name);
+    const item = document.createElement('div');
+    item.className = 'suivi-resp-picker-item' + (isChecked ? ' checked' : '');
+    const ini = _suiviInitials(name);
+    const col = _suiviRespPillColor(name);
+    item.innerHTML = `
+      <span class="suivi-resp-pill sm" style="background:${col}">${ini}</span>
+      <span class="suivi-resp-picker-name">${_suiviEsc(name)}</span>
+      ${isChecked ? '<span class="suivi-resp-check">✓</span>' : ''}`;
+    item.addEventListener('click', e => {
+      e.stopPropagation();
+      _suiviToggleActionResp(_suiviRespPickerAid, name);
+      const searchEl = document.getElementById('suiviRespPickerSearch');
+      _suiviRenderRespPickerList(searchEl ? searchEl.value : '');
+    });
+    list.appendChild(item);
+  });
 }

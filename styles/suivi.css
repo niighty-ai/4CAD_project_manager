@@ -333,7 +333,8 @@
 .suivi-col-link    { width: 28px; min-width: 28px; text-align: center; padding: 0 2px; }
 .suivi-col-type    { width: 125px; min-width: 125px; text-align: center; }
 .suivi-col-action  { min-width: 200px; }
-.suivi-col-resp    { width: 130px; min-width: 130px; text-align: center; }
+.suivi-col-pers    { width: 90px; min-width: 70px; text-align: center; }
+.suivi-col-societe { width: 130px; min-width: 130px; text-align: center; }
 .suivi-col-ech     { width: 120px; }
 .suivi-col-statut  { width: 100px; min-width: 100px; text-align: center; }
 .suivi-col-del     { width: 30px; text-align: center; }
@@ -869,6 +870,118 @@ tr:hover .suivi-btn-rm-row { opacity: 1; }
 .suivi-lp-check.done   { color: var(--green); }
 .suivi-lp-task-title   { font-size: 12px; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .suivi-lp-empty { font-size: 12px; color: var(--muted); font-style: italic; padding: 4px 0; }
+
+/* ── Pastilles Responsable ── */
+.suivi-resp-cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 3px;
+  padding: 2px 4px;
+  min-height: 26px;
+  cursor: pointer;
+  border-radius: 5px;
+  transition: background 0.1s;
+}
+.suivi-resp-cell:hover { background: var(--surface2); }
+
+.suivi-resp-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  font-size: 10px;
+  font-weight: 700;
+  color: #fff;
+  flex-shrink: 0;
+  letter-spacing: 0.02em;
+  box-shadow: 0 1px 3px rgba(0,0,0,.2);
+}
+.suivi-resp-pill.sm {
+  width: 22px;
+  height: 22px;
+  font-size: 9px;
+}
+.suivi-resp-pill-more {
+  font-size: 9px;
+  font-weight: 700;
+  color: var(--muted);
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 2px 5px;
+  white-space: nowrap;
+}
+.suivi-resp-empty {
+  font-size: 16px;
+  color: var(--border);
+  line-height: 1;
+}
+
+/* ── Picker Responsable ── */
+.suivi-resp-picker {
+  position: fixed;
+  z-index: 9400;
+  width: 210px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0,0,0,.18);
+  overflow: hidden;
+}
+.suivi-resp-picker-search {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 8px 10px;
+  border: none;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface2);
+  color: var(--text);
+  font-size: 12px;
+  font-family: inherit;
+  outline: none;
+}
+.suivi-resp-picker-search::placeholder { color: var(--muted); }
+.suivi-resp-picker-list {
+  max-height: 220px;
+  overflow-y: auto;
+  padding: 4px;
+}
+.suivi-resp-picker-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 8px;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+.suivi-resp-picker-item:hover { background: var(--surface2); }
+.suivi-resp-picker-item.checked { background: rgba(236,114,6,.08); }
+.suivi-resp-picker-name {
+  flex: 1;
+  font-size: 12px;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.suivi-resp-check {
+  font-size: 11px;
+  color: var(--accent);
+  font-weight: 700;
+  flex-shrink: 0;
+}
+.suivi-resp-picker-empty {
+  padding: 10px;
+  text-align: center;
+  font-size: 12px;
+  color: var(--muted);
+  font-style: italic;
+}
 
 /* ── Bouton IA dans la topbar ── */
 .suivi-btn-ai {
