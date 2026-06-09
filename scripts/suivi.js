@@ -410,8 +410,11 @@ function _suiviCreateLinkTask(actionId) {
   if (typeof _todoCreateTask !== 'function') { _suiviToast('Module Todo indisponible', 'error'); return; }
   const title = action.action && action.action.trim() ? action.action.trim() : 'Nouvelle tâche';
   const task = _todoCreateTask(title, folderId, null);
-  if (action.echeance && typeof _todoUpdateTask === 'function') {
-    _todoUpdateTask(task.id, { dueDate: action.echeance });
+  if (typeof _todoUpdateTask === 'function') {
+    const patch = {};
+    if (action.echeance) patch.dueDate = action.echeance;
+    if (action.responsables && action.responsables.length) patch.assignees = action.responsables.map(r => ({ name: r.name }));
+    if (Object.keys(patch).length) _todoUpdateTask(task.id, patch);
   }
   action.todoTaskId = task.id;
   p.updatedAt = new Date().toISOString();
