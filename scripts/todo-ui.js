@@ -718,6 +718,17 @@ function _todoTaskRowHtml(task, isSub) {
       ${commentCount}</span>`;
   }
 
+  /* Indicateur de lien Suivi */
+  if (!isSub && typeof _suiviGetLinkedTaskIds === 'function') {
+    try {
+      if (_suiviGetLinkedTaskIds().has(task.id)) {
+        meta += `<span class="todo-suivi-badge" title="Liée à une action Suivi">
+          <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+          Suivi</span>`;
+      }
+    } catch(e) {}
+  }
+
   return `
     <div class="todo-task-row ${subClass} ${doneClass} ${overdueRow}" data-task-id="${task.id}"
          draggable="true"

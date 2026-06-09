@@ -55,7 +55,7 @@ function _applyView(view) {
     if (typeof renderTodoView === 'function') renderTodoView();
 
   } else if (view === 'suivi') {
-    if (viewSuivi) viewSuivi.style.display = '';
+    if (viewSuivi) viewSuivi.style.display = 'flex';
     navSidebar.style.display = 'none';
     if (typeof renderSuiviView === 'function') renderSuiviView();
   }
@@ -120,7 +120,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (viewTodo) viewTodo.style.display = 'flex';
     if (navSidebar) navSidebar.style.display = 'none';
   } else if (view === 'suivi') {
-    if (viewSuivi) viewSuivi.style.display = '';
+    if (viewSuivi) viewSuivi.style.display = 'flex';
     if (navSidebar) navSidebar.style.display = 'none';
   }
 });
