@@ -1037,6 +1037,9 @@ function _suiviRenderIntvTbody() {
 }
 
 function _suiviInitActionDrag(tbody) {
+  if (tbody._dragReady) return;   /* déjà initialisé sur ce tbody — ne pas ajouter de doublons */
+  tbody._dragReady = true;
+
   let draggedTr   = null;
   let placeholder = null;
 
