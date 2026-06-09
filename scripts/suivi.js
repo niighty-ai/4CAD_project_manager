@@ -1582,7 +1582,11 @@ function _suiviRenderRespPickerList(filter) {
   const a = p.actions.find(x => x.id === _suiviRespPickerAid); if (!a) return;
   const selected = new Set((a.responsables || []).map(r => r.name));
   const allRes = _suiviGetAllResources();
-  const filtered = filter ? allRes.filter(n => n.toLowerCase().includes(filter.toLowerCase())) : allRes;
+  const filtered = (filter ? allRes.filter(n => n.toLowerCase().includes(filter.toLowerCase())) : allRes)
+    .sort((a, b) => {
+      const ac = selected.has(a), bc = selected.has(b);
+      return ac === bc ? 0 : ac ? -1 : 1;
+    });
 
   list.innerHTML = '';
   if (!filtered.length) {
