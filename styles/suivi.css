@@ -1222,6 +1222,33 @@ tr:hover .suivi-ai-inline-btn,
   pointer-events: none;
 }
 
+/* ── Drag & drop — tableau des interventions ── */
+.suivi-drag-th {
+  width: 22px;
+  min-width: 22px;
+  background: var(--surface2);
+  border-bottom: 1px solid var(--border);
+}
+.suivi-drag-handle {
+  width: 22px;
+  min-width: 22px;
+  text-align: center;
+  padding: 0 4px;
+  cursor: grab;
+  color: var(--border);
+  vertical-align: middle;
+  user-select: none;
+}
+.suivi-drag-handle:hover { color: var(--muted); }
+.suivi-drag-handle:active { cursor: grabbing; }
+.suivi-intv-row.suivi-row-dragging {
+  opacity: 0.4;
+}
+.suivi-intv-row.suivi-row-over td {
+  background: rgba(236,114,6,.08) !important;
+  border-top: 2px solid var(--accent);
+}
+
 /* ── Badge Suivi affiché sur les tâches Todo liées ── */
 .todo-suivi-badge {
   display: inline-flex;

@@ -612,7 +612,7 @@ async function _suiviExportPPTX() {
         { text:'Date', options:{ bold:true, color:WHITE, fill:{color:'1e2f3f'}, fontSize:11, fontFace:FONT, align:'center', valign:'middle' } },
         ...intv.intervenants.map(n => ({ text:n, options:{ bold:true, color:WHITE, fill:{color:'1e2f3f'}, fontSize:11, fontFace:FONT, align:'center', valign:'middle' } }))
       ];
-      const intvRows = [...intv.rows].sort((a,b) => (a.date||'') < (b.date||'') ? -1 : 1).map(row => [
+      const intvRows = intv.rows.map(row => [
         { text: _suiviFmtIntvDateShort(row.date), options:{ color:WHITE, fontSize:11, fontFace:FONT, align:'center', valign:'middle', fill:{color:NAVY}, bold:true } },
         ...intv.intervenants.map(name => {
           const cell  = row.cells[name] || null;
@@ -672,7 +672,6 @@ function _suiviUpdateIntvDate(id, val) {
   const r = p.interventions.rows.find(r => r.id === id);
   if (r) {
     r.date = val;
-    p.interventions.rows = [...p.interventions.rows].sort((a,b) => (a.date||'') < (b.date||'') ? -1 : 1);
     _suiviSave();
     _suiviRenderIntvTbody();
   }
@@ -896,6 +895,7 @@ function _suiviRenderIntvThead() {
   const thead = document.getElementById('suiviIntvThead');
   if (!thead) return;
   thead.innerHTML = `<tr>
+    <th class="suivi-drag-th"></th>
     <th style="width:185px">Date</th>
     ${ints.map((n, i) => `
       <th>
@@ -912,18 +912,19 @@ function _suiviRenderIntvThead() {
   </tr>`;
 }
 
+let _suiviDragRowId = null;
+
 function _suiviRenderIntvTbody() {
   const p = _suiviGetActive(); if (!p || !p.interventions) return;
   const ints = p.interventions.intervenants;
-  const sorted = [...p.interventions.rows].sort((a,b) => (a.date||'') < (b.date||'') ? -1 : 1);
+  const rows = p.interventions.rows;
   const tbody = document.getElementById('suiviIntvTbody');
   if (!tbody) return;
 
-  tbody.innerHTML = sorted.map(row => {
+  tbody.innerHTML = rows.map(row => {
     const dateLabel = row.date ? _suiviFmtIntvDate(row.date) : 'Choisir une date…';
     const dateLabelClass = row.date ? '' : 'empty';
 
-    /* Cellule date : clic sur texte ou icône appelle showPicker() sur l'input caché */
     const dateCellHtml = `<div class="suivi-date-cell" onclick="_suiviOpenIntvDate('${row.id}')" title="Choisir une date">
       <span class="suivi-date-label ${dateLabelClass}">${dateLabel}</span>
       <span class="suivi-cal-icon">${_SUIVI_CAL_ICON}</span>
@@ -966,7 +967,14 @@ function _suiviRenderIntvTbody() {
       </td>`;
     }).join('');
 
-    return `<tr>
+    return `<tr draggable="true" data-rid="${row.id}" class="suivi-intv-row">
+      <td class="suivi-drag-handle" title="Glisser pour réordonner">
+        <svg width="12" height="16" viewBox="0 0 12 16" fill="currentColor">
+          <circle cx="4" cy="3" r="1.5"/><circle cx="8" cy="3" r="1.5"/>
+          <circle cx="4" cy="8" r="1.5"/><circle cx="8" cy="8" r="1.5"/>
+          <circle cx="4" cy="13" r="1.5"/><circle cx="8" cy="13" r="1.5"/>
+        </svg>
+      </td>
       <td>${dateCellHtml}</td>
       ${cellsHtml}
       <td style="width:26px;text-align:center;padding:4px 2px">
@@ -974,6 +982,61 @@ function _suiviRenderIntvTbody() {
       </td>
     </tr>`;
   }).join('');
+
+  _suiviInitIntvDrag(tbody);
+}
+
+function _suiviInitIntvDrag(tbody) {
+  let overRow = null;
+
+  tbody.addEventListener('dragstart', e => {
+    const tr = e.target.closest('tr[data-rid]');
+    if (!tr) return;
+    _suiviDragRowId = tr.dataset.rid;
+    tr.classList.add('suivi-row-dragging');
+    e.dataTransfer.effectAllowed = 'move';
+  });
+
+  tbody.addEventListener('dragend', e => {
+    tbody.querySelectorAll('.suivi-row-dragging, .suivi-row-over').forEach(el => {
+      el.classList.remove('suivi-row-dragging', 'suivi-row-over');
+    });
+    _suiviDragRowId = null;
+    overRow = null;
+  });
+
+  tbody.addEventListener('dragover', e => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    const tr = e.target.closest('tr[data-rid]');
+    if (tr && tr.dataset.rid !== _suiviDragRowId) {
+      if (overRow && overRow !== tr) overRow.classList.remove('suivi-row-over');
+      overRow = tr;
+      tr.classList.add('suivi-row-over');
+    }
+  });
+
+  tbody.addEventListener('dragleave', e => {
+    if (overRow && !tbody.contains(e.relatedTarget)) {
+      overRow.classList.remove('suivi-row-over');
+      overRow = null;
+    }
+  });
+
+  tbody.addEventListener('drop', e => {
+    e.preventDefault();
+    const targetTr = e.target.closest('tr[data-rid]');
+    if (!targetTr || !_suiviDragRowId || targetTr.dataset.rid === _suiviDragRowId) return;
+    const p = _suiviGetActive(); if (!p || !p.interventions) return;
+    const rows = p.interventions.rows;
+    const fromIdx = rows.findIndex(r => r.id === _suiviDragRowId);
+    const toIdx   = rows.findIndex(r => r.id === targetTr.dataset.rid);
+    if (fromIdx === -1 || toIdx === -1) return;
+    const [moved] = rows.splice(fromIdx, 1);
+    rows.splice(toIdx, 0, moved);
+    _suiviSave();
+    _suiviRenderIntvTbody();
+  });
 }
 
 function _suiviRender() {
