@@ -1354,12 +1354,15 @@ tr:hover .suivi-ai-inline-btn,
 }
 .suivi-drag-handle:hover { color: var(--muted); }
 .suivi-drag-handle:active { cursor: grabbing; }
-.suivi-intv-row.suivi-row-dragging {
-  opacity: 0.4;
+.suivi-row-dragging {
+  opacity: 0.25;
+  pointer-events: none;
 }
-.suivi-intv-row.suivi-row-over td {
-  background: rgba(236,114,6,.08) !important;
-  border-top: 2px solid var(--accent);
+.suivi-drag-placeholder td {
+  background: rgba(236,114,6,.07);
+  border-top: 2px dashed var(--accent);
+  border-bottom: 2px dashed var(--accent);
+  padding: 0 !important;
 }
 
 /* ── Badge Suivi affiché sur les tâches Todo liées ── */

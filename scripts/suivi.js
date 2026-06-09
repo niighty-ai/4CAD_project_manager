@@ -1037,54 +1037,73 @@ function _suiviRenderIntvTbody() {
 }
 
 function _suiviInitActionDrag(tbody) {
-  let overRow = null;
+  let draggedTr  = null;
+  let placeholder = null;
+
+  function makePlaceholder(height) {
+    const ph = document.createElement('tr');
+    ph.className = 'suivi-drag-placeholder';
+    ph.innerHTML = `<td colspan="99" style="height:${height}px"></td>`;
+    return ph;
+  }
+
+  function movePlaceholder(overTr, clientY) {
+    if (!placeholder || !overTr || overTr === draggedTr || overTr === placeholder) return;
+    const rect = overTr.getBoundingClientRect();
+    const insertBefore = clientY < rect.top + rect.height / 2;
+    if (insertBefore) {
+      overTr.parentNode.insertBefore(placeholder, overTr);
+    } else {
+      overTr.parentNode.insertBefore(placeholder, overTr.nextSibling);
+    }
+  }
 
   tbody.addEventListener('dragstart', e => {
     const tr = e.target.closest('tr[data-rid]');
     if (!tr) return;
+    draggedTr = tr;
     _suiviDragRowId = tr.dataset.rid;
-    tr.classList.add('suivi-row-dragging');
     e.dataTransfer.effectAllowed = 'move';
-  });
-
-  tbody.addEventListener('dragend', () => {
-    tbody.querySelectorAll('.suivi-row-dragging, .suivi-row-over').forEach(el => {
-      el.classList.remove('suivi-row-dragging', 'suivi-row-over');
+    placeholder = makePlaceholder(tr.offsetHeight);
+    /* requestAnimationFrame pour que le navigateur capture l'image de drag AVANT
+       qu'on modifie l'opacité et insère le placeholder */
+    requestAnimationFrame(() => {
+      tr.classList.add('suivi-row-dragging');
+      tr.parentNode.insertBefore(placeholder, tr.nextSibling);
     });
-    _suiviDragRowId = null;
-    overRow = null;
   });
 
   tbody.addEventListener('dragover', e => {
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
     const tr = e.target.closest('tr[data-rid]');
-    if (tr && tr.dataset.rid !== _suiviDragRowId) {
-      if (overRow && overRow !== tr) overRow.classList.remove('suivi-row-over');
-      overRow = tr;
-      tr.classList.add('suivi-row-over');
-    }
+    movePlaceholder(tr, e.clientY);
   });
 
-  tbody.addEventListener('dragleave', e => {
-    if (overRow && !tbody.contains(e.relatedTarget)) {
-      overRow.classList.remove('suivi-row-over');
-      overRow = null;
-    }
+  tbody.addEventListener('dragend', () => {
+    if (draggedTr) draggedTr.classList.remove('suivi-row-dragging');
+    if (placeholder && placeholder.parentNode) placeholder.parentNode.removeChild(placeholder);
+    draggedTr  = null;
+    placeholder = null;
+    _suiviDragRowId = null;
   });
 
   tbody.addEventListener('drop', e => {
     e.preventDefault();
-    const targetTr = e.target.closest('tr[data-rid]');
-    if (!targetTr || !_suiviDragRowId || targetTr.dataset.rid === _suiviDragRowId) return;
+    if (!draggedTr || !placeholder || !placeholder.parentNode) return;
+    /* Insérer la ligne glissée à la place du placeholder */
+    placeholder.parentNode.insertBefore(draggedTr, placeholder);
+    placeholder.parentNode.removeChild(placeholder);
+    draggedTr.classList.remove('suivi-row-dragging');
+    /* Synchroniser le modèle de données sur l'ordre DOM */
     const p = _suiviGetActive(); if (!p) return;
-    const actions = p.actions;
-    const fromIdx = actions.findIndex(a => a.id === _suiviDragRowId);
-    const toIdx   = actions.findIndex(a => a.id === targetTr.dataset.rid);
-    if (fromIdx === -1 || toIdx === -1) return;
-    const [moved] = actions.splice(fromIdx, 1);
-    actions.splice(toIdx, 0, moved);
+    const newOrder = [...tbody.querySelectorAll('tr[data-rid]')].map(tr => tr.dataset.rid);
+    p.actions.sort((a, b) => newOrder.indexOf(a.id) - newOrder.indexOf(b.id));
     _suiviSave();
+    draggedTr  = null;
+    placeholder = null;
+    _suiviDragRowId = null;
+    /* Re-render léger pour recâbler les événements (picker, etc.) */
     _suiviRenderActionsTbody();
   });
 }
