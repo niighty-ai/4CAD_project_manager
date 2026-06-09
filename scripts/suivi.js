@@ -596,7 +596,7 @@ async function _suiviExportPPTX() {
       { text:'Statut',           options:{ bold:true, color:WHITE, fill:HDR_FILL, fontSize:11, fontFace:FONT, align:'center', valign:'middle' } }
     ];
 
-    const dataRows = _suiviSortActions(p.actions).map(a => {
+    const dataRows = p.actions.map(a => {
       const type      = a.type || 'action';
       const isAction  = type === 'action';
       const typeLabel = _SUIVI_TYPE_LABELS[type] || type;
@@ -710,6 +710,7 @@ function _suiviUpdateIntvDate(id, val) {
   const r = p.interventions.rows.find(r => r.id === id);
   if (r) {
     r.date = val;
+    p.interventions.rows = [...p.interventions.rows].sort((a,b) => (a.date||'') < (b.date||'') ? -1 : 1);
     _suiviSave();
     _suiviRenderIntvTbody();
   }
@@ -842,7 +843,7 @@ function _suiviRenderActionsTbody() {
   if (!p) { tbody.innerHTML = ''; return; }
   const clientLabel = p.client || 'Client';
 
-  tbody.innerHTML = _suiviSortActions(p.actions).map(a => {
+  tbody.innerHTML = p.actions.map(a => {
     const type      = a.type || 'action';
     const isAction  = type === 'action';
     const societe   = a.societe || a.responsable || '4CAD';
@@ -896,7 +897,14 @@ function _suiviRenderActionsTbody() {
       ? `<button class="${linkBtnClass}" onclick="_suiviOpenLinkPanel('${a.id}',this)" title="${_suiviEsc(linkTitle)}">${taskDone ? _SUIVI_DONE_LINK_ICON : _SUIVI_LINK_ICON}</button>`
       : '';
 
-    return `<tr class="${rowClass}">
+    return `<tr class="${rowClass}" draggable="true" data-rid="${a.id}">
+      <td class="suivi-drag-handle" title="Glisser pour réordonner">
+        <svg width="12" height="16" viewBox="0 0 12 16" fill="currentColor">
+          <circle cx="4" cy="3" r="1.5"/><circle cx="8" cy="3" r="1.5"/>
+          <circle cx="4" cy="8" r="1.5"/><circle cx="8" cy="8" r="1.5"/>
+          <circle cx="4" cy="13" r="1.5"/><circle cx="8" cy="13" r="1.5"/>
+        </svg>
+      </td>
       <td class="suivi-col-link">${linkBtnHtml}</td>
       <td class="suivi-col-type">${typeSelect}</td>
       <td class="suivi-col-action">
@@ -921,6 +929,8 @@ function _suiviRenderActionsTbody() {
       </td>
     </tr>`;
   }).join('');
+
+  _suiviInitActionDrag(tbody);
 }
 
 function _suiviRenderIntvTable() {
@@ -940,7 +950,6 @@ function _suiviRenderIntvThead() {
   const thead = document.getElementById('suiviIntvThead');
   if (!thead) return;
   thead.innerHTML = `<tr>
-    <th class="suivi-drag-th"></th>
     <th style="width:185px">Date</th>
     ${ints.map((n, i) => `
       <th>
@@ -962,11 +971,11 @@ let _suiviDragRowId = null;
 function _suiviRenderIntvTbody() {
   const p = _suiviGetActive(); if (!p || !p.interventions) return;
   const ints = p.interventions.intervenants;
-  const rows = p.interventions.rows;
+  const sorted = [...p.interventions.rows].sort((a,b) => (a.date||'') < (b.date||'') ? -1 : 1);
   const tbody = document.getElementById('suiviIntvTbody');
   if (!tbody) return;
 
-  tbody.innerHTML = rows.map(row => {
+  tbody.innerHTML = sorted.map(row => {
     const dateLabel = row.date ? _suiviFmtIntvDate(row.date) : 'Choisir une date…';
     const dateLabelClass = row.date ? '' : 'empty';
 
@@ -1012,14 +1021,7 @@ function _suiviRenderIntvTbody() {
       </td>`;
     }).join('');
 
-    return `<tr draggable="true" data-rid="${row.id}" class="suivi-intv-row">
-      <td class="suivi-drag-handle" title="Glisser pour réordonner">
-        <svg width="12" height="16" viewBox="0 0 12 16" fill="currentColor">
-          <circle cx="4" cy="3" r="1.5"/><circle cx="8" cy="3" r="1.5"/>
-          <circle cx="4" cy="8" r="1.5"/><circle cx="8" cy="8" r="1.5"/>
-          <circle cx="4" cy="13" r="1.5"/><circle cx="8" cy="13" r="1.5"/>
-        </svg>
-      </td>
+    return `<tr>
       <td>${dateCellHtml}</td>
       ${cellsHtml}
       <td style="width:26px;text-align:center;padding:4px 2px">
@@ -1027,11 +1029,9 @@ function _suiviRenderIntvTbody() {
       </td>
     </tr>`;
   }).join('');
-
-  _suiviInitIntvDrag(tbody);
 }
 
-function _suiviInitIntvDrag(tbody) {
+function _suiviInitActionDrag(tbody) {
   let overRow = null;
 
   tbody.addEventListener('dragstart', e => {
@@ -1042,7 +1042,7 @@ function _suiviInitIntvDrag(tbody) {
     e.dataTransfer.effectAllowed = 'move';
   });
 
-  tbody.addEventListener('dragend', e => {
+  tbody.addEventListener('dragend', () => {
     tbody.querySelectorAll('.suivi-row-dragging, .suivi-row-over').forEach(el => {
       el.classList.remove('suivi-row-dragging', 'suivi-row-over');
     });
@@ -1072,15 +1072,15 @@ function _suiviInitIntvDrag(tbody) {
     e.preventDefault();
     const targetTr = e.target.closest('tr[data-rid]');
     if (!targetTr || !_suiviDragRowId || targetTr.dataset.rid === _suiviDragRowId) return;
-    const p = _suiviGetActive(); if (!p || !p.interventions) return;
-    const rows = p.interventions.rows;
-    const fromIdx = rows.findIndex(r => r.id === _suiviDragRowId);
-    const toIdx   = rows.findIndex(r => r.id === targetTr.dataset.rid);
+    const p = _suiviGetActive(); if (!p) return;
+    const actions = p.actions;
+    const fromIdx = actions.findIndex(a => a.id === _suiviDragRowId);
+    const toIdx   = actions.findIndex(a => a.id === targetTr.dataset.rid);
     if (fromIdx === -1 || toIdx === -1) return;
-    const [moved] = rows.splice(fromIdx, 1);
-    rows.splice(toIdx, 0, moved);
+    const [moved] = actions.splice(fromIdx, 1);
+    actions.splice(toIdx, 0, moved);
     _suiviSave();
-    _suiviRenderIntvTbody();
+    _suiviRenderActionsTbody();
   });
 }
 
