@@ -482,15 +482,22 @@ function _suiviUnlinkTask(actionId) {
   _suiviRenderActionsTbody();
 }
 
-/* Suivi → Todo : quand l'action change de statut, synchronise la tâche liée */
+/* Suivi → Todo : quand l'action change de statut ou d'échéance, synchronise la tâche liée */
 function _suiviSyncSuiviToTodo(action) {
   if (!action?.todoTaskId) return;
   const task = _suiviGetTodoTask(action.todoTaskId);
   if (!task) return;
+  /* Sync statut */
   const shouldBeDone = action.statut === 'done';
-  /* _todoCompleteTask bascule l'état — n'appeler que si l'état diffère */
   if (task.completed !== shouldBeDone && typeof _todoCompleteTask === 'function') {
     _todoCompleteTask(task.id);
+  }
+  /* Sync échéance */
+  if (typeof _todoUpdateTask === 'function') {
+    const newDate = action.echeance || null;
+    if ((task.dueDate || null) !== newDate) {
+      _todoUpdateTask(task.id, { dueDate: newDate });
+    }
   }
 }
 
@@ -523,6 +530,13 @@ function _suiviSyncTodoToSuivi() {
       const actionDone = action.statut === 'done';
       if (taskDone !== actionDone) {
         action.statut = taskDone ? 'done' : 'todo';
+        action.updatedAt = new Date().toISOString();
+        changed = true;
+      }
+      /* Sync échéance Todo → Suivi */
+      const taskDate = task.dueDate || '';
+      if (taskDate !== (action.echeance || '')) {
+        action.echeance = taskDate;
         action.updatedAt = new Date().toISOString();
         changed = true;
       }
@@ -560,7 +574,7 @@ function _suiviUpdateAction(id, field, value) {
     a[field] = value;
     p.updatedAt = new Date().toISOString();
     _suiviSave();
-    if (field === 'statut') _suiviSyncSuiviToTodo(a);
+    if (field === 'statut' || field === 'echeance') _suiviSyncSuiviToTodo(a);
   }
   if (field === 'type' || field === 'statut' || field === 'echeance') _suiviRenderActionsTbody();
 }
