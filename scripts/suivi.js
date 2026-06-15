@@ -1083,7 +1083,9 @@ function _suiviRenderIntvTbody() {
       </td>`;
     }).join('');
 
-    return `<tr>
+    const isPast = row.date && _suiviIsOverdue(row.date);
+
+    return `<tr${isPast ? ' class="suivi-intv-past"' : ''}>
       <td>${dateCellHtml}</td>
       ${cellsHtml}
       <td style="width:26px;text-align:center;padding:4px 2px">

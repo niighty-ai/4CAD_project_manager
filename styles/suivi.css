@@ -526,6 +526,9 @@ tr:hover .suivi-btn-del { opacity: 1; }
 }
 .suivi-intv-table tbody tr:last-child { border-bottom: none; }
 .suivi-intv-table tbody tr:hover { background: var(--surface2); }
+.suivi-intv-table tbody tr.suivi-intv-past { background: rgba(248,81,73,.06); }
+.suivi-intv-table tbody tr.suivi-intv-past:hover { background: rgba(248,81,73,.11); }
+.suivi-intv-table tbody tr.suivi-intv-past .suivi-date-label { color: #f85149; }
 .suivi-intv-table tbody td { padding: 4px 6px; vertical-align: top; }
 
 /* Cellule date des interventions */
