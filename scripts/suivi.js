@@ -10,6 +10,7 @@ let _suiviLoaded   = false;
 let _suiviSaveTimer = null;
 let _suiviSaveTs   = 0;
 let _suiviOpenEditor = null;
+let _suiviCommentPanelActionId = null;
 
 /* ── Constantes ── */
 const _SUIVI_COLORS  = ['#EC7206','#72B6EC','#3fb950','#bc8cff','#F29318','#f85149','#56d364','#ffa657'];
@@ -327,7 +328,228 @@ document.addEventListener('click', e => {
       !linkPanel.contains(e.target) && !e.target.closest('.suivi-link-btn')) {
     _suiviCloseLinkPanel();
   }
+  const commentPanel = document.getElementById('suiviCommentPanel');
+  if (commentPanel && commentPanel.style.display !== 'none' &&
+      !commentPanel.contains(e.target) && !e.target.closest('.suivi-comment-btn')) {
+    _suiviCloseCommentPanel();
+  }
 }, true);
+
+/* ── Commentaires sur les actions ── */
+
+/* Retourne les commentaires d'une action : depuis la tâche Todo liée si elle existe,
+   sinon depuis action.comments directement */
+function _suiviGetActionComments(action) {
+  if (action?.todoTaskId) {
+    const task = _suiviGetTodoTask(action.todoTaskId);
+    return task?.comments || [];
+  }
+  return action?.comments || [];
+}
+
+function _suiviAddActionComment(actionId, text) {
+  if (!text?.trim()) return;
+  const p = _suiviGetActive(); if (!p) return;
+  const action = p.actions.find(a => a.id === actionId); if (!action) return;
+
+  if (action.todoTaskId && typeof _todoAddComment === 'function') {
+    _todoAddComment(action.todoTaskId, text);
+    return;
+  }
+
+  if (!action.comments) action.comments = [];
+  action.comments.push({
+    id:         _suiviUid(),
+    text:       text.trim(),
+    authorId:   currentUserId,
+    authorName: currentUserEmail,
+    createdAt:  new Date().toISOString(),
+    updatedAt:  null
+  });
+  p.updatedAt = new Date().toISOString();
+  _suiviSave();
+}
+
+function _suiviEditActionComment(actionId, commentId, text) {
+  if (!text?.trim()) return;
+  const p = _suiviGetActive(); if (!p) return;
+  const action = p.actions.find(a => a.id === actionId); if (!action) return;
+
+  if (action.todoTaskId && typeof _todoEditComment === 'function') {
+    _todoEditComment(action.todoTaskId, commentId, text);
+    return;
+  }
+
+  const c = (action.comments || []).find(c => c.id === commentId);
+  if (!c) return;
+  c.text = text.trim();
+  c.updatedAt = new Date().toISOString();
+  p.updatedAt = new Date().toISOString();
+  _suiviSave();
+}
+
+function _suiviDeleteActionComment(actionId, commentId) {
+  const p = _suiviGetActive(); if (!p) return;
+  const action = p.actions.find(a => a.id === actionId); if (!action) return;
+
+  if (action.todoTaskId && typeof _todoDeleteComment === 'function') {
+    _todoDeleteComment(action.todoTaskId, commentId);
+    return;
+  }
+
+  action.comments = (action.comments || []).filter(c => c.id !== commentId);
+  p.updatedAt = new Date().toISOString();
+  _suiviSave();
+}
+
+function _suiviOpenCommentPanel(actionId, btnEl) {
+  _suiviCloseLinkPanel();
+
+  let panel = document.getElementById('suiviCommentPanel');
+  if (!panel) {
+    panel = document.createElement('div');
+    panel.id = 'suiviCommentPanel';
+    panel.className = 'suivi-comment-panel';
+    document.body.appendChild(panel);
+  }
+
+  /* Toggle : fermer si déjà ouvert sur la même action */
+  if (panel.style.display === 'block' && _suiviCommentPanelActionId === actionId) {
+    _suiviCloseCommentPanel();
+    return;
+  }
+
+  _suiviCommentPanelActionId = actionId;
+
+  _suiviRenderCommentPanel(actionId);
+  panel.style.display = 'block';
+
+  const r = btnEl.getBoundingClientRect();
+  panel.style.top  = (r.bottom + 4) + 'px';
+  panel.style.left = r.left + 'px';
+
+  requestAnimationFrame(() => {
+    const pr = panel.getBoundingClientRect();
+    if (pr.right > window.innerWidth - 8)  panel.style.left = (window.innerWidth - pr.width - 8) + 'px';
+    if (pr.bottom > window.innerHeight - 8) panel.style.top  = (r.top - pr.height - 4) + 'px';
+    const ta = panel.querySelector('.suivi-cp-input');
+    if (ta) ta.focus();
+  });
+}
+
+function _suiviCloseCommentPanel() {
+  _suiviCommentPanelActionId = null;
+  const panel = document.getElementById('suiviCommentPanel');
+  if (panel) panel.style.display = 'none';
+}
+
+function _suiviRenderCommentPanel(actionId) {
+  const panel = document.getElementById('suiviCommentPanel');
+  if (!panel) return;
+  const p = _suiviGetActive();
+  const action = p?.actions.find(a => a.id === actionId);
+  if (!action) { panel.innerHTML = ''; return; }
+
+  const comments = _suiviGetActionComments(action);
+  const linkedTask = action.todoTaskId ? _suiviGetTodoTask(action.todoTaskId) : null;
+
+  const commentsHtml = comments.length ? comments.map(c => {
+    const ini = _suiviInitials(c.authorName || c.authorId || '?');
+    const isOwn = c.authorId === currentUserId;
+    const authorShort = (c.authorName || '').split('@')[0] || c.authorId || '?';
+    const dateStr = c.createdAt
+      ? new Date(c.createdAt).toLocaleDateString('fr-FR',{day:'2-digit',month:'2-digit',year:'2-digit',hour:'2-digit',minute:'2-digit'})
+      : '';
+    return `<div class="suivi-cp-comment" data-cid="${c.id}">
+      <div class="suivi-cp-avatar">${ini}</div>
+      <div class="suivi-cp-body">
+        <div class="suivi-cp-header">
+          <span class="suivi-cp-author">${_suiviEsc(authorShort)}</span>
+          <span class="suivi-cp-date">${dateStr}</span>
+          ${c.updatedAt ? `<span class="suivi-cp-edited">(modifié)</span>` : ''}
+        </div>
+        <div class="suivi-cp-text" id="scptxt_${c.id}">${_suiviEsc(c.text).replace(/\n/g,'<br>')}</div>
+        ${isOwn ? `<div class="suivi-cp-actions">
+          <span class="suivi-cp-action" onclick="_suiviEditCpComment('${actionId}','${c.id}')">Modifier</span>
+          <span class="suivi-cp-action danger" onclick="_suiviDeleteCpComment('${actionId}','${c.id}')">Supprimer</span>
+        </div>` : ''}
+      </div>
+    </div>`;
+  }).join('') : '<div class="suivi-cp-empty">Aucun commentaire</div>';
+
+  const linkedNote = linkedTask
+    ? `<div class="suivi-cp-linked-note">Commentaires partagés avec la tâche Todo&ensp;"<em>${_suiviEsc(linkedTask.title)}</em>"</div>`
+    : '';
+
+  panel.innerHTML = `
+    <div class="suivi-cp-header-bar">
+      <span class="suivi-cp-title">Commentaires</span>
+      <button class="suivi-cp-close" onclick="_suiviCloseCommentPanel()">✕</button>
+    </div>
+    ${linkedNote}
+    <div class="suivi-cp-list">${commentsHtml}</div>
+    <div class="suivi-cp-form">
+      <textarea class="suivi-cp-input" rows="2"
+        placeholder="Ajouter un commentaire… (Ctrl+Entrée)"
+        onkeydown="if(event.key==='Enter'&&(event.ctrlKey||event.metaKey)){event.preventDefault();_suiviSubmitCpComment('${actionId}');}"
+        oninput="this.style.height='auto';this.style.height=this.scrollHeight+'px'"></textarea>
+      <div class="suivi-cp-form-footer">
+        <button class="suivi-cp-submit" onclick="_suiviSubmitCpComment('${actionId}')">Envoyer</button>
+      </div>
+    </div>`;
+}
+
+function _suiviSubmitCpComment(actionId) {
+  const panel = document.getElementById('suiviCommentPanel');
+  const ta = panel?.querySelector('.suivi-cp-input');
+  if (!ta) return;
+  const text = ta.value.trim();
+  if (!text) return;
+  _suiviAddActionComment(actionId, text);
+  ta.value = '';
+  ta.style.height = 'auto';
+  _suiviRenderCommentPanel(actionId);
+  _suiviRenderActionsTbody();
+}
+
+function _suiviEditCpComment(actionId, commentId) {
+  const panel = document.getElementById('suiviCommentPanel');
+  const textEl = panel?.querySelector(`#scptxt_${commentId}`);
+  if (!textEl) return;
+  const p = _suiviGetActive(); if (!p) return;
+  const action = p.actions.find(a => a.id === actionId); if (!action) return;
+  const comments = _suiviGetActionComments(action);
+  const c = comments.find(c => c.id === commentId);
+  if (!c) return;
+  const original = c.text;
+
+  const ta = document.createElement('textarea');
+  ta.className = 'suivi-cp-input';
+  ta.value = original;
+  ta.style.cssText = 'width:100%;margin-bottom:4px';
+  textEl.replaceWith(ta);
+  ta.style.height = ta.scrollHeight + 'px';
+  ta.focus();
+
+  const save = () => {
+    const val = ta.value.trim();
+    if (val && val !== original) _suiviEditActionComment(actionId, commentId, val);
+    _suiviRenderCommentPanel(actionId);
+    _suiviRenderActionsTbody();
+  };
+  ta.addEventListener('blur', save);
+  ta.addEventListener('keydown', e => {
+    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) ta.blur();
+    if (e.key === 'Escape') { ta.value = original; ta.blur(); }
+  });
+}
+
+function _suiviDeleteCpComment(actionId, commentId) {
+  if (!confirm('Supprimer ce commentaire ?')) return;
+  _suiviDeleteActionComment(actionId, commentId);
+  _suiviRenderCommentPanel(actionId);
+  _suiviRenderActionsTbody();
+}
 
 /* ── Lien Todo ── */
 
@@ -335,6 +557,7 @@ let _suiviLinkPanelActionId = null;
 
 const _SUIVI_LINK_ICON = `<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>`;
 const _SUIVI_DONE_LINK_ICON = `<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>`;
+const _SUIVI_COMMENT_ICON = `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>`;
 
 function _suiviGetClientFolderId() {
   const p = _suiviGetActive();
@@ -452,6 +675,18 @@ function _suiviCreateLinkTask(actionId) {
     if (Object.keys(patch).length) _todoUpdateTask(task.id, patch);
   }
   action.todoTaskId = task.id;
+
+  /* Migration des commentaires de l'action vers la nouvelle tâche Todo */
+  if (action.comments && action.comments.length) {
+    const createdTask = typeof _todoData !== 'undefined'
+      ? (_todoData.tasks || []).find(t => t.id === task.id) : null;
+    if (createdTask) {
+      createdTask.comments = [...action.comments];
+      if (typeof _todoSave === 'function') _todoSave();
+    }
+    delete action.comments;
+  }
+
   p.updatedAt = new Date().toISOString();
   _suiviSave();
   _suiviCloseLinkPanel();
@@ -466,6 +701,18 @@ function _suiviLinkToTask(actionId, taskId) {
   const p = _suiviGetActive(); if (!p) return;
   const action = p.actions.find(a => a.id === actionId); if (!action) return;
   action.todoTaskId = taskId;
+
+  /* Migration des commentaires de l'action vers la tâche Todo liée */
+  if (action.comments && action.comments.length && typeof _todoData !== 'undefined') {
+    const task = (_todoData.tasks || []).find(t => t.id === taskId);
+    if (task) {
+      if (!task.comments) task.comments = [];
+      task.comments = [...action.comments, ...task.comments];
+      if (typeof _todoSave === 'function') _todoSave();
+    }
+    delete action.comments;
+  }
+
   p.updatedAt = new Date().toISOString();
   _suiviSave();
   _suiviCloseLinkPanel();
@@ -713,6 +960,51 @@ async function _suiviExportPPTX() {
       });
     }
     addFooter(s2, today);
+
+    /* ── Diapositives de commentaires (une par action ayant des commentaires) ── */
+    const actionsWithComments = p.actions.filter(a => _suiviGetActionComments(a).length > 0);
+    for (const a of actionsWithComments) {
+      const comments = _suiviGetActionComments(a);
+      const sc = pptx.addSlide();
+      sc.background = { color: NAVY };
+      addBadge(sc);
+      addOrangeBar(sc, 0.25, 0.5);
+      sc.addText('Point sur l\'action', { x:0.5, y:0.2, w:11.5, h:0.6, fontSize:22, bold:true, color:WHITE, fontFace:FONT });
+
+      const typeLabel = _SUIVI_TYPE_LABELS[a.type || 'action'] || (a.type || 'action');
+      const typeColor = _SUIVI_TYPE_COL_PPTX[a.type || 'action'] || GRAY;
+      sc.addText(typeLabel.toUpperCase(), { x:0.5, y:0.92, w:2, h:0.25, fontSize:9, bold:true, color:typeColor, fontFace:FONT });
+
+      const actionText = a.action || '—';
+      const actionLines = Math.max(1, Math.ceil(actionText.length / 90));
+      const actionH = Math.min(0.9, actionLines * 0.3);
+      sc.addText(actionText, { x:0.5, y:1.18, w:12, h:actionH, fontSize:14, color:WHITE, fontFace:FONT, bold:true, breakLine:true });
+
+      let yPos = 1.18 + actionH + 0.25;
+      sc.addText('Commentaires', { x:0.5, y:yPos, w:12, h:0.3, fontSize:11, bold:true, color:ORANGE, fontFace:FONT });
+      yPos += 0.35;
+
+      for (const c of comments) {
+        if (yPos > 6.6) break;
+        const authorShort = (c.authorName || '').split('@')[0] || c.authorId || '?';
+        const dateStr = c.createdAt
+          ? new Date(c.createdAt).toLocaleDateString('fr-FR',{day:'2-digit',month:'2-digit',year:'numeric'})
+          : '';
+        sc.addText(`${authorShort}  ·  ${dateStr}`, {
+          x:0.5, y:yPos, w:12, h:0.22, fontSize:9, color:GRAY, fontFace:FONT, italic:true
+        });
+        yPos += 0.22;
+
+        const cLines = Math.max(1, Math.ceil((c.text || '').length / 110));
+        const cH = Math.min(1.5, cLines * 0.22 + 0.05);
+        sc.addText(c.text || '', {
+          x:0.65, y:yPos, w:11.85, h:cH, fontSize:11, color:WHITE, fontFace:FONT, breakLine:true
+        });
+        yPos += cH + 0.12;
+      }
+
+      addFooter(sc, today);
+    }
 
     if (p.interventions && p.interventions.rows.length > 0) {
       const intv = p.interventions;
@@ -978,6 +1270,19 @@ function _suiviRenderActionsTbody() {
       ? `<button class="${linkBtnClass}" onclick="_suiviOpenLinkPanel('${a.id}',this)" title="${_suiviEsc(linkTitle)}">${taskDone ? _SUIVI_DONE_LINK_ICON : _SUIVI_LINK_ICON}</button>`
       : '';
 
+    /* Bouton commentaires */
+    const actionComments = _suiviGetActionComments(a);
+    const commentCount = actionComments.length;
+    const commentBtnClass = commentCount > 0 ? 'suivi-comment-btn has-comments' : 'suivi-comment-btn';
+    const commentTitle = commentCount > 0
+      ? `${commentCount} commentaire${commentCount !== 1 ? 's' : ''}`
+      : 'Ajouter un commentaire';
+    const commentBtnHtml = `<button class="${commentBtnClass}"
+      onclick="event.stopPropagation();_suiviOpenCommentPanel('${a.id}',this)"
+      title="${commentTitle}">
+      ${_SUIVI_COMMENT_ICON}${commentCount > 0 ? `<span>${commentCount}</span>` : ''}
+    </button>`;
+
     return `<tr class="${rowClass}" data-rid="${a.id}">
       <td class="suivi-drag-handle" title="Glisser pour réordonner">
         <svg width="12" height="16" viewBox="0 0 12 16" fill="currentColor">
@@ -987,6 +1292,7 @@ function _suiviRenderActionsTbody() {
         </svg>
       </td>
       <td class="suivi-col-link">${linkBtnHtml}</td>
+      <td class="suivi-col-comment">${commentBtnHtml}</td>
       <td class="suivi-col-type">${typeSelect}</td>
       <td class="suivi-col-action">
         <div class="suivi-action-cell-wrap">
