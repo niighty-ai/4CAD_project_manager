@@ -489,11 +489,16 @@ function _suiviRenderCommentPanel(actionId) {
     ${linkedNote}
     <div class="suivi-cp-list">${commentsHtml}</div>
     <div class="suivi-cp-form">
-      <textarea class="suivi-cp-input" rows="2"
+      <textarea class="suivi-cp-input" id="suiviCpInput" rows="2"
         placeholder="Ajouter un commentaire… (Ctrl+Entrée)"
         onkeydown="if(event.key==='Enter'&&(event.ctrlKey||event.metaKey)){event.preventDefault();_suiviSubmitCpComment('${actionId}');}"
         oninput="this.style.height='auto';this.style.height=this.scrollHeight+'px'"></textarea>
       <div class="suivi-cp-form-footer">
+        <button class="suivi-ai-inline-btn" title="Correction IA"
+          onmousedown="event.preventDefault()"
+          onclick="event.stopPropagation();if(typeof _aiOpenFieldPopup==='function')_aiOpenFieldPopup('suiviCpInput',this)">
+          <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+          IA</button>
         <button class="suivi-cp-submit" onclick="_suiviSubmitCpComment('${actionId}')">Envoyer</button>
       </div>
     </div>`;
@@ -961,49 +966,95 @@ async function _suiviExportPPTX() {
     }
     addFooter(s2, today);
 
-    /* ── Diapositives de commentaires (une par action ayant des commentaires) ── */
+    /* ── Diapositives de commentaires : tableau Date/Commentaire, plusieurs actions par slide ── */
     const actionsWithComments = p.actions.filter(a => _suiviGetActionComments(a).length > 0);
-    for (const a of actionsWithComments) {
-      const comments = _suiviGetActionComments(a);
-      const sc = pptx.addSlide();
-      sc.background = { color: NAVY };
-      addBadge(sc);
-      addOrangeBar(sc, 0.25, 0.5);
-      sc.addText('Point sur l\'action', { x:0.5, y:0.2, w:11.5, h:0.6, fontSize:22, bold:true, color:WHITE, fontFace:FONT });
+    if (actionsWithComments.length > 0) {
+      const SLIDE_TOP   = 0.9;
+      const SLIDE_BTM   = 6.75;
+      const TBL_X       = 0.3;
+      const TBL_W       = 13.0;
+      const DATE_W      = 1.8;
+      const COMM_W      = TBL_W - DATE_W;
+      const TYPE_H      = 0.22;
+      const HDR_ROW_H   = 0.28;
+      const BASE_ROW_H  = 0.28;
+      const ROW_CHARS   = 100;
+      const EXTRA_H     = 0.18;
+      const TITLE_CHARS = 90;
+      const TITLE_BASE  = 0.3;
+      const TITLE_EXTRA = 0.18;
+      const GAP         = 0.28;
+      const HDR_FILL    = { color:'1e2f3f' };
+      const ROW_FILL    = { color:NAVY };
 
-      const typeLabel = _SUIVI_TYPE_LABELS[a.type || 'action'] || (a.type || 'action');
-      const typeColor = _SUIVI_TYPE_COL_PPTX[a.type || 'action'] || GRAY;
-      sc.addText(typeLabel.toUpperCase(), { x:0.5, y:0.92, w:2, h:0.25, fontSize:9, bold:true, color:typeColor, fontFace:FONT });
-
-      const actionText = a.action || '—';
-      const actionLines = Math.max(1, Math.ceil(actionText.length / 90));
-      const actionH = Math.min(0.9, actionLines * 0.3);
-      sc.addText(actionText, { x:0.5, y:1.18, w:12, h:actionH, fontSize:14, color:WHITE, fontFace:FONT, bold:true, breakLine:true });
-
-      let yPos = 1.18 + actionH + 0.25;
-      sc.addText('Commentaires', { x:0.5, y:yPos, w:12, h:0.3, fontSize:11, bold:true, color:ORANGE, fontFace:FONT });
-      yPos += 0.35;
-
-      for (const c of comments) {
-        if (yPos > 6.6) break;
-        const authorShort = (c.authorName || '').split('@')[0] || c.authorId || '?';
-        const dateStr = c.createdAt
-          ? new Date(c.createdAt).toLocaleDateString('fr-FR',{day:'2-digit',month:'2-digit',year:'numeric'})
-          : '';
-        sc.addText(`${authorShort}  ·  ${dateStr}`, {
-          x:0.5, y:yPos, w:12, h:0.22, fontSize:9, color:GRAY, fontFace:FONT, italic:true
-        });
-        yPos += 0.22;
-
-        const cLines = Math.max(1, Math.ceil((c.text || '').length / 110));
-        const cH = Math.min(1.5, cLines * 0.22 + 0.05);
-        sc.addText(c.text || '', {
-          x:0.65, y:yPos, w:11.85, h:cH, fontSize:11, color:WHITE, fontFace:FONT, breakLine:true
-        });
-        yPos += cH + 0.12;
+      function _cpTitleH(a) {
+        const lines = Math.max(1, Math.ceil((a.action || '').length / TITLE_CHARS));
+        return TITLE_BASE + Math.max(0, lines - 1) * TITLE_EXTRA;
+      }
+      function _cpRowH(c) {
+        const lines = Math.max(1, Math.ceil((c.text || '').length / ROW_CHARS));
+        return BASE_ROW_H + Math.max(0, lines - 1) * EXTRA_H;
+      }
+      function _cpBlockH(a) {
+        const comments = _suiviGetActionComments(a);
+        const rowsH = comments.reduce((s, c) => s + _cpRowH(c), 0);
+        return TYPE_H + _cpTitleH(a) + HDR_ROW_H + rowsH + GAP;
       }
 
-      addFooter(sc, today);
+      let sc = null;
+      let yPos = SLIDE_TOP;
+
+      const newCpSlide = () => {
+        if (sc) addFooter(sc, today);
+        sc = pptx.addSlide();
+        sc.background = { color: NAVY };
+        addBadge(sc);
+        addOrangeBar(sc, 0.25, 0.5);
+        sc.addText('Points sur les actions', { x:0.5, y:0.2, w:11.5, h:0.6, fontSize:22, bold:true, color:WHITE, fontFace:FONT });
+        yPos = SLIDE_TOP;
+      };
+
+      newCpSlide();
+
+      for (const a of actionsWithComments) {
+        const comments = _suiviGetActionComments(a);
+        const bH = _cpBlockH(a);
+
+        if (yPos > SLIDE_TOP && yPos + bH > SLIDE_BTM) newCpSlide();
+
+        const typeLabel = (_SUIVI_TYPE_LABELS[a.type || 'action'] || (a.type || 'action')).toUpperCase();
+        const typeColor = _SUIVI_TYPE_COL_PPTX[a.type || 'action'] || GRAY;
+        sc.addText(typeLabel, { x:TBL_X, y:yPos, w:3, h:TYPE_H, fontSize:9, bold:true, color:typeColor, fontFace:FONT });
+        yPos += TYPE_H;
+
+        const titleH = _cpTitleH(a);
+        sc.addText(a.action || '—', { x:TBL_X, y:yPos, w:TBL_W, h:titleH, fontSize:13, bold:true, color:WHITE, fontFace:FONT, breakLine:true });
+        yPos += titleH;
+
+        const tableHdr = [
+          { text:'Date',          options:{ bold:true, color:WHITE, fill:HDR_FILL, fontSize:10, fontFace:FONT, align:'center', valign:'middle' } },
+          { text:'Commentaires',  options:{ bold:true, color:WHITE, fill:HDR_FILL, fontSize:10, fontFace:FONT, align:'left',   valign:'middle' } }
+        ];
+        const rowHeightsTable = [HDR_ROW_H, ...comments.map(_cpRowH)];
+        const tableData = [tableHdr, ...comments.map(c => {
+          const dateStr = c.createdAt
+            ? new Date(c.createdAt).toLocaleDateString('fr-FR',{day:'2-digit',month:'2-digit',year:'numeric'})
+            : '—';
+          return [
+            { text:dateStr,    options:{ color:ORANGE, fill:ROW_FILL, fontSize:10, fontFace:FONT, align:'center', valign:'middle', bold:true } },
+            { text:c.text||'', options:{ color:WHITE,  fill:ROW_FILL, fontSize:10, fontFace:FONT, align:'left',   valign:'top', breakLine:true } }
+          ];
+        })];
+
+        sc.addTable(tableData, {
+          x:TBL_X, y:yPos, w:TBL_W,
+          colW:[DATE_W, COMM_W],
+          rowH:rowHeightsTable,
+          border:{ type:'solid', color:'3d5972', pt:0.5 }
+        });
+        yPos += rowHeightsTable.reduce((s, h) => s + h, 0) + GAP;
+      }
+      if (sc) addFooter(sc, today);
     }
 
     if (p.interventions && p.interventions.rows.length > 0) {
