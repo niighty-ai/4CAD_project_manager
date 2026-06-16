@@ -400,6 +400,8 @@ function _todoUpdateTask(taskId, updates) {
         _notifSendChange(task, 'date_change');
     }
   }
+  /* Sync immédiat Todo → Suivi sans attendre le listener Firebase */
+  if (typeof _suiviSyncTodoToSuivi === 'function') _suiviSyncTodoToSuivi();
 }
 
 function _todoDeleteTask(taskId) {
@@ -493,6 +495,7 @@ function _todoCompleteTask(taskId) {
   }
   _todoRenderTaskList();
   if (typeof _todoRenderSidebar === 'function') _todoRenderSidebar();
+  if (typeof _suiviSyncTodoToSuivi === 'function') _suiviSyncTodoToSuivi();
 }
 
 /* ── CRUD Commentaires ────────────────────────────────────────────────────── */
