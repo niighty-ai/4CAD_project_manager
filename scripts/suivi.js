@@ -786,8 +786,10 @@ function _suiviSyncTodoToSuivi() {
         action.updatedAt = new Date().toISOString();
         changed = true;
       }
-      /* Sync échéance Todo → Suivi */
-      const taskDate = task.dueDate || '';
+      /* Sync échéance Todo → Suivi
+         Normalise en YYYY-MM-DD : task.dueDate peut être un ISO complet
+         ("2026-06-25T00:00:00.000Z") selon l'origine de la mise à jour */
+      const taskDate = (task.dueDate || '').slice(0, 10);
       if (taskDate !== (action.echeance || '')) {
         action.echeance = taskDate;
         action.updatedAt = new Date().toISOString();
