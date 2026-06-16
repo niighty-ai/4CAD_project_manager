@@ -11,6 +11,7 @@ let _suiviSaveTimer = null;
 let _suiviSaveTs   = 0;
 let _suiviOpenEditor = null;
 let _suiviCommentPanelActionId = null;
+let _suiviBacklogPanelOpen = false;
 
 /* ── Constantes ── */
 const _SUIVI_COLORS  = ['#EC7206','#72B6EC','#3fb950','#bc8cff','#F29318','#f85149','#56d364','#ffa657'];
@@ -334,6 +335,11 @@ document.addEventListener('click', e => {
       !e.target.closest('#suiviAiCommentPopup')) {
     _suiviCloseCommentPanel();
   }
+  const backlogPanel = document.getElementById('suiviBacklogPanel');
+  const backlogBtn   = document.getElementById('suiviBtnHistorique');
+  if (backlogPanel && !backlogPanel.contains(e.target) && e.target !== backlogBtn && !backlogBtn?.contains(e.target)) {
+    _suiviCloseBacklogPanel();
+  }
 }, true);
 
 /* ── Commentaires sur les actions ── */
@@ -564,6 +570,7 @@ let _suiviLinkPanelActionId = null;
 const _SUIVI_LINK_ICON = `<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>`;
 const _SUIVI_DONE_LINK_ICON = `<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>`;
 const _SUIVI_COMMENT_ICON = `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>`;
+const _SUIVI_BACKLOG_ICON = `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>`;
 
 function _suiviGetClientFolderId() {
   const p = _suiviGetActive();
@@ -822,6 +829,130 @@ function _suiviRemoveAction(id) {
   _suiviRenderActionsTbody();
 }
 
+function _suiviMoveToBacklog(id) {
+  const p = _suiviGetActive(); if (!p) return;
+  const a = p.actions.find(a => a.id === id); if (!a) return;
+  a.backlogPrevStatut = a.statut || 'todo';
+  a.backlogDate = new Date().toISOString();
+  a.statut = 'backlog';
+  p.updatedAt = new Date().toISOString();
+  _suiviSave();
+  _suiviRenderActionsTbody();
+  _suiviUpdateBacklogCount();
+}
+
+function _suiviRestoreFromBacklog(id) {
+  const p = _suiviGetActive(); if (!p) return;
+  const a = p.actions.find(a => a.id === id); if (!a) return;
+  a.statut = a.backlogPrevStatut || 'todo';
+  delete a.backlogPrevStatut;
+  delete a.backlogDate;
+  p.updatedAt = new Date().toISOString();
+  _suiviSave();
+  _suiviRenderActionsTbody();
+  _suiviRenderBacklogPanel();
+  _suiviUpdateBacklogCount();
+}
+
+function _suiviUpdateBacklogCount() {
+  const p = _suiviGetActive();
+  const btn = document.getElementById('suiviBtnHistorique');
+  if (!btn) return;
+  const count = p ? p.actions.filter(a => a.statut === 'backlog').length : 0;
+  btn.innerHTML = `📦 Backlog${count > 0 ? ` <span class="suivi-backlog-count">${count}</span>` : ''}`;
+}
+
+function _suiviOpenBacklogPanel() {
+  _suiviBacklogPanelOpen = !_suiviBacklogPanelOpen;
+  if (!_suiviBacklogPanelOpen) {
+    const panel = document.getElementById('suiviBacklogPanel');
+    if (panel) panel.remove();
+    return;
+  }
+  _suiviRenderBacklogPanel();
+}
+
+function _suiviCloseBacklogPanel() {
+  _suiviBacklogPanelOpen = false;
+  const panel = document.getElementById('suiviBacklogPanel');
+  if (panel) panel.remove();
+}
+
+function _suiviRenderBacklogPanel() {
+  const p = _suiviGetActive();
+  const btn = document.getElementById('suiviBtnHistorique');
+  if (!btn) return;
+
+  let panel = document.getElementById('suiviBacklogPanel');
+  if (!panel) {
+    panel = document.createElement('div');
+    panel.id = 'suiviBacklogPanel';
+    document.body.appendChild(panel);
+  }
+
+  const backlogActions = p ? p.actions
+    .filter(a => a.statut === 'backlog')
+    .slice()
+    .sort((a, b) => (b.backlogDate || '').localeCompare(a.backlogDate || ''))
+    : [];
+
+  const clientLabel = p ? (p.client || 'Client') : 'Client';
+
+  const rows = backlogActions.map(a => {
+    const type      = a.type || 'action';
+    const isAction  = type === 'action';
+    const typeLabel = _SUIVI_TYPE_LABELS[type] || type;
+    const societe   = a.societe || '4CAD';
+    const societeLabel = societe === '4CAD' ? '4CAD'
+                       : societe === 'both'  ? `4CAD + ${clientLabel}`
+                       : clientLabel;
+    const respNames = (a.responsables || []).map(r => r.name).join(', ') || '-';
+    const statutLabel = _SUIVI_STATUT_LABELS[a.backlogPrevStatut] || a.backlogPrevStatut || '-';
+    const echeanceStr = _suiviFmtDate(a.echeance) || '-';
+    const backlogDateStr = a.backlogDate
+      ? new Date(a.backlogDate).toLocaleDateString('fr-FR', { day:'2-digit', month:'2-digit', year:'numeric' })
+      : '-';
+    return `<tr>
+      <td class="sbp-col-type"><span class="sbp-type-badge sbp-type-${type}">${_suiviEsc(typeLabel)}</span></td>
+      <td class="sbp-col-action">${_suiviEsc(a.action || '-')}</td>
+      <td class="sbp-col-resp">${_suiviEsc(respNames)}</td>
+      <td class="sbp-col-soc">${_suiviEsc(societeLabel)}</td>
+      <td class="sbp-col-ech">${_suiviEsc(echeanceStr)}</td>
+      <td class="sbp-col-stat"><span class="suivi-statut-badge suivi-s-${a.backlogPrevStatut || 'todo'}">${_suiviEsc(statutLabel)}</span></td>
+      <td class="sbp-col-date">${_suiviEsc(backlogDateStr)}</td>
+      <td class="sbp-col-restore"><button class="sbp-restore-btn" onclick="_suiviRestoreFromBacklog('${a.id}')">Restaurer</button></td>
+    </tr>`;
+  }).join('');
+
+  panel.innerHTML = `
+    <div class="sbp-header">
+      <span class="sbp-title">📦 Backlog — Actions archivées</span>
+      <button class="sbp-close" onclick="_suiviCloseBacklogPanel()">×</button>
+    </div>
+    <div class="sbp-body">
+      ${backlogActions.length === 0
+        ? '<div class="sbp-empty">Aucune action en backlog</div>'
+        : `<table class="sbp-table">
+            <thead><tr>
+              <th class="sbp-col-type">Type</th>
+              <th class="sbp-col-action">Contenu</th>
+              <th class="sbp-col-resp">Responsable</th>
+              <th class="sbp-col-soc">Société</th>
+              <th class="sbp-col-ech">Échéance</th>
+              <th class="sbp-col-stat">Statut avant</th>
+              <th class="sbp-col-date">Mis en backlog</th>
+              <th class="sbp-col-restore"></th>
+            </tr></thead>
+            <tbody>${rows}</tbody>
+          </table>`
+      }
+    </div>`;
+
+  /* Position sous le bouton */
+  const rect = btn.getBoundingClientRect();
+  panel.style.cssText = `position:fixed;top:${rect.bottom + 6}px;right:${window.innerWidth - rect.right}px;`;
+}
+
 function _suiviUpdateAction(id, field, value) {
   const p = _suiviGetActive(); if (!p) return;
   const a = p.actions.find(a => a.id === id);
@@ -907,7 +1038,7 @@ async function _suiviExportPPTX() {
       { text:'Statut',           options:{ bold:true, color:WHITE, fill:HDR_FILL, fontSize:11, fontFace:FONT, align:'center', valign:'middle' } }
     ];
 
-    const dataRows = p.actions.map(a => {
+    const dataRows = p.actions.filter(a => a.statut !== 'backlog').map(a => {
       const type      = a.type || 'action';
       const isAction  = type === 'action';
       const typeLabel = _SUIVI_TYPE_LABELS[type] || type;
@@ -970,7 +1101,7 @@ async function _suiviExportPPTX() {
     addFooter(s2, today);
 
     /* ── Diapositives de commentaires : tableau Date/Commentaire, plusieurs actions par slide ── */
-    const actionsWithComments = p.actions.filter(a => _suiviGetActionComments(a).length > 0);
+    const actionsWithComments = p.actions.filter(a => a.statut !== 'backlog' && _suiviGetActionComments(a).length > 0);
     if (actionsWithComments.length > 0) {
       const SLIDE_TOP   = 0.9;
       const SLIDE_BTM   = 6.75;
@@ -1269,7 +1400,7 @@ function _suiviRenderActionsTbody() {
   if (!p) { tbody.innerHTML = ''; return; }
   const clientLabel = p.client || 'Client';
 
-  tbody.innerHTML = p.actions.map(a => {
+  tbody.innerHTML = p.actions.filter(a => a.statut !== 'backlog').map(a => {
     const type      = a.type || 'action';
     const isAction  = type === 'action';
     const societe   = isAction ? (a.societe || a.responsable || '4CAD') : (a.societe || '');
@@ -1337,6 +1468,11 @@ function _suiviRenderActionsTbody() {
       ${_SUIVI_COMMENT_ICON}${commentCount > 0 ? `<span>${commentCount}</span>` : ''}
     </button>`;
 
+    /* Bouton backlog */
+    const backlogBtnHtml = `<button class="suivi-backlog-btn"
+      onclick="event.stopPropagation();_suiviMoveToBacklog('${a.id}')"
+      title="Mettre en backlog">${_SUIVI_BACKLOG_ICON}</button>`;
+
     return `<tr class="${rowClass}" data-rid="${a.id}">
       <td class="suivi-drag-handle" title="Glisser pour réordonner">
         <svg width="12" height="16" viewBox="0 0 12 16" fill="currentColor">
@@ -1347,6 +1483,7 @@ function _suiviRenderActionsTbody() {
       </td>
       <td class="suivi-col-link">${linkBtnHtml}</td>
       <td class="suivi-col-comment">${commentBtnHtml}</td>
+      <td class="suivi-col-backlog">${backlogBtnHtml}</td>
       <td class="suivi-col-type">${typeSelect}</td>
       <td class="suivi-col-action">
         <div class="suivi-action-cell-wrap">
@@ -1589,16 +1726,18 @@ function _suiviRender() {
   const empty = document.getElementById('suiviEmpty');
   const view  = document.getElementById('suiviProjectView');
   const title = document.getElementById('suiviTitleInput');
-  const btnExportPptx = document.getElementById('suiviBtnExportPptx');
-  const btnAi         = document.getElementById('suiviBtnAi');
+  const btnExportPptx  = document.getElementById('suiviBtnExportPptx');
+  const btnAi          = document.getElementById('suiviBtnAi');
+  const btnHistorique  = document.getElementById('suiviBtnHistorique');
   if (!empty || !view) return;
 
   if (!p) {
     empty.style.display = 'flex';
     view.style.display  = 'none';
     if (title) { title.value = ''; }
-    if (btnExportPptx) btnExportPptx.style.display = 'none';
-    if (btnAi)         btnAi.style.display         = 'none';
+    if (btnExportPptx)  btnExportPptx.style.display  = 'none';
+    if (btnAi)          btnAi.style.display           = 'none';
+    if (btnHistorique)  btnHistorique.style.display   = 'none';
     return;
   }
 
@@ -1613,9 +1752,11 @@ function _suiviRender() {
     const dot = document.getElementById('suiviTitleDot');
     if (dot) dot.style.background = color;
   }
-  if (btnExportPptx) btnExportPptx.style.display = '';
-  if (btnAi)         btnAi.style.display         = '';
+  if (btnExportPptx)  btnExportPptx.style.display  = '';
+  if (btnAi)          btnAi.style.display          = '';
+  if (btnHistorique)  btnHistorique.style.display  = '';
   _suiviRenderActionsTbody();
+  _suiviUpdateBacklogCount();
   _suiviRenderIntvTable();
 }
 
