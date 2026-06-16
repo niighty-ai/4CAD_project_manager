@@ -684,13 +684,13 @@ async function _suiviExportPPTX() {
       const TABLE_W = 13.33 - TABLE_X * 2;   // ≈ 13.03"
       const TABLE_Y = 0.9;                    // remonté (plus de ligne client)
 
-      /* Largeurs minimales : calibrées sur le texte le plus large (header ou contenu) */
-      const cType = 1.05;   // "Commentaire" bold
-      const cResp = 1.05;   // "Responsable" header bold
-      const cSoc  = 1.2;    // "4CAD + Client" (jusqu'à ~20 chars)
-      const cEch  = 0.95;   // "dd/mm/yyyy" 10 chars
-      const cStat = 0.9;    // "Planifié" 8 chars bold
-      const cAct  = parseFloat((TABLE_W - cType - cResp - cSoc - cEch - cStat).toFixed(3)); // ≈ 7.88"
+      /* Largeurs calibrées avec marge pour éviter tout retour à la ligne */
+      const cType = 1.4;    // "Commentaire" 11 chars bold
+      const cResp = 1.45;   // "Responsable" 11 chars bold (header le plus large)
+      const cSoc  = 1.3;    // "4CAD + Client"
+      const cEch  = 1.15;   // "dd/mm/yyyy" 10 chars + "Echéance" header
+      const cStat = 1.1;    // "Planifié" 8 chars bold
+      const cAct  = parseFloat((TABLE_W - cType - cResp - cSoc - cEch - cStat).toFixed(3)); // ≈ 6.63"
 
       /* ── Hauteurs variables : 1 ligne par défaut, +1 ligne si texte long ── */
       const CHARS_PER_LINE = Math.max(50, Math.round(cAct * 13)); // ~13 chars/inch Arial 11pt
