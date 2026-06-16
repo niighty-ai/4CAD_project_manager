@@ -640,7 +640,6 @@ async function _suiviExportPPTX() {
     addBadge(s2);
     addOrangeBar(s2, 0.25, 0.5);
     s2.addText('Actions & Livrables', { x:0.5, y:0.2, w:11.5, h:0.6, fontSize:22, bold:true, color:WHITE, fontFace:FONT });
-    s2.addText(p.client, { x:0.5, y:0.75, w:11.5, h:0.3, fontSize:12, color:ORANGE, fontFace:FONT, bold:true });
 
     const HDR_FILL = { color:'1e2f3f' };
     const ROW_FILL = { color:NAVY };
@@ -671,7 +670,7 @@ async function _suiviExportPPTX() {
       const dateColor = (isAction && a.statut !== 'done' && _suiviIsOverdue(a.echeance)) ? 'f85149' : GRAY;
       return [
         { text:typeLabel,                           options:{ color:typeColor,              fontSize:11, fontFace:FONT, align:'center', valign:'middle', fill:ROW_FILL, bold:true } },
-        { text:a.action || '-',                     options:{ color:WHITE,                  fontSize:11, fontFace:FONT, align:'left',   valign:'middle', fill:ROW_FILL } },
+        { text:a.action || '-',                     options:{ color:WHITE,                  fontSize:11, fontFace:FONT, align:'left',   valign:'top',    fill:ROW_FILL } },
         { text:isAction ? respInitials : '-',        options:{ color:WHITE,                  fontSize:11, fontFace:FONT, align:'center', valign:'middle', fill:ROW_FILL } },
         { text:isAction ? societeLabel : '-',        options:{ color:isAction?societeColor:GRAY, fontSize:11, fontFace:FONT, align:'center', valign:'middle', fill:ROW_FILL, bold:isAction } },
         { text:dateStr,                             options:{ color:dateColor,              fontSize:11, fontFace:FONT, align:'center', valign:'middle', fill:ROW_FILL } },
@@ -680,22 +679,36 @@ async function _suiviExportPPTX() {
     });
 
     if (dataRows.length) {
-      /* Dimensions dynamiques : toute la largeur, hauteur de ligne calculée pour tenir sur une page */
-      const TABLE_X = 0.2;
-      const TABLE_W = 13.33 - TABLE_X * 2;          // ≈ 12.93"
-      const TABLE_Y = 1.1;
-      const AVAIL_H = 7.1 - TABLE_Y;                // 6.0" (footer à y=7.1)
-      const nRows   = dataRows.length + 1;           // +1 header
-      const rowH    = Math.max(0.22, Math.min(0.42, AVAIL_H / nRows));
+      /* ── Largeur maximale : colonnes fixes au minimum, contenu prend le reste ── */
+      const TABLE_X = 0.15;
+      const TABLE_W = 13.33 - TABLE_X * 2;   // ≈ 13.03"
+      const TABLE_Y = 0.9;                    // remonté (plus de ligne client)
 
-      /* Colonnes fixes ; la colonne Contenu absorbe le reste */
-      const cType = 1.5, cResp = 1.6, cSoc = 1.8, cEch = 1.5, cStat = 1.8;
-      const cAct  = Math.round((TABLE_W - cType - cResp - cSoc - cEch - cStat) * 100) / 100;
+      /* Largeurs minimales : calibrées sur le texte le plus large (header ou contenu) */
+      const cType = 1.05;   // "Commentaire" bold
+      const cResp = 1.05;   // "Responsable" header bold
+      const cSoc  = 1.2;    // "4CAD + Client" (jusqu'à ~20 chars)
+      const cEch  = 0.95;   // "dd/mm/yyyy" 10 chars
+      const cStat = 0.9;    // "Planifié" 8 chars bold
+      const cAct  = parseFloat((TABLE_W - cType - cResp - cSoc - cEch - cStat).toFixed(3)); // ≈ 7.88"
+
+      /* ── Hauteurs variables : 1 ligne par défaut, +1 ligne si texte long ── */
+      const CHARS_PER_LINE = Math.max(50, Math.round(cAct * 13)); // ~13 chars/inch Arial 11pt
+      const H1 = 0.28;   // hauteur 1 ligne (11pt + padding)
+      const Hx = 0.17;   // hauteur par ligne supplémentaire
+
+      const rowHeights = [
+        0.32,                                          // header
+        ...p.actions.map(a => {
+          const lines = Math.max(1, Math.ceil((a.action || '').length / CHARS_PER_LINE));
+          return parseFloat((H1 + Math.max(0, lines - 1) * Hx).toFixed(3));
+        })
+      ];
 
       s2.addTable([hdr, ...dataRows], {
         x: TABLE_X, y: TABLE_Y, w: TABLE_W,
         colW: [cType, cAct, cResp, cSoc, cEch, cStat],
-        rowH,
+        rowH: rowHeights,
         border: { type:'solid', color:'3d5972', pt:0.5 }
       });
     }
