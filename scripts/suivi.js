@@ -496,7 +496,7 @@ function _suiviRenderCommentPanel(actionId) {
       <div class="suivi-cp-form-footer">
         <button class="suivi-ai-inline-btn" title="Correction IA"
           onmousedown="event.preventDefault()"
-          onclick="event.stopPropagation();if(typeof _aiOpenFieldPopup==='function')_aiOpenFieldPopup('suiviCpInput',this)">
+          onclick="event.stopPropagation();_suiviAiCorrectComment(this)">
           <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
           IA</button>
         <button class="suivi-cp-submit" onclick="_suiviSubmitCpComment('${actionId}')">Envoyer</button>
@@ -1685,6 +1685,72 @@ function _suiviAiApplyCorrect(actionId) {
     _suiviUpdateAction(actionId, 'action', corrected);
   }
   document.getElementById('suiviAiInlinePopup')?.remove();
+}
+
+/* Correction IA pour la textarea de commentaire dans le panel
+   Même logique que _suiviAiCorrect mais cible #suiviCpInput
+   et utilise un z-index supérieur au panel (9999) */
+async function _suiviAiCorrectComment(btnEl) {
+  const inp = document.getElementById('suiviCpInput');
+  if (!inp) return;
+  const text = inp.value.trim();
+  if (!text) return;
+  if (typeof _aiKey === 'undefined' || !_aiKey()) {
+    _suiviToast('Clé API Gemini manquante — configurez-la dans l\'onglet Todo > IA');
+    return;
+  }
+  document.getElementById('suiviAiCommentPopup')?.remove();
+  btnEl.disabled = true;
+
+  const prompt = `Tu es un assistant de rédaction professionnel. Corrige et améliore ce commentaire (orthographe, grammaire, clarté). Retourne UNIQUEMENT le texte corrigé, sans guillemets ni explication.\n\nTexte :\n${text}`;
+  let corrected = '';
+  try {
+    corrected = (await _aiCall(prompt) || '').trim();
+  } catch(e) {
+    btnEl.disabled = false;
+    _suiviToast('Erreur Gemini : ' + (e.message || '?'));
+    return;
+  }
+  btnEl.disabled = false;
+
+  const popup = document.createElement('div');
+  popup.id = 'suiviAiCommentPopup';
+  popup.className = 'suivi-ai-popup';
+  const rect = btnEl.getBoundingClientRect();
+  const left = Math.max(8, Math.min(rect.left - 200, window.innerWidth - 420));
+  /* z-index 10000 pour passer au-dessus du panel commentaires (9999) */
+  popup.style.cssText = `top:${rect.top - 10}px;left:${left}px;z-index:10000;transform:translateY(-100%)`;
+  popup.innerHTML = `
+    <div class="suivi-ai-popup-label">✦ Suggestion IA</div>
+    <div class="suivi-ai-popup-text" id="suiviAiCommentPopupText">${_suiviEsc(corrected)}</div>
+    <div class="suivi-ai-popup-actions">
+      <button class="suivi-ai-popup-accept" onclick="_suiviAiApplyComment()">Appliquer</button>
+      <button class="suivi-ai-popup-cancel" onclick="document.getElementById('suiviAiCommentPopup')?.remove()">Annuler</button>
+    </div>`;
+  document.body.appendChild(popup);
+
+  setTimeout(() => {
+    document.addEventListener('click', function _closeCpAiPopup(e) {
+      if (!popup.contains(e.target) && e.target !== btnEl) {
+        popup.remove();
+        document.removeEventListener('click', _closeCpAiPopup);
+      }
+    });
+  }, 50);
+}
+
+function _suiviAiApplyComment() {
+  const textEl = document.getElementById('suiviAiCommentPopupText');
+  if (!textEl) return;
+  const corrected = textEl.textContent;
+  const inp = document.getElementById('suiviCpInput');
+  if (inp) {
+    inp.value = corrected;
+    inp.style.height = 'auto';
+    inp.style.height = inp.scrollHeight + 'px';
+    inp.focus();
+  }
+  document.getElementById('suiviAiCommentPopup')?.remove();
 }
 
 /* ═══════════════════════════════════════════
