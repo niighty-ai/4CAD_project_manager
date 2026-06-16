@@ -924,7 +924,7 @@ tr:hover .suivi-btn-rm-row { opacity: 1; }
 }
 .suivi-cp-input:focus { border-color: var(--accent); }
 .suivi-cp-input::placeholder { color: var(--muted); }
-.suivi-cp-form-footer { display: flex; justify-content: flex-end; }
+.suivi-cp-form-footer { display: flex; justify-content: flex-end; align-items: center; gap: 8px; }
 .suivi-cp-submit {
   background: var(--accent);
   color: #fff;
@@ -1234,11 +1234,13 @@ tr:hover .suivi-ai-inline-btn,
 .suivi-cp-form-footer .suivi-ai-inline-btn {
   opacity: 1;
   width: auto;
-  padding: 0 8px;
+  padding: 0 10px;
   height: 28px;
   border: 1px solid var(--border);
+  border-radius: 5px;
   font-size: 11px;
   font-weight: 700;
+  gap: 5px;
 }
 
 /* ── Popup correction IA inline ── */
