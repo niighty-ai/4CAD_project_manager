@@ -680,11 +680,23 @@ async function _suiviExportPPTX() {
     });
 
     if (dataRows.length) {
+      /* Dimensions dynamiques : toute la largeur, hauteur de ligne calculée pour tenir sur une page */
+      const TABLE_X = 0.2;
+      const TABLE_W = 13.33 - TABLE_X * 2;          // ≈ 12.93"
+      const TABLE_Y = 1.1;
+      const AVAIL_H = 7.1 - TABLE_Y;                // 6.0" (footer à y=7.1)
+      const nRows   = dataRows.length + 1;           // +1 header
+      const rowH    = Math.max(0.22, Math.min(0.42, AVAIL_H / nRows));
+
+      /* Colonnes fixes ; la colonne Contenu absorbe le reste */
+      const cType = 1.5, cResp = 1.6, cSoc = 1.8, cEch = 1.5, cStat = 1.8;
+      const cAct  = Math.round((TABLE_W - cType - cResp - cSoc - cEch - cStat) * 100) / 100;
+
       s2.addTable([hdr, ...dataRows], {
-        x:0.3, y:1.1, w:12.7,
-        colW:[1.5, 4.5, 1.6, 1.8, 1.5, 1.8],
-        rowH:0.42,
-        border:{ type:'solid', color:'3d5972', pt:0.5 }
+        x: TABLE_X, y: TABLE_Y, w: TABLE_W,
+        colW: [cType, cAct, cResp, cSoc, cEch, cStat],
+        rowH,
+        border: { type:'solid', color:'3d5972', pt:0.5 }
       });
     }
     addFooter(s2, today);
