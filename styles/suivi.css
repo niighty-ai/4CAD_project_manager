@@ -1243,6 +1243,18 @@ tr:hover .suivi-ai-inline-btn,
   gap: 5px;
 }
 
+/* ── Spinner loader IA ── */
+.suivi-ai-spinner {
+  width: 22px;
+  height: 22px;
+  border: 2.5px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: suiviSpin 0.7s linear infinite;
+  flex-shrink: 0;
+}
+@keyframes suiviSpin { to { transform: rotate(360deg); } }
+
 /* ── Popup correction IA inline ── */
 .suivi-ai-popup {
   position: fixed;
