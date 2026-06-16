@@ -330,7 +330,8 @@ document.addEventListener('click', e => {
   }
   const commentPanel = document.getElementById('suiviCommentPanel');
   if (commentPanel && commentPanel.style.display !== 'none' &&
-      !commentPanel.contains(e.target) && !e.target.closest('.suivi-comment-btn')) {
+      !commentPanel.contains(e.target) && !e.target.closest('.suivi-comment-btn') &&
+      !e.target.closest('#suiviAiCommentPopup')) {
     _suiviCloseCommentPanel();
   }
 }, true);
@@ -1625,6 +1626,25 @@ function renderSuiviView() {
    IA — correction inline (bouton étoile)
    ═══════════════════════════════════════════ */
 
+function _suiviAiShowLoader() {
+  let el = document.getElementById('suiviAiLoader');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'suiviAiLoader';
+    el.style.cssText = 'position:fixed;inset:0;z-index:20000;display:flex;align-items:center;justify-content:center;pointer-events:none';
+    el.innerHTML = `<div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:18px 28px;display:flex;align-items:center;gap:14px;box-shadow:0 8px 32px var(--shadow)">
+      <div class="suivi-ai-spinner"></div>
+      <span style="font-size:13px;color:var(--text);font-weight:600">Gemini réfléchit…</span>
+    </div>`;
+    document.body.appendChild(el);
+  }
+  el.style.display = 'flex';
+}
+function _suiviAiHideLoader() {
+  const el = document.getElementById('suiviAiLoader');
+  if (el) el.remove();
+}
+
 async function _suiviAiCorrect(actionId, btnEl) {
   const inp = document.querySelector(`textarea.suivi-action-input[data-aid="${actionId}"]`);
   if (!inp) return;
@@ -1636,16 +1656,19 @@ async function _suiviAiCorrect(actionId, btnEl) {
   }
   document.getElementById('suiviAiInlinePopup')?.remove();
   btnEl.disabled = true;
+  _suiviAiShowLoader();
 
   const prompt = `Tu es un assistant de rédaction professionnel. Corrige et améliore ce texte d'action projet (orthographe, grammaire, concision). Retourne UNIQUEMENT le texte corrigé, sans guillemets ni explication.\n\nTexte :\n${text}`;
   let corrected = '';
   try {
     corrected = (await _aiCall(prompt) || '').trim();
   } catch(e) {
+    _suiviAiHideLoader();
     btnEl.disabled = false;
     _suiviToast('Erreur Gemini : ' + (e.message || '?'));
     return;
   }
+  _suiviAiHideLoader();
   btnEl.disabled = false;
 
   const popup = document.createElement('div');
@@ -1701,16 +1724,19 @@ async function _suiviAiCorrectComment(btnEl) {
   }
   document.getElementById('suiviAiCommentPopup')?.remove();
   btnEl.disabled = true;
+  _suiviAiShowLoader();
 
   const prompt = `Tu es un assistant de rédaction professionnel. Corrige et améliore ce commentaire (orthographe, grammaire, clarté). Retourne UNIQUEMENT le texte corrigé, sans guillemets ni explication.\n\nTexte :\n${text}`;
   let corrected = '';
   try {
     corrected = (await _aiCall(prompt) || '').trim();
   } catch(e) {
+    _suiviAiHideLoader();
     btnEl.disabled = false;
     _suiviToast('Erreur Gemini : ' + (e.message || '?'));
     return;
   }
+  _suiviAiHideLoader();
   btnEl.disabled = false;
 
   const popup = document.createElement('div');
