@@ -794,7 +794,7 @@ tr:hover .suivi-btn-rm-row { opacity: 1; }
   display: none;
   position: fixed;
   z-index: 9999;
-  width: 320px;
+  width: 800px;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 10px;
