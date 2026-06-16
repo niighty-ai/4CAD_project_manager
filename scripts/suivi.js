@@ -183,6 +183,17 @@ function _suiviMigrateProject(p) {
     if (!a.societe && (a.type === 'action' || !a.type)) a.societe = '4CAD';
     if (!a.responsables) a.responsables = [];
   });
+  /* Migration numéros : attribuer un numéro 4 chiffres aux actions qui n'en ont pas */
+  let maxNum = (p?.actions || []).reduce((m, a) => {
+    const n = parseInt(a.numero, 10);
+    return isNaN(n) ? m : Math.max(m, n);
+  }, 0);
+  (p?.actions || []).forEach(a => {
+    if (!a.numero) {
+      maxNum++;
+      a.numero = String(maxNum).padStart(4, '0');
+    }
+  });
   return p;
 }
 function _suiviMigrateState(s) {
@@ -811,9 +822,17 @@ function _suiviSyncTodoToSuivi() {
 }
 
 /* ── CRUD Actions ── */
+function _suiviNextNumero(p) {
+  const max = (p?.actions || []).reduce((m, a) => {
+    const n = parseInt(a.numero, 10);
+    return isNaN(n) ? m : Math.max(m, n);
+  }, 0);
+  return String(max + 1).padStart(4, '0');
+}
+
 function _suiviAddAction() {
   const p = _suiviGetActive(); if (!p) return;
-  p.actions.push({ id:_suiviUid(), type:'action', action:'', societe:'4CAD', responsables:[], echeance:'', statut:'todo' });
+  p.actions.push({ id:_suiviUid(), numero:_suiviNextNumero(p), type:'action', action:'', societe:'4CAD', responsables:[], echeance:'', statut:'todo' });
   _suiviSave();
   _suiviRenderActionsTbody();
   setTimeout(() => {
@@ -913,6 +932,7 @@ function _suiviRenderBacklogPanel() {
       ? new Date(a.backlogDate).toLocaleDateString('fr-FR', { day:'2-digit', month:'2-digit', year:'numeric' })
       : '-';
     return `<tr>
+      <td class="sbp-col-num">${a.numero ? `<span class="suivi-num-badge">${_suiviEsc(a.numero)}</span>` : ''}</td>
       <td class="sbp-col-type"><span class="sbp-type-badge sbp-type-${type}">${_suiviEsc(typeLabel)}</span></td>
       <td class="sbp-col-action">${_suiviEsc(a.action || '-')}</td>
       <td class="sbp-col-resp">${_suiviEsc(respNames)}</td>
@@ -934,6 +954,7 @@ function _suiviRenderBacklogPanel() {
         ? '<div class="sbp-empty">Aucune action en backlog</div>'
         : `<table class="sbp-table">
             <thead><tr>
+              <th class="sbp-col-num">N°</th>
               <th class="sbp-col-type">Type</th>
               <th class="sbp-col-action">Contenu</th>
               <th class="sbp-col-resp">Responsable</th>
@@ -1056,7 +1077,7 @@ async function _suiviExportPPTX() {
       const dateColor = (isAction && a.statut !== 'done' && _suiviIsOverdue(a.echeance)) ? 'f85149' : GRAY;
       return [
         { text:typeLabel,                           options:{ color:typeColor,              fontSize:11, fontFace:FONT, align:'center', valign:'middle', fill:ROW_FILL, bold:true } },
-        { text:a.action || '-',                     options:{ color:WHITE,                  fontSize:11, fontFace:FONT, align:'left',   valign:'top',    fill:ROW_FILL } },
+        { text:(a.numero ? `Action ${a.numero} — ` : '') + (a.action || '-'), options:{ color:WHITE, fontSize:11, fontFace:FONT, align:'left', valign:'top', fill:ROW_FILL } },
         { text:isAction ? respInitials : '-',        options:{ color:WHITE,                  fontSize:11, fontFace:FONT, align:'center', valign:'middle', fill:ROW_FILL } },
         { text:isAction ? societeLabel : '-',        options:{ color:isAction?societeColor:GRAY, fontSize:11, fontFace:FONT, align:'center', valign:'middle', fill:ROW_FILL, bold:isAction } },
         { text:dateStr,                             options:{ color:dateColor,              fontSize:11, fontFace:FONT, align:'center', valign:'middle', fill:ROW_FILL } },
@@ -1083,10 +1104,12 @@ async function _suiviExportPPTX() {
       const H1 = 0.28;   // hauteur 1 ligne (11pt + padding)
       const Hx = 0.17;   // hauteur par ligne supplémentaire
 
+      const visibleActions = p.actions.filter(a => a.statut !== 'backlog');
       const rowHeights = [
         0.32,                                          // header
-        ...p.actions.map(a => {
-          const lines = Math.max(1, Math.ceil((a.action || '').length / CHARS_PER_LINE));
+        ...visibleActions.map(a => {
+          const prefix = a.numero ? `Action ${a.numero} — ` : '';
+          const lines = Math.max(1, Math.ceil((prefix + (a.action || '')).length / CHARS_PER_LINE));
           return parseFloat((H1 + Math.max(0, lines - 1) * Hx).toFixed(3));
         })
       ];
@@ -1121,8 +1144,11 @@ async function _suiviExportPPTX() {
       const HDR_FILL    = { color:'1e2f3f' };
       const ROW_FILL    = { color:NAVY };
 
+      function _cpActionLabel(a) {
+        return (a.numero ? `Action ${a.numero} — ` : '') + (a.action || '—');
+      }
       function _cpTitleH(a) {
-        const lines = Math.max(1, Math.ceil((a.action || '').length / TITLE_CHARS));
+        const lines = Math.max(1, Math.ceil(_cpActionLabel(a).length / TITLE_CHARS));
         return TITLE_BASE + Math.max(0, lines - 1) * TITLE_EXTRA;
       }
       function _cpRowH(c) {
@@ -1162,7 +1188,7 @@ async function _suiviExportPPTX() {
         yPos += TYPE_H;
 
         const titleH = _cpTitleH(a);
-        sc.addText(a.action || '—', { x:TBL_X, y:yPos, w:TBL_W, h:titleH, fontSize:13, bold:true, color:WHITE, fontFace:FONT, breakLine:true });
+        sc.addText(_cpActionLabel(a), { x:TBL_X, y:yPos, w:TBL_W, h:titleH, fontSize:13, bold:true, color:WHITE, fontFace:FONT, breakLine:true });
         yPos += titleH;
 
         const tableHdr = [
@@ -1481,6 +1507,7 @@ function _suiviRenderActionsTbody() {
           <circle cx="4" cy="13" r="1.5"/><circle cx="8" cy="13" r="1.5"/>
         </svg>
       </td>
+      <td class="suivi-col-num" title="N° action">${a.numero ? `<span class="suivi-num-badge">${_suiviEsc(a.numero)}</span>` : ''}</td>
       <td class="suivi-col-link">${linkBtnHtml}</td>
       <td class="suivi-col-comment">${commentBtnHtml}</td>
       <td class="suivi-col-backlog">${backlogBtnHtml}</td>
