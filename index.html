@@ -590,6 +590,9 @@
         <button class="suivi-btn-ai" id="suiviBtnAi" onclick="_suiviOpenAiModal()" style="display:none">
           ✦ IA
         </button>
+        <button class="suivi-btn-historique" id="suiviBtnHistorique" onclick="_suiviOpenBacklogPanel()" style="display:none">
+          📦 Backlog
+        </button>
         <button class="suivi-btn-export" id="suiviBtnExportPptx" onclick="_suiviExportPPTX()" style="display:none">
           📊 PPTX
         </button>
@@ -616,8 +619,10 @@
                 <thead>
                   <tr>
                     <th class="suivi-drag-th"></th>
+                    <th class="suivi-col-num center">N°</th>
                     <th class="suivi-col-link"></th>
                     <th class="suivi-col-comment"></th>
+                    <th class="suivi-col-backlog"></th>
                     <th class="suivi-col-type center">Type</th>
                     <th class="suivi-col-action">Contenu</th>
                     <th class="suivi-col-pers center">Responsable</th>

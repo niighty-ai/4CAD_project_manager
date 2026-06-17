@@ -11,6 +11,7 @@ let _suiviSaveTimer = null;
 let _suiviSaveTs   = 0;
 let _suiviOpenEditor = null;
 let _suiviCommentPanelActionId = null;
+let _suiviBacklogPanelOpen = false;
 
 /* ── Constantes ── */
 const _SUIVI_COLORS  = ['#EC7206','#72B6EC','#3fb950','#bc8cff','#F29318','#f85149','#56d364','#ffa657'];
@@ -182,6 +183,17 @@ function _suiviMigrateProject(p) {
     if (!a.societe && (a.type === 'action' || !a.type)) a.societe = '4CAD';
     if (!a.responsables) a.responsables = [];
   });
+  /* Migration numéros : attribuer un numéro 4 chiffres aux actions qui n'en ont pas */
+  let maxNum = (p?.actions || []).reduce((m, a) => {
+    const n = parseInt(a.numero, 10);
+    return isNaN(n) ? m : Math.max(m, n);
+  }, 0);
+  (p?.actions || []).forEach(a => {
+    if (!a.numero) {
+      maxNum++;
+      a.numero = String(maxNum).padStart(4, '0');
+    }
+  });
   return p;
 }
 function _suiviMigrateState(s) {
@@ -333,6 +345,11 @@ document.addEventListener('click', e => {
       !commentPanel.contains(e.target) && !e.target.closest('.suivi-comment-btn') &&
       !e.target.closest('#suiviAiCommentPopup')) {
     _suiviCloseCommentPanel();
+  }
+  const backlogPanel = document.getElementById('suiviBacklogPanel');
+  const backlogBtn   = document.getElementById('suiviBtnHistorique');
+  if (backlogPanel && !backlogPanel.contains(e.target) && e.target !== backlogBtn && !backlogBtn?.contains(e.target)) {
+    _suiviCloseBacklogPanel();
   }
 }, true);
 
@@ -564,6 +581,7 @@ let _suiviLinkPanelActionId = null;
 const _SUIVI_LINK_ICON = `<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>`;
 const _SUIVI_DONE_LINK_ICON = `<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>`;
 const _SUIVI_COMMENT_ICON = `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>`;
+const _SUIVI_BACKLOG_ICON = `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>`;
 
 function _suiviGetClientFolderId() {
   const p = _suiviGetActive();
@@ -804,9 +822,17 @@ function _suiviSyncTodoToSuivi() {
 }
 
 /* ── CRUD Actions ── */
+function _suiviNextNumero(p) {
+  const max = (p?.actions || []).reduce((m, a) => {
+    const n = parseInt(a.numero, 10);
+    return isNaN(n) ? m : Math.max(m, n);
+  }, 0);
+  return String(max + 1).padStart(4, '0');
+}
+
 function _suiviAddAction() {
   const p = _suiviGetActive(); if (!p) return;
-  p.actions.push({ id:_suiviUid(), type:'action', action:'', societe:'4CAD', responsables:[], echeance:'', statut:'todo' });
+  p.actions.push({ id:_suiviUid(), numero:_suiviNextNumero(p), type:'action', action:'', societe:'4CAD', responsables:[], echeance:'', statut:'todo' });
   _suiviSave();
   _suiviRenderActionsTbody();
   setTimeout(() => {
@@ -820,6 +846,132 @@ function _suiviRemoveAction(id) {
   p.actions = p.actions.filter(a => a.id !== id);
   _suiviSave();
   _suiviRenderActionsTbody();
+}
+
+function _suiviMoveToBacklog(id) {
+  const p = _suiviGetActive(); if (!p) return;
+  const a = p.actions.find(a => a.id === id); if (!a) return;
+  a.backlogPrevStatut = a.statut || 'todo';
+  a.backlogDate = new Date().toISOString();
+  a.statut = 'backlog';
+  p.updatedAt = new Date().toISOString();
+  _suiviSave();
+  _suiviRenderActionsTbody();
+  _suiviUpdateBacklogCount();
+}
+
+function _suiviRestoreFromBacklog(id) {
+  const p = _suiviGetActive(); if (!p) return;
+  const a = p.actions.find(a => a.id === id); if (!a) return;
+  a.statut = a.backlogPrevStatut || 'todo';
+  delete a.backlogPrevStatut;
+  delete a.backlogDate;
+  p.updatedAt = new Date().toISOString();
+  _suiviSave();
+  _suiviRenderActionsTbody();
+  _suiviRenderBacklogPanel();
+  _suiviUpdateBacklogCount();
+}
+
+function _suiviUpdateBacklogCount() {
+  const p = _suiviGetActive();
+  const btn = document.getElementById('suiviBtnHistorique');
+  if (!btn) return;
+  const count = p ? p.actions.filter(a => a.statut === 'backlog').length : 0;
+  btn.innerHTML = `📦 Backlog${count > 0 ? ` <span class="suivi-backlog-count">${count}</span>` : ''}`;
+}
+
+function _suiviOpenBacklogPanel() {
+  _suiviBacklogPanelOpen = !_suiviBacklogPanelOpen;
+  if (!_suiviBacklogPanelOpen) {
+    const panel = document.getElementById('suiviBacklogPanel');
+    if (panel) panel.remove();
+    return;
+  }
+  _suiviRenderBacklogPanel();
+}
+
+function _suiviCloseBacklogPanel() {
+  _suiviBacklogPanelOpen = false;
+  const panel = document.getElementById('suiviBacklogPanel');
+  if (panel) panel.remove();
+}
+
+function _suiviRenderBacklogPanel() {
+  const p = _suiviGetActive();
+  const btn = document.getElementById('suiviBtnHistorique');
+  if (!btn) return;
+
+  let panel = document.getElementById('suiviBacklogPanel');
+  if (!panel) {
+    panel = document.createElement('div');
+    panel.id = 'suiviBacklogPanel';
+    document.body.appendChild(panel);
+  }
+
+  const backlogActions = p ? p.actions
+    .filter(a => a.statut === 'backlog')
+    .slice()
+    .sort((a, b) => (b.backlogDate || '').localeCompare(a.backlogDate || ''))
+    : [];
+
+  const clientLabel = p ? (p.client || 'Client') : 'Client';
+
+  const rows = backlogActions.map(a => {
+    const type      = a.type || 'action';
+    const isAction  = type === 'action';
+    const typeLabel = _SUIVI_TYPE_LABELS[type] || type;
+    const societe   = a.societe || '4CAD';
+    const societeLabel = societe === '4CAD' ? '4CAD'
+                       : societe === 'both'  ? `4CAD + ${clientLabel}`
+                       : clientLabel;
+    const respNames = (a.responsables || []).map(r => r.name).join(', ') || '-';
+    const statutLabel = _SUIVI_STATUT_LABELS[a.backlogPrevStatut] || a.backlogPrevStatut || '-';
+    const echeanceStr = _suiviFmtDate(a.echeance) || '-';
+    const backlogDateStr = a.backlogDate
+      ? new Date(a.backlogDate).toLocaleDateString('fr-FR', { day:'2-digit', month:'2-digit', year:'numeric' })
+      : '-';
+    return `<tr>
+      <td class="sbp-col-num">${a.numero ? `<span class="suivi-num-badge">${_suiviEsc(a.numero)}</span>` : ''}</td>
+      <td class="sbp-col-type"><span class="sbp-type-badge sbp-type-${type}">${_suiviEsc(typeLabel)}</span></td>
+      <td class="sbp-col-action">${_suiviEsc(a.action || '-')}</td>
+      <td class="sbp-col-resp">${_suiviEsc(respNames)}</td>
+      <td class="sbp-col-soc">${_suiviEsc(societeLabel)}</td>
+      <td class="sbp-col-ech">${_suiviEsc(echeanceStr)}</td>
+      <td class="sbp-col-stat"><span class="suivi-statut-badge suivi-s-${a.backlogPrevStatut || 'todo'}">${_suiviEsc(statutLabel)}</span></td>
+      <td class="sbp-col-date">${_suiviEsc(backlogDateStr)}</td>
+      <td class="sbp-col-restore"><button class="sbp-restore-btn" onclick="_suiviRestoreFromBacklog('${a.id}')">Restaurer</button></td>
+    </tr>`;
+  }).join('');
+
+  panel.innerHTML = `
+    <div class="sbp-header">
+      <span class="sbp-title">📦 Backlog — Actions archivées</span>
+      <button class="sbp-close" onclick="_suiviCloseBacklogPanel()">×</button>
+    </div>
+    <div class="sbp-body">
+      ${backlogActions.length === 0
+        ? '<div class="sbp-empty">Aucune action en backlog</div>'
+        : `<table class="sbp-table">
+            <thead><tr>
+              <th class="sbp-col-num">N°</th>
+              <th class="sbp-col-type">Type</th>
+              <th class="sbp-col-action">Contenu</th>
+              <th class="sbp-col-resp">Responsable</th>
+              <th class="sbp-col-soc">Société</th>
+              <th class="sbp-col-ech">Échéance</th>
+              <th class="sbp-col-stat">Statut avant</th>
+              <th class="sbp-col-date">Mis en backlog</th>
+              <th class="sbp-col-restore"></th>
+            </tr></thead>
+            <tbody>${rows}</tbody>
+          </table>`
+      }
+    </div>`;
+
+  /* Position sous le bouton */
+  const rect = btn.getBoundingClientRect();
+  panel.style.cssText = `position:fixed;top:${rect.bottom + 6}px;right:${window.innerWidth - rect.right}px;`;
 }
 
 function _suiviUpdateAction(id, field, value) {
@@ -907,7 +1059,7 @@ async function _suiviExportPPTX() {
       { text:'Statut',           options:{ bold:true, color:WHITE, fill:HDR_FILL, fontSize:11, fontFace:FONT, align:'center', valign:'middle' } }
     ];
 
-    const dataRows = p.actions.map(a => {
+    const dataRows = p.actions.filter(a => a.statut !== 'backlog').map(a => {
       const type      = a.type || 'action';
       const isAction  = type === 'action';
       const typeLabel = _SUIVI_TYPE_LABELS[type] || type;
@@ -925,7 +1077,7 @@ async function _suiviExportPPTX() {
       const dateColor = (isAction && a.statut !== 'done' && _suiviIsOverdue(a.echeance)) ? 'f85149' : GRAY;
       return [
         { text:typeLabel,                           options:{ color:typeColor,              fontSize:11, fontFace:FONT, align:'center', valign:'middle', fill:ROW_FILL, bold:true } },
-        { text:a.action || '-',                     options:{ color:WHITE,                  fontSize:11, fontFace:FONT, align:'left',   valign:'top',    fill:ROW_FILL } },
+        { text:(a.numero ? `Action ${a.numero} — ` : '') + (a.action || '-'), options:{ color:WHITE, fontSize:11, fontFace:FONT, align:'left', valign:'top', fill:ROW_FILL } },
         { text:isAction ? respInitials : '-',        options:{ color:WHITE,                  fontSize:11, fontFace:FONT, align:'center', valign:'middle', fill:ROW_FILL } },
         { text:isAction ? societeLabel : '-',        options:{ color:isAction?societeColor:GRAY, fontSize:11, fontFace:FONT, align:'center', valign:'middle', fill:ROW_FILL, bold:isAction } },
         { text:dateStr,                             options:{ color:dateColor,              fontSize:11, fontFace:FONT, align:'center', valign:'middle', fill:ROW_FILL } },
@@ -952,10 +1104,12 @@ async function _suiviExportPPTX() {
       const H1 = 0.28;   // hauteur 1 ligne (11pt + padding)
       const Hx = 0.17;   // hauteur par ligne supplémentaire
 
+      const visibleActions = p.actions.filter(a => a.statut !== 'backlog');
       const rowHeights = [
         0.32,                                          // header
-        ...p.actions.map(a => {
-          const lines = Math.max(1, Math.ceil((a.action || '').length / CHARS_PER_LINE));
+        ...visibleActions.map(a => {
+          const prefix = a.numero ? `Action ${a.numero} — ` : '';
+          const lines = Math.max(1, Math.ceil((prefix + (a.action || '')).length / CHARS_PER_LINE));
           return parseFloat((H1 + Math.max(0, lines - 1) * Hx).toFixed(3));
         })
       ];
@@ -970,7 +1124,7 @@ async function _suiviExportPPTX() {
     addFooter(s2, today);
 
     /* ── Diapositives de commentaires : tableau Date/Commentaire, plusieurs actions par slide ── */
-    const actionsWithComments = p.actions.filter(a => _suiviGetActionComments(a).length > 0);
+    const actionsWithComments = p.actions.filter(a => a.statut !== 'backlog' && _suiviGetActionComments(a).length > 0);
     if (actionsWithComments.length > 0) {
       const SLIDE_TOP   = 0.9;
       const SLIDE_BTM   = 6.75;
@@ -990,8 +1144,11 @@ async function _suiviExportPPTX() {
       const HDR_FILL    = { color:'1e2f3f' };
       const ROW_FILL    = { color:NAVY };
 
+      function _cpActionLabel(a) {
+        return (a.numero ? `Action ${a.numero} — ` : '') + (a.action || '—');
+      }
       function _cpTitleH(a) {
-        const lines = Math.max(1, Math.ceil((a.action || '').length / TITLE_CHARS));
+        const lines = Math.max(1, Math.ceil(_cpActionLabel(a).length / TITLE_CHARS));
         return TITLE_BASE + Math.max(0, lines - 1) * TITLE_EXTRA;
       }
       function _cpRowH(c) {
@@ -1031,7 +1188,7 @@ async function _suiviExportPPTX() {
         yPos += TYPE_H;
 
         const titleH = _cpTitleH(a);
-        sc.addText(a.action || '—', { x:TBL_X, y:yPos, w:TBL_W, h:titleH, fontSize:13, bold:true, color:WHITE, fontFace:FONT, breakLine:true });
+        sc.addText(_cpActionLabel(a), { x:TBL_X, y:yPos, w:TBL_W, h:titleH, fontSize:13, bold:true, color:WHITE, fontFace:FONT, breakLine:true });
         yPos += titleH;
 
         const tableHdr = [
@@ -1269,7 +1426,7 @@ function _suiviRenderActionsTbody() {
   if (!p) { tbody.innerHTML = ''; return; }
   const clientLabel = p.client || 'Client';
 
-  tbody.innerHTML = p.actions.map(a => {
+  tbody.innerHTML = p.actions.filter(a => a.statut !== 'backlog').map(a => {
     const type      = a.type || 'action';
     const isAction  = type === 'action';
     const societe   = isAction ? (a.societe || a.responsable || '4CAD') : (a.societe || '');
@@ -1337,6 +1494,11 @@ function _suiviRenderActionsTbody() {
       ${_SUIVI_COMMENT_ICON}${commentCount > 0 ? `<span>${commentCount}</span>` : ''}
     </button>`;
 
+    /* Bouton backlog */
+    const backlogBtnHtml = `<button class="suivi-backlog-btn"
+      onclick="event.stopPropagation();_suiviMoveToBacklog('${a.id}')"
+      title="Mettre en backlog">${_SUIVI_BACKLOG_ICON}</button>`;
+
     return `<tr class="${rowClass}" data-rid="${a.id}">
       <td class="suivi-drag-handle" title="Glisser pour réordonner">
         <svg width="12" height="16" viewBox="0 0 12 16" fill="currentColor">
@@ -1345,8 +1507,10 @@ function _suiviRenderActionsTbody() {
           <circle cx="4" cy="13" r="1.5"/><circle cx="8" cy="13" r="1.5"/>
         </svg>
       </td>
+      <td class="suivi-col-num" title="N° action">${a.numero ? `<span class="suivi-num-badge">${_suiviEsc(a.numero)}</span>` : ''}</td>
       <td class="suivi-col-link">${linkBtnHtml}</td>
       <td class="suivi-col-comment">${commentBtnHtml}</td>
+      <td class="suivi-col-backlog">${backlogBtnHtml}</td>
       <td class="suivi-col-type">${typeSelect}</td>
       <td class="suivi-col-action">
         <div class="suivi-action-cell-wrap">
@@ -1589,16 +1753,18 @@ function _suiviRender() {
   const empty = document.getElementById('suiviEmpty');
   const view  = document.getElementById('suiviProjectView');
   const title = document.getElementById('suiviTitleInput');
-  const btnExportPptx = document.getElementById('suiviBtnExportPptx');
-  const btnAi         = document.getElementById('suiviBtnAi');
+  const btnExportPptx  = document.getElementById('suiviBtnExportPptx');
+  const btnAi          = document.getElementById('suiviBtnAi');
+  const btnHistorique  = document.getElementById('suiviBtnHistorique');
   if (!empty || !view) return;
 
   if (!p) {
     empty.style.display = 'flex';
     view.style.display  = 'none';
     if (title) { title.value = ''; }
-    if (btnExportPptx) btnExportPptx.style.display = 'none';
-    if (btnAi)         btnAi.style.display         = 'none';
+    if (btnExportPptx)  btnExportPptx.style.display  = 'none';
+    if (btnAi)          btnAi.style.display           = 'none';
+    if (btnHistorique)  btnHistorique.style.display   = 'none';
     return;
   }
 
@@ -1613,9 +1779,11 @@ function _suiviRender() {
     const dot = document.getElementById('suiviTitleDot');
     if (dot) dot.style.background = color;
   }
-  if (btnExportPptx) btnExportPptx.style.display = '';
-  if (btnAi)         btnAi.style.display         = '';
+  if (btnExportPptx)  btnExportPptx.style.display  = '';
+  if (btnAi)          btnAi.style.display          = '';
+  if (btnHistorique)  btnHistorique.style.display  = '';
   _suiviRenderActionsTbody();
+  _suiviUpdateBacklogCount();
   _suiviRenderIntvTable();
 }
 
