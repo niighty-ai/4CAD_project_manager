@@ -849,8 +849,8 @@ tr:hover .suivi-btn-rm-row { opacity: 1; }
   border: 1px solid var(--border);
   border-radius: 10px;
   box-shadow: 0 8px 32px var(--shadow);
-  width: min(90vw, 900px);
-  max-height: 70vh;
+  width: min(95vw, 1200px);
+  max-height: 75vh;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -914,7 +914,7 @@ tr:hover .suivi-btn-rm-row { opacity: 1; }
 .sbp-table tbody tr:hover { background: var(--surface2); }
 .sbp-col-num     { width: 50px; text-align: center; }
 .sbp-col-type    { width: 80px; }
-.sbp-col-action  { min-width: 160px; }
+.sbp-col-action  { min-width: 300px; }
 .sbp-col-resp    { width: 100px; }
 .sbp-col-soc     { width: 100px; }
 .sbp-col-ech     { width: 80px; white-space: nowrap; }

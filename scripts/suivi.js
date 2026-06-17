@@ -878,7 +878,7 @@ function _suiviUpdateBacklogCount() {
   const btn = document.getElementById('suiviBtnHistorique');
   if (!btn) return;
   const count = p ? p.actions.filter(a => a.statut === 'backlog').length : 0;
-  btn.innerHTML = `📦 Backlog${count > 0 ? ` <span class="suivi-backlog-count">${count}</span>` : ''}`;
+  btn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/></svg> Backlog${count > 0 ? ` <span class="suivi-backlog-count">${count}</span>` : ''}`;
 }
 
 function _suiviOpenBacklogPanel() {
