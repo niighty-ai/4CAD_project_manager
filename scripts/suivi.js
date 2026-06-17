@@ -795,6 +795,7 @@ function _suiviSyncTodoToSuivi() {
   _suiviState.projects.forEach(proj => {
     (proj.actions || []).forEach(action => {
       if (!action.todoTaskId) return;
+      if (action.statut === 'backlog') return;  /* ne pas écraser le statut backlog */
       const task = _suiviGetTodoTask(action.todoTaskId);
       if (!task) return;
       const taskDone = task.completed === true;
