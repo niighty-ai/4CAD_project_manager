@@ -348,7 +348,7 @@ document.addEventListener('click', e => {
   const commentPanel = document.getElementById('suiviCommentPanel');
   if (commentPanel && commentPanel.style.display !== 'none' &&
       !commentPanel.contains(e.target) && !e.target.closest('.suivi-comment-btn') &&
-      !e.target.closest('#suiviAiCommentPopup')) {
+      !e.target.closest('.suivi-ai-popup')) {
     _suiviCloseCommentPanel();
   }
   const backlogPanel = document.getElementById('suiviBacklogPanel');
@@ -2071,10 +2071,11 @@ function _suiviAiCorrectComment(btnEl) {
     cssExtra: 'z-index:10000;transform:translateY(-100%)',
     toastFn:  _suiviToast,
     onApply:  corrected => {
-      inp.value = corrected;
-      inp.style.height = 'auto';
-      inp.style.height = inp.scrollHeight + 'px';
-      inp.focus();
+      const target = document.getElementById('suiviCpInput') || inp;
+      target.value = corrected;
+      target.style.height = 'auto';
+      target.style.height = target.scrollHeight + 'px';
+      target.focus();
     }
   });
 }

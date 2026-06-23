@@ -510,7 +510,8 @@ async function _aiCorrectAndShowPopup({ text, btnEl, popupId, cssExtra = '', onA
 
   document.body.appendChild(popup);
 
-  document.getElementById(popupId + '_apply').addEventListener('click', () => {
+  document.getElementById(popupId + '_apply').addEventListener('click', (e) => {
+    e.stopPropagation();
     const txt = document.getElementById(textNodeId)?.textContent || '';
     onApply(txt);
     popup.remove();
