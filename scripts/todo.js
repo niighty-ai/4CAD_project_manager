@@ -419,6 +419,7 @@ function _todoDeleteTask(taskId) {
   }
   _todoData.tasks = _todoData.tasks.filter(t => t.id !== taskId);
   _todoSave();
+  if (typeof _suiviSyncTodoToSuivi === 'function') _suiviSyncTodoToSuivi();
   _todoRenderTaskList();
   if (typeof _todoRenderSidebar === 'function') _todoRenderSidebar();
 }

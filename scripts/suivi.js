@@ -808,7 +808,13 @@ function _suiviSyncTodoToSuivi() {
       if (!action.todoTaskId) return;
       if (action.statut === 'backlog') return;  /* ne pas écraser le statut backlog */
       const task = _suiviGetTodoTask(action.todoTaskId);
-      if (!task) return;
+      if (!task) {
+        /* Tâche todo supprimée → nettoyer le lien orphelin */
+        delete action.todoTaskId;
+        action.updatedAt = new Date().toISOString();
+        changed = true;
+        return;
+      }
       const taskDone = task.completed === true;
       const actionDone = action.statut === 'done';
       if (taskDone !== actionDone) {
