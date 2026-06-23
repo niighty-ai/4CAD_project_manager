@@ -12,6 +12,8 @@ let _suiviSaveTs   = 0;
 let _suiviOpenEditor = null;
 let _suiviCommentPanelActionId = null;
 let _suiviBacklogPanelOpen = false;
+let _suiviBlocNotePanelOpen = false;
+let _suiviBlocNoteSaveTimer = null;
 
 /* ── Constantes ── */
 const _SUIVI_COLORS  = ['#EC7206','#72B6EC','#3fb950','#bc8cff','#F29318','#f85149','#56d364','#ffa657'];
@@ -183,6 +185,9 @@ function _suiviMigrateProject(p) {
     if (!a.societe && (a.type === 'action' || !a.type)) a.societe = '4CAD';
     if (!a.responsables) a.responsables = [];
   });
+  /* Migration bloc-note */
+  if (!p.blocNote) p.blocNote = { entries: [] };
+  if (!p.blocNote.entries) p.blocNote.entries = [];
   /* Migration numéros : attribuer un numéro 4 chiffres aux actions qui n'en ont pas */
   let maxNum = (p?.actions || []).reduce((m, a) => {
     const n = parseInt(a.numero, 10);
@@ -350,6 +355,12 @@ document.addEventListener('click', e => {
   const backlogBtn   = document.getElementById('suiviBtnHistorique');
   if (backlogPanel && !backlogPanel.contains(e.target) && e.target !== backlogBtn && !backlogBtn?.contains(e.target)) {
     _suiviCloseBacklogPanel();
+  }
+  const bnPanel = document.getElementById('suiviBlocNotePanel');
+  const bnBtn   = document.getElementById('suiviBtnBlocNote');
+  if (bnPanel && !bnPanel.contains(e.target) && !bnBtn?.contains(e.target) &&
+      !e.target.closest('#suiviBnClearOverlay') && !e.target.closest('#suiviAiOverlay')) {
+    _suiviCloseBlocNotePanel();
   }
 }, true);
 
@@ -1743,6 +1754,180 @@ function _suiviInitActionDrag(tbody) {
   });
 }
 
+/* ═══════════════════════════════════════════
+   Bloc-note — panneau flottant de prise de notes par client
+   ═══════════════════════════════════════════ */
+
+function _suiviBlocNoteUid() {
+  return Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+}
+
+function _suiviFmtBlocNoteTs(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  const JOURS = ['Dim.', 'Lun.', 'Mar.', 'Mer.', 'Jeu.', 'Ven.', 'Sam.'];
+  const dd = String(d.getDate()).padStart(2, '0');
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const hh = String(d.getHours()).padStart(2, '0');
+  const mi = String(d.getMinutes()).padStart(2, '0');
+  return `${JOURS[d.getDay()]} ${dd}/${mm}/${d.getFullYear()} — ${hh}:${mi}`;
+}
+
+function _suiviOpenBlocNotePanel() {
+  _suiviBlocNotePanelOpen = !_suiviBlocNotePanelOpen;
+  if (!_suiviBlocNotePanelOpen) {
+    _suiviCloseBlocNotePanel();
+    return;
+  }
+  _suiviRenderBlocNotePanel();
+}
+
+function _suiviCloseBlocNotePanel() {
+  _suiviBlocNotePanelOpen = false;
+  const panel = document.getElementById('suiviBlocNotePanel');
+  if (panel) panel.remove();
+}
+
+function _suiviBlocNoteAddEntry() {
+  const p = _suiviGetActive(); if (!p) return;
+  if (!p.blocNote) p.blocNote = { entries: [] };
+  const entry = { id: _suiviBlocNoteUid(), createdAt: new Date().toISOString(), text: '' };
+  p.blocNote.entries.push(entry);
+  _suiviSave();
+  _suiviRenderBlocNotePanel();
+  /* Focus sur le nouveau textarea */
+  setTimeout(() => {
+    const ta = document.querySelector(`.suivi-bn-entry[data-eid="${entry.id}"] textarea`);
+    if (ta) ta.focus();
+  }, 30);
+}
+
+function _suiviBlocNoteDeleteEntry(id) {
+  const p = _suiviGetActive(); if (!p || !p.blocNote) return;
+  p.blocNote.entries = p.blocNote.entries.filter(e => e.id !== id);
+  _suiviSave();
+  _suiviRenderBlocNotePanel();
+}
+
+function _suiviBlocNoteSaveEntry(id, text) {
+  const p = _suiviGetActive(); if (!p || !p.blocNote) return;
+  const entry = p.blocNote.entries.find(e => e.id === id);
+  if (!entry) return;
+  entry.text = text;
+  clearTimeout(_suiviBlocNoteSaveTimer);
+  _suiviBlocNoteSaveTimer = setTimeout(() => _suiviSave(), 600);
+}
+
+function _suiviBlocNoteOpenAi() {
+  const p = _suiviGetActive(); if (!p) return;
+  const entries = (p.blocNote?.entries || []).filter(e => e.text.trim());
+  if (!entries.length) {
+    _suiviToast('Le bloc-note est vide — ajoutez des notes avant d\'analyser', 'error');
+    return;
+  }
+  const aggregated = entries.map(e =>
+    `[${_suiviFmtBlocNoteTs(e.createdAt)}]\n${e.text.trim()}`
+  ).join('\n\n');
+
+  _suiviCloseBlocNotePanel();
+  _suiviOpenAiModal().then(() => {
+    /* Pré-remplir le textarea après ouverture de la modale */
+    const ta = document.getElementById('suiviAiTranscript');
+    if (ta) {
+      ta.value = aggregated;
+      ta.dispatchEvent(new Event('input'));
+    }
+  });
+}
+
+function _suiviBlocNoteConfirmClear() {
+  const overlay = document.createElement('div');
+  overlay.id = 'suiviBnClearOverlay';
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:30000;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.5)';
+  overlay.innerHTML = `
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:28px 32px;max-width:380px;text-align:center;box-shadow:0 12px 40px var(--shadow)">
+      <div style="font-size:15px;font-weight:700;color:var(--text);margin-bottom:10px">Effacer les notes ?</div>
+      <div style="font-size:13px;color:var(--muted);margin-bottom:22px">Supprimer toutes les entrées du bloc-note de ce client ?</div>
+      <div style="display:flex;gap:10px;justify-content:center">
+        <button onclick="document.getElementById('suiviBnClearOverlay').remove()"
+          style="padding:7px 18px;border-radius:6px;border:1px solid var(--border);background:var(--surface2);color:var(--text);cursor:pointer;font-weight:600">Non, garder</button>
+        <button onclick="_suiviBlocNoteClearAll()"
+          style="padding:7px 18px;border-radius:6px;border:none;background:#f85149;color:#fff;cursor:pointer;font-weight:600">Oui, effacer</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+}
+
+function _suiviBlocNoteClearAll() {
+  document.getElementById('suiviBnClearOverlay')?.remove();
+  const p = _suiviGetActive(); if (!p) return;
+  if (p.blocNote) p.blocNote.entries = [];
+  _suiviSave();
+  if (_suiviBlocNotePanelOpen) _suiviRenderBlocNotePanel();
+}
+
+function _suiviRenderBlocNotePanel() {
+  const p = _suiviGetActive();
+  const btn = document.getElementById('suiviBtnBlocNote');
+  if (!btn) return;
+
+  let panel = document.getElementById('suiviBlocNotePanel');
+  if (!panel) {
+    panel = document.createElement('div');
+    panel.id = 'suiviBlocNotePanel';
+    document.body.appendChild(panel);
+  }
+
+  const entries = p?.blocNote?.entries || [];
+
+  const entriesHtml = entries.length === 0
+    ? '<div class="suivi-bn-empty">Aucune note — cliquez sur "+ Note" pour commencer</div>'
+    : entries.map(e => `
+        <div class="suivi-bn-entry" data-eid="${e.id}">
+          <div class="suivi-bn-entry-header">
+            <span class="suivi-bn-entry-ts">${_suiviEsc(_suiviFmtBlocNoteTs(e.createdAt))}</span>
+            <button class="suivi-bn-entry-del" onclick="_suiviBlocNoteDeleteEntry('${e.id}')" title="Supprimer cette note">×</button>
+          </div>
+          <textarea class="suivi-bn-textarea"
+            placeholder="Saisir vos notes…"
+            oninput="this.style.height='auto';this.style.height=this.scrollHeight+'px';_suiviBlocNoteSaveEntry('${e.id}',this.value)"
+          >${_suiviEsc(e.text)}</textarea>
+        </div>`).join('');
+
+  panel.innerHTML = `
+    <div class="suivi-bn-header">
+      <span class="suivi-bn-title">
+        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+        Bloc-note${p ? ' — ' + _suiviEsc(p.client) : ''}
+      </span>
+      <div class="suivi-bn-header-actions">
+        <button class="suivi-bn-btn-ai" onclick="_suiviBlocNoteOpenAi()" title="Analyser avec l'IA et créer des actions">✦ IA</button>
+        <button class="suivi-bn-btn-clear" onclick="_suiviBlocNoteConfirmClear()" title="Effacer toutes les notes">Effacer</button>
+        <button class="suivi-bn-close" onclick="_suiviCloseBlocNotePanel()">×</button>
+      </div>
+    </div>
+    <div class="suivi-bn-body" id="suiviBnBody">
+      ${entriesHtml}
+    </div>
+    <div class="suivi-bn-footer">
+      <button class="suivi-bn-btn-add" onclick="_suiviBlocNoteAddEntry()">+ Note</button>
+    </div>`;
+
+  /* Positionnement : centré horizontalement, ancré sous le bouton */
+  const rect = btn.getBoundingClientRect();
+  const panelW = Math.min(window.innerWidth * 0.7, 780);
+  const left = Math.max(10, Math.min(rect.left, window.innerWidth - panelW - 10));
+  panel.style.cssText = `position:fixed;top:${rect.bottom + 6}px;left:${left}px;width:${panelW}px;`;
+
+  /* Auto-resize des textareas existants */
+  requestAnimationFrame(() => {
+    panel.querySelectorAll('textarea.suivi-bn-textarea').forEach(ta => {
+      ta.style.height = 'auto';
+      ta.style.height = ta.scrollHeight + 'px';
+    });
+  });
+}
+
 function _suiviRender() {
   _suiviRenderSidebar();
   const activeFolder = _suiviGetLinkedClients().find(f => f.name === _suiviState.activeId);
@@ -1759,6 +1944,7 @@ function _suiviRender() {
   const btnExportPptx  = document.getElementById('suiviBtnExportPptx');
   const btnAi          = document.getElementById('suiviBtnAi');
   const btnHistorique  = document.getElementById('suiviBtnHistorique');
+  const btnBlocNote    = document.getElementById('suiviBtnBlocNote');
   if (!empty || !view) return;
 
   if (!p) {
@@ -1768,6 +1954,7 @@ function _suiviRender() {
     if (btnExportPptx)  btnExportPptx.style.display  = 'none';
     if (btnAi)          btnAi.style.display           = 'none';
     if (btnHistorique)  btnHistorique.style.display   = 'none';
+    if (btnBlocNote)    btnBlocNote.style.display     = 'none';
     return;
   }
 
@@ -1785,6 +1972,7 @@ function _suiviRender() {
   if (btnExportPptx)  btnExportPptx.style.display  = '';
   if (btnAi)          btnAi.style.display          = '';
   if (btnHistorique)  btnHistorique.style.display  = '';
+  if (btnBlocNote)    btnBlocNote.style.display    = '';
   _suiviRenderActionsTbody();
   _suiviUpdateBacklogCount();
   _suiviRenderIntvTable();
@@ -2001,12 +2189,13 @@ async function _suiviOpenAiModal() {
     </div>`;
 
   document.body.appendChild(overlay);
-  setTimeout(() => document.getElementById('suiviAiTranscript')?.focus(), 50);
 
   if (typeof _aiKey === 'undefined' || !_aiKey()) {
     _suiviAiSetStatus('Clé API manquante — cliquez sur "Modifier la clé API"', true);
   }
   _suiviAiLoadModels();
+  /* Retourne une Promise résolue après que le DOM est prêt (pour pré-remplissage externe) */
+  return new Promise(resolve => setTimeout(resolve, 30));
 }
 
 async function _suiviAiLoadModels() {
