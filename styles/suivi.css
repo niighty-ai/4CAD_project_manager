@@ -970,6 +970,18 @@ tr:hover .suivi-btn-rm-row { opacity: 1; }
   letter-spacing: 0.3px;
   font-family: Arial, sans-serif;
 }
+.suivi-bn-entry-ai {
+  background: none;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  padding: 0 4px;
+  line-height: 1;
+  transition: color 0.12s;
+  display: flex;
+  align-items: center;
+}
+.suivi-bn-entry-ai:hover { color: var(--accent); }
 .suivi-bn-entry-del {
   background: none;
   border: none;

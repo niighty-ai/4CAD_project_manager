@@ -454,149 +454,93 @@ function _aiEditKey() {
 /* ══════════════════════════════════════════════════════
    Popup IA inline — résumé de transcript dans un champ
    ══════════════════════════════════════════════════════ */
-async function _aiOpenFieldPopup(textareaId, btnEl) {
-  document.getElementById('tmAiFieldPopup')?.remove();
-  _tmLinkPopupOpen = true;
+/* ── Correction IA générique (partagée Suivi + Todo) ── */
+const _AI_CORRECT_PROMPT = text =>
+  `Tu es un assistant de rédaction professionnel. Corrige le texte suivant : orthographe, grammaire et typographie (ponctuation, espaces, guillemets). Ne modifie pas le sens ni le contenu des phrases. Retourne UNIQUEMENT le texte corrigé, sans guillemets ni explication.\n\nTexte :\n${text}`;
 
-  const existingText = document.getElementById(textareaId)?.value || '';
+async function _aiCorrectAndShowPopup({ text, btnEl, popupId, cssExtra = '', onApply, toastFn }) {
+  if (!text.trim()) return;
+  const showErr = msg => typeof toastFn === 'function' ? toastFn(msg) : alert(msg);
+  if (!_aiKey || !_aiKey()) { showErr('Clé API Gemini manquante — configurez-la dans Paramètres > IA'); return; }
+
+  document.getElementById(popupId)?.remove();
+  btnEl.disabled = true;
+  if (typeof _suiviAiShowLoader === 'function') _suiviAiShowLoader();
+
+  let corrected = '';
+  try {
+    corrected = (await _aiCall(_AI_CORRECT_PROMPT(text)) || '').trim();
+  } catch(e) {
+    if (typeof _suiviAiHideLoader === 'function') _suiviAiHideLoader();
+    btnEl.disabled = false;
+    showErr('Erreur Gemini : ' + (e.message || '?'));
+    return;
+  }
+  if (typeof _suiviAiHideLoader === 'function') _suiviAiHideLoader();
+  btnEl.disabled = false;
+
+  const esc = s => s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 
   const popup = document.createElement('div');
-  popup.id = 'tmAiFieldPopup';
-  popup.style.cssText =
-    'position:fixed;z-index:1500;background:var(--surface);' +
-    'border:1px solid var(--border);border-radius:8px;padding:14px;' +
-    'box-shadow:0 4px 20px var(--shadow);width:520px;max-width:calc(100vw - 24px);';
+  popup.id = popupId;
+  popup.className = 'suivi-ai-popup';
+  if (cssExtra) popup.style.cssText = (popup.style.cssText || '') + ';' + cssExtra;
 
+  const textNodeId = popupId + '_text';
   popup.innerHTML = `
-    <div style="font-size:11px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;
-                color:var(--muted);margin-bottom:8px">Assistant IA</div>
-    <textarea id="aiFpTranscript" rows="12"
-              placeholder="Collez ou modifiez votre texte ici…"
-              style="width:100%;box-sizing:border-box;resize:vertical;padding:8px 10px;font-size:12px;
-                     background:var(--surface2);border:1px solid var(--border);border-radius:5px;
-                     color:var(--text);outline:none;font-family:inherit;margin-bottom:8px;
-                     display:block;min-height:160px">${existingText.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</textarea>
-    <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
-      <button id="aiFpSummarizeBtn"
-              onmousedown="event.stopPropagation()"
-              onclick="_aiFpProcess('${textareaId}','resume')"
-              style="padding:5px 14px;font-size:12px;border-radius:5px;border:none;
-                     background:var(--accent);color:#fff;cursor:pointer">Résumer</button>
-      <button id="aiFpCorrectBtn"
-              onmousedown="event.stopPropagation()"
-              onclick="_aiFpProcess('${textareaId}','corriger')"
-              style="padding:5px 14px;font-size:12px;border-radius:5px;border:1px solid var(--border);
-                     background:transparent;color:var(--text);cursor:pointer">Corriger</button>
-      <span id="aiFpStatus" style="font-size:11px;color:var(--muted)"></span>
-    </div>
-    <div id="aiFpResultWrap" style="display:none;margin-bottom:8px">
-      <textarea id="aiFpResult" rows="6"
-                style="width:100%;box-sizing:border-box;resize:vertical;padding:8px 10px;font-size:12px;
-                       background:var(--surface2);border:1px solid var(--border);border-radius:5px;
-                       color:var(--text);outline:none;font-family:inherit;display:block;min-height:100px"></textarea>
-    </div>
-    <div style="display:flex;gap:6px;justify-content:flex-end">
-      <button onmousedown="event.stopPropagation()"
-              onclick="_tmLinkPopupOpen=false;document.getElementById('tmAiFieldPopup')?.remove()"
-              style="padding:5px 12px;font-size:12px;border-radius:5px;border:1px solid var(--border);
-                     background:transparent;color:var(--text);cursor:pointer">Annuler</button>
-      <button id="aiFpInsertBtn"
-              onmousedown="event.stopPropagation()"
-              onclick="_aiFpInsert('${textareaId}')"
-              disabled
-              style="padding:5px 12px;font-size:12px;border-radius:5px;border:none;
-                     background:var(--accent);color:#fff;cursor:pointer;opacity:.5">Insérer</button>
+    <div class="suivi-ai-popup-label">✦ Suggestion IA</div>
+    <div class="suivi-ai-popup-text" id="${textNodeId}">${esc(corrected)}</div>
+    <div class="suivi-ai-popup-actions">
+      <button class="suivi-ai-popup-accept" id="${popupId}_apply">Appliquer</button>
+      <button class="suivi-ai-popup-cancel" onclick="document.getElementById('${popupId}')?.remove()">Annuler</button>
     </div>`;
+
+  /* Positionnement sous (ou au-dessus) du bouton */
+  const rect   = btnEl.getBoundingClientRect();
+  const left   = Math.max(8, Math.min(rect.left - 200, window.innerWidth - 420));
+  popup.style.position = 'fixed';
+  popup.style.left     = left + 'px';
+  if (rect.top - 120 >= 0) {
+    popup.style.bottom    = (window.innerHeight - rect.top + 6) + 'px';
+    popup.style.top       = '';
+  } else {
+    popup.style.top       = (rect.bottom + 6) + 'px';
+    popup.style.bottom    = '';
+  }
 
   document.body.appendChild(popup);
 
-  const rect    = btnEl.getBoundingClientRect();
-  const popupW  = popup.offsetWidth;
-  const popupH  = popup.offsetHeight;
-  const left    = Math.max(4, Math.min(rect.left, window.innerWidth - popupW - 8));
-  popup.style.left = left + 'px';
-  if (rect.top - popupH - 6 >= 0) {
-    popup.style.bottom = (window.innerHeight - rect.top + 6) + 'px';
-  } else {
-    popup.style.top = (rect.bottom + 6) + 'px';
-  }
-
-  document.getElementById('aiFpTranscript')?.focus();
+  document.getElementById(popupId + '_apply').addEventListener('click', () => {
+    const txt = document.getElementById(textNodeId)?.textContent || '';
+    onApply(txt);
+    popup.remove();
+  });
 
   setTimeout(() => {
-    document.addEventListener('click', function close(e) {
-      const p = document.getElementById('tmAiFieldPopup');
-      if (!p) { document.removeEventListener('click', close, true); return; }
+    document.addEventListener('click', function _closeAiCorr(e) {
+      const p = document.getElementById(popupId);
+      if (!p) { document.removeEventListener('click', _closeAiCorr, true); return; }
       if (!p.contains(e.target) && e.target !== btnEl) {
         p.remove();
-        _tmLinkPopupOpen = false;
-        document.removeEventListener('click', close, true);
-        const taEl = document.getElementById(textareaId);
-        if (taEl && taEl.offsetParent !== null) taEl.focus();
+        document.removeEventListener('click', _closeAiCorr, true);
       }
     }, true);
-  }, 0);
+  }, 50);
 }
 
-async function _aiFpProcess(textareaId, mode) {
-  const text   = document.getElementById('aiFpTranscript')?.value.trim();
-  const status = document.getElementById('aiFpStatus');
-  if (!text) { status.textContent = 'Aucun texte à traiter.'; status.style.color = '#db4035'; return; }
-
-  const sumBtn = document.getElementById('aiFpSummarizeBtn');
-  const corBtn = document.getElementById('aiFpCorrectBtn');
-  if (sumBtn) sumBtn.disabled = true;
-  if (corBtn) corBtn.disabled = true;
-  status.textContent = mode === 'resume' ? 'Résumé en cours…' : 'Correction en cours…';
-  status.style.color = 'var(--muted)';
-
-  const prompt = mode === 'resume'
-    ? `Fais un résumé concis en français de ce texte.
-Utilise des tirets (-) pour structurer les points importants.
-Retourne uniquement le texte du résumé, sans titre ni introduction.
-
-Texte :
-${text}`
-    : `Corrige ce texte en français : orthographe, grammaire, ponctuation et style.
-Ne change pas le sens ni la structure du contenu.
-Retourne uniquement le texte corrigé, sans commentaires ni explications.
-
-Texte :
-${text}`;
-
-  try {
-    const result  = await _aiCall(prompt);
-    const resultEl = document.getElementById('aiFpResult');
-    if (resultEl) {
-      resultEl.value = result;
-      resultEl.style.height = 'auto';
-      resultEl.style.height = Math.min(resultEl.scrollHeight, 400) + 'px';
+/* Entrée Todo (description + commentaire) */
+function _aiOpenFieldPopup(textareaId, btnEl) {
+  const ta = document.getElementById(textareaId);
+  if (!ta) return;
+  _aiCorrectAndShowPopup({
+    text:    ta.value,
+    btnEl,
+    popupId: 'tmAiFieldPopup',
+    onApply: corrected => {
+      ta.value = corrected;
+      ta.style.height = 'auto';
+      ta.style.height = ta.scrollHeight + 'px';
+      ta.dispatchEvent(new Event('input'));
     }
-    document.getElementById('aiFpResultWrap').style.display = '';
-    const insertBtn = document.getElementById('aiFpInsertBtn');
-    if (insertBtn) { insertBtn.disabled = false; insertBtn.style.opacity = '1'; }
-    status.textContent = mode === 'resume' ? 'Résumé prêt' : 'Correction prête';
-    status.style.color = 'var(--muted)';
-  } catch (e) {
-    status.textContent = 'Erreur : ' + (e.message || 'Réponse invalide');
-    status.style.color = '#db4035';
-  } finally {
-    if (sumBtn) sumBtn.disabled = false;
-    if (corBtn) corBtn.disabled = false;
-  }
-}
-
-function _aiFpInsert(textareaId) {
-  const ta      = document.getElementById(textareaId);
-  const summary = document.getElementById('aiFpResult')?.value.trim();
-  if (!ta || !summary) return;
-  const start = ta.selectionStart ?? ta.value.length;
-  const end   = ta.selectionEnd   ?? ta.value.length;
-  const sep   = (start > 0 && ta.value[start - 1] !== '\n') ? '\n' : '';
-  ta.value = ta.value.substring(0, start) + sep + summary + ta.value.substring(end);
-  ta.selectionStart = ta.selectionEnd = start + sep.length + summary.length;
-  if (typeof _tmAutoResize === 'function') _tmAutoResize(ta);
-  document.getElementById('tmAiFieldPopup')?.remove();
-  _tmLinkPopupOpen = false;
-  ta.focus();
+  });
 }
