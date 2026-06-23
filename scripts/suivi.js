@@ -1818,66 +1818,23 @@ function _suiviBlocNoteSaveEntry(id, text) {
   _suiviBlocNoteSaveTimer = setTimeout(() => _suiviSave(), 600);
 }
 
-async function _suiviBlocNoteAiCorrectEntry(entryId, btnEl) {
+function _suiviBlocNoteAiCorrectEntry(entryId, btnEl) {
   const p = _suiviGetActive(); if (!p || !p.blocNote) return;
   const entry = p.blocNote.entries.find(e => e.id === entryId); if (!entry) return;
-  const text = entry.text.trim();
-  if (!text) return;
-  if (typeof _aiKey === 'undefined' || !_aiKey()) {
-    _suiviToast('Clé API Gemini manquante — configurez-la dans l\'onglet Todo > IA');
-    return;
-  }
-  document.getElementById('suiviBnAiPopup')?.remove();
-  btnEl.disabled = true;
-  _suiviAiShowLoader();
-  const prompt = `Tu es un assistant de rédaction professionnel. Corrige et améliore ce texte de note (orthographe, grammaire, concision). Retourne UNIQUEMENT le texte corrigé, sans guillemets ni explication.\n\nTexte :\n${text}`;
-  let corrected = '';
-  try {
-    corrected = (await _aiCall(prompt) || '').trim();
-  } catch(e) {
-    _suiviAiHideLoader();
-    btnEl.disabled = false;
-    _suiviToast('Erreur Gemini : ' + (e.message || '?'));
-    return;
-  }
-  _suiviAiHideLoader();
-  btnEl.disabled = false;
-
-  const popup = document.createElement('div');
-  popup.id = 'suiviBnAiPopup';
-  popup.className = 'suivi-ai-popup';
-  const rect = btnEl.getBoundingClientRect();
-  const left = Math.max(8, Math.min(rect.left - 200, window.innerWidth - 420));
-  popup.style.cssText = `top:${rect.bottom + 6}px;left:${left}px;z-index:10001`;
-  popup.innerHTML = `
-    <div class="suivi-ai-popup-label">✦ Suggestion IA</div>
-    <div class="suivi-ai-popup-text" id="suiviBnAiPopupText">${_suiviEsc(corrected)}</div>
-    <div class="suivi-ai-popup-actions">
-      <button class="suivi-ai-popup-accept" onclick="_suiviBlocNoteAiApply('${entryId}')">Appliquer</button>
-      <button class="suivi-ai-popup-cancel" onclick="document.getElementById('suiviBnAiPopup')?.remove()">Annuler</button>
-    </div>`;
-  document.body.appendChild(popup);
-  setTimeout(() => {
-    document.addEventListener('click', function _closeBnAiPopup(e) {
-      if (!popup.contains(e.target) && e.target !== btnEl) {
-        popup.remove();
-        document.removeEventListener('click', _closeBnAiPopup);
-      }
-    });
-  }, 50);
+  _aiCorrectAndShowPopup({
+    text:     entry.text,
+    btnEl,
+    popupId:  'suiviBnAiPopup',
+    cssExtra: 'z-index:10001',
+    toastFn:  _suiviToast,
+    onApply:  corrected => {
+      entry.text = corrected;
+      _suiviSave();
+      _suiviRenderBlocNotePanel();
+    }
+  });
 }
 
-function _suiviBlocNoteAiApply(entryId) {
-  const textEl = document.getElementById('suiviBnAiPopupText');
-  if (!textEl) return;
-  const corrected = textEl.textContent;
-  const p = _suiviGetActive(); if (!p || !p.blocNote) return;
-  const entry = p.blocNote.entries.find(e => e.id === entryId); if (!entry) return;
-  entry.text = corrected;
-  _suiviSave();
-  document.getElementById('suiviBnAiPopup')?.remove();
-  _suiviRenderBlocNotePanel();
-}
 
 function _suiviBlocNoteOpenAi() {
   const p = _suiviGetActive(); if (!p) return;
@@ -2068,138 +2025,44 @@ function _suiviAiHideLoader() {
   if (el) el.remove();
 }
 
-async function _suiviAiCorrect(actionId, btnEl) {
+function _suiviAiCorrect(actionId, btnEl) {
   const inp = document.querySelector(`textarea.suivi-action-input[data-aid="${actionId}"]`);
   if (!inp) return;
-  const text = inp.value.trim();
-  if (!text) return;
-  if (typeof _aiKey === 'undefined' || !_aiKey()) {
-    _suiviToast('Clé API Gemini manquante — configurez-la dans l\'onglet Todo > IA');
-    return;
-  }
-  document.getElementById('suiviAiInlinePopup')?.remove();
-  btnEl.disabled = true;
-  _suiviAiShowLoader();
-
-  const prompt = `Tu es un assistant de rédaction professionnel. Corrige et améliore ce texte d'action projet (orthographe, grammaire, concision). Retourne UNIQUEMENT le texte corrigé, sans guillemets ni explication.\n\nTexte :\n${text}`;
-  let corrected = '';
-  try {
-    corrected = (await _aiCall(prompt) || '').trim();
-  } catch(e) {
-    _suiviAiHideLoader();
-    btnEl.disabled = false;
-    _suiviToast('Erreur Gemini : ' + (e.message || '?'));
-    return;
-  }
-  _suiviAiHideLoader();
-  btnEl.disabled = false;
-
-  const popup = document.createElement('div');
-  popup.id = 'suiviAiInlinePopup';
-  popup.className = 'suivi-ai-popup';
-  const rect = btnEl.getBoundingClientRect();
-  const left = Math.max(8, Math.min(rect.left - 200, window.innerWidth - 420));
-  popup.style.cssText = `top:${rect.bottom + 6}px;left:${left}px`;
-  popup.innerHTML = `
-    <div class="suivi-ai-popup-label">✦ Suggestion IA</div>
-    <div class="suivi-ai-popup-text" id="suiviAiPopupText">${_suiviEsc(corrected)}</div>
-    <div class="suivi-ai-popup-actions">
-      <button class="suivi-ai-popup-accept" onclick="_suiviAiApplyCorrect('${actionId}')">Appliquer</button>
-      <button class="suivi-ai-popup-cancel" onclick="document.getElementById('suiviAiInlinePopup')?.remove()">Annuler</button>
-    </div>`;
-  document.body.appendChild(popup);
-
-  setTimeout(() => {
-    document.addEventListener('click', function _closeAiPopup(e) {
-      if (!popup.contains(e.target) && e.target !== btnEl) {
-        popup.remove();
-        document.removeEventListener('click', _closeAiPopup);
-      }
-    });
-  }, 50);
+  _aiCorrectAndShowPopup({
+    text:    inp.value,
+    btnEl,
+    popupId: 'suiviAiInlinePopup',
+    toastFn: _suiviToast,
+    onApply: corrected => {
+      inp.value = corrected;
+      inp.style.height = 'auto';
+      inp.style.height = inp.scrollHeight + 'px';
+      _suiviUpdateAction(actionId, 'action', corrected);
+    }
+  });
 }
 
-function _suiviAiApplyCorrect(actionId) {
-  const textEl = document.getElementById('suiviAiPopupText');
-  if (!textEl) return;
-  const corrected = textEl.textContent;
-  const inp = document.querySelector(`textarea.suivi-action-input[data-aid="${actionId}"]`);
-  if (inp) {
-    inp.value = corrected;
-    inp.style.height = 'auto';
-    inp.style.height = inp.scrollHeight + 'px';
-    _suiviUpdateAction(actionId, 'action', corrected);
-  }
-  document.getElementById('suiviAiInlinePopup')?.remove();
-}
 
 /* Correction IA pour la textarea de commentaire dans le panel
    Même logique que _suiviAiCorrect mais cible #suiviCpInput
    et utilise un z-index supérieur au panel (9999) */
-async function _suiviAiCorrectComment(btnEl) {
+function _suiviAiCorrectComment(btnEl) {
   const inp = document.getElementById('suiviCpInput');
   if (!inp) return;
-  const text = inp.value.trim();
-  if (!text) return;
-  if (typeof _aiKey === 'undefined' || !_aiKey()) {
-    _suiviToast('Clé API Gemini manquante — configurez-la dans l\'onglet Todo > IA');
-    return;
-  }
-  document.getElementById('suiviAiCommentPopup')?.remove();
-  btnEl.disabled = true;
-  _suiviAiShowLoader();
-
-  const prompt = `Tu es un assistant de rédaction professionnel. Corrige et améliore ce commentaire (orthographe, grammaire, clarté). Retourne UNIQUEMENT le texte corrigé, sans guillemets ni explication.\n\nTexte :\n${text}`;
-  let corrected = '';
-  try {
-    corrected = (await _aiCall(prompt) || '').trim();
-  } catch(e) {
-    _suiviAiHideLoader();
-    btnEl.disabled = false;
-    _suiviToast('Erreur Gemini : ' + (e.message || '?'));
-    return;
-  }
-  _suiviAiHideLoader();
-  btnEl.disabled = false;
-
-  const popup = document.createElement('div');
-  popup.id = 'suiviAiCommentPopup';
-  popup.className = 'suivi-ai-popup';
-  const rect = btnEl.getBoundingClientRect();
-  const left = Math.max(8, Math.min(rect.left - 200, window.innerWidth - 420));
   /* z-index 10000 pour passer au-dessus du panel commentaires (9999) */
-  popup.style.cssText = `top:${rect.top - 10}px;left:${left}px;z-index:10000;transform:translateY(-100%)`;
-  popup.innerHTML = `
-    <div class="suivi-ai-popup-label">✦ Suggestion IA</div>
-    <div class="suivi-ai-popup-text" id="suiviAiCommentPopupText">${_suiviEsc(corrected)}</div>
-    <div class="suivi-ai-popup-actions">
-      <button class="suivi-ai-popup-accept" onclick="_suiviAiApplyComment()">Appliquer</button>
-      <button class="suivi-ai-popup-cancel" onclick="document.getElementById('suiviAiCommentPopup')?.remove()">Annuler</button>
-    </div>`;
-  document.body.appendChild(popup);
-
-  setTimeout(() => {
-    document.addEventListener('click', function _closeCpAiPopup(e) {
-      if (!popup.contains(e.target) && e.target !== btnEl) {
-        popup.remove();
-        document.removeEventListener('click', _closeCpAiPopup);
-      }
-    });
-  }, 50);
-}
-
-function _suiviAiApplyComment() {
-  const textEl = document.getElementById('suiviAiCommentPopupText');
-  if (!textEl) return;
-  const corrected = textEl.textContent;
-  const inp = document.getElementById('suiviCpInput');
-  if (inp) {
-    inp.value = corrected;
-    inp.style.height = 'auto';
-    inp.style.height = inp.scrollHeight + 'px';
-    inp.focus();
-  }
-  document.getElementById('suiviAiCommentPopup')?.remove();
+  _aiCorrectAndShowPopup({
+    text:     inp.value,
+    btnEl,
+    popupId:  'suiviAiCommentPopup',
+    cssExtra: 'z-index:10000;transform:translateY(-100%)',
+    toastFn:  _suiviToast,
+    onApply:  corrected => {
+      inp.value = corrected;
+      inp.style.height = 'auto';
+      inp.style.height = inp.scrollHeight + 'px';
+      inp.focus();
+    }
+  });
 }
 
 /* ═══════════════════════════════════════════

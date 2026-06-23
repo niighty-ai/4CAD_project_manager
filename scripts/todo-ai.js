@@ -454,83 +454,93 @@ function _aiEditKey() {
 /* ══════════════════════════════════════════════════════
    Popup IA inline — résumé de transcript dans un champ
    ══════════════════════════════════════════════════════ */
-async function _aiOpenFieldPopup(textareaId, btnEl) {
-  document.getElementById('tmAiFieldPopup')?.remove();
-  const ta = document.getElementById(textareaId);
-  if (!ta) return;
-  const text = ta.value.trim();
-  if (!text) return;
-  if (!_aiKey || !_aiKey()) {
-    alert('Clé API Gemini manquante — configurez-la dans Paramètres > IA');
-    return;
-  }
+/* ── Correction IA générique (partagée Suivi + Todo) ── */
+const _AI_CORRECT_PROMPT = text =>
+  `Tu es un assistant de rédaction professionnel. Corrige le texte suivant : orthographe, grammaire et typographie (ponctuation, espaces, guillemets). Ne modifie pas le sens ni le contenu des phrases. Retourne UNIQUEMENT le texte corrigé, sans guillemets ni explication.\n\nTexte :\n${text}`;
+
+async function _aiCorrectAndShowPopup({ text, btnEl, popupId, cssExtra = '', onApply, toastFn }) {
+  if (!text.trim()) return;
+  const showErr = msg => typeof toastFn === 'function' ? toastFn(msg) : alert(msg);
+  if (!_aiKey || !_aiKey()) { showErr('Clé API Gemini manquante — configurez-la dans Paramètres > IA'); return; }
+
+  document.getElementById(popupId)?.remove();
   btnEl.disabled = true;
   if (typeof _suiviAiShowLoader === 'function') _suiviAiShowLoader();
 
-  const prompt = `Tu es un assistant de rédaction professionnel. Corrige et améliore ce texte (orthographe, grammaire, concision). Retourne UNIQUEMENT le texte corrigé, sans guillemets ni explication.\n\nTexte :\n${text}`;
   let corrected = '';
   try {
-    corrected = (await _aiCall(prompt) || '').trim();
+    corrected = (await _aiCall(_AI_CORRECT_PROMPT(text)) || '').trim();
   } catch(e) {
     if (typeof _suiviAiHideLoader === 'function') _suiviAiHideLoader();
     btnEl.disabled = false;
-    alert('Erreur Gemini : ' + (e.message || '?'));
+    showErr('Erreur Gemini : ' + (e.message || '?'));
     return;
   }
   if (typeof _suiviAiHideLoader === 'function') _suiviAiHideLoader();
   btnEl.disabled = false;
 
-  const popup = document.createElement('div');
-  popup.id = 'tmAiFieldPopup';
-  popup.style.cssText =
-    'position:fixed;z-index:15000;background:var(--surface);' +
-    'border:1px solid var(--border);border-radius:8px;padding:14px;' +
-    'box-shadow:0 4px 20px var(--shadow);width:460px;max-width:calc(100vw - 24px);';
+  const esc = s => s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 
-  const escaped = corrected.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const popup = document.createElement('div');
+  popup.id = popupId;
+  popup.className = 'suivi-ai-popup';
+  if (cssExtra) popup.style.cssText = (popup.style.cssText || '') + ';' + cssExtra;
+
+  const textNodeId = popupId + '_text';
   popup.innerHTML = `
-    <div style="font-size:11px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--muted);margin-bottom:8px">✦ Suggestion IA</div>
-    <div id="tmAiSuggestionText" style="font-size:13px;color:var(--text);background:var(--surface2);border:1px solid var(--border);border-radius:5px;padding:10px 12px;margin-bottom:10px;line-height:1.6;white-space:pre-wrap">${escaped}</div>
-    <div style="display:flex;gap:8px;justify-content:flex-end">
-      <button onmousedown="event.stopPropagation()"
-              onclick="document.getElementById('tmAiFieldPopup')?.remove()"
-              style="padding:5px 14px;font-size:12px;border-radius:5px;border:1px solid var(--border);background:transparent;color:var(--text);cursor:pointer">Annuler</button>
-      <button onmousedown="event.stopPropagation()"
-              onclick="_tmAiFieldApply('${textareaId}')"
-              style="padding:5px 14px;font-size:12px;border-radius:5px;border:none;background:var(--accent);color:#fff;cursor:pointer;font-weight:600">Appliquer</button>
+    <div class="suivi-ai-popup-label">✦ Suggestion IA</div>
+    <div class="suivi-ai-popup-text" id="${textNodeId}">${esc(corrected)}</div>
+    <div class="suivi-ai-popup-actions">
+      <button class="suivi-ai-popup-accept" id="${popupId}_apply">Appliquer</button>
+      <button class="suivi-ai-popup-cancel" onclick="document.getElementById('${popupId}')?.remove()">Annuler</button>
     </div>`;
+
+  /* Positionnement sous (ou au-dessus) du bouton */
+  const rect   = btnEl.getBoundingClientRect();
+  const left   = Math.max(8, Math.min(rect.left - 200, window.innerWidth - 420));
+  popup.style.position = 'fixed';
+  popup.style.left     = left + 'px';
+  if (rect.top - 120 >= 0) {
+    popup.style.bottom    = (window.innerHeight - rect.top + 6) + 'px';
+    popup.style.top       = '';
+  } else {
+    popup.style.top       = (rect.bottom + 6) + 'px';
+    popup.style.bottom    = '';
+  }
 
   document.body.appendChild(popup);
 
-  const rect   = btnEl.getBoundingClientRect();
-  const popupW = 460;
-  const left   = Math.max(4, Math.min(rect.left, window.innerWidth - popupW - 8));
-  popup.style.left = left + 'px';
-  if (rect.top - 160 >= 0) {
-    popup.style.bottom = (window.innerHeight - rect.top + 6) + 'px';
-  } else {
-    popup.style.top = (rect.bottom + 6) + 'px';
-  }
+  document.getElementById(popupId + '_apply').addEventListener('click', () => {
+    const txt = document.getElementById(textNodeId)?.textContent || '';
+    onApply(txt);
+    popup.remove();
+  });
 
   setTimeout(() => {
-    document.addEventListener('click', function close(e) {
-      const p = document.getElementById('tmAiFieldPopup');
-      if (!p) { document.removeEventListener('click', close, true); return; }
+    document.addEventListener('click', function _closeAiCorr(e) {
+      const p = document.getElementById(popupId);
+      if (!p) { document.removeEventListener('click', _closeAiCorr, true); return; }
       if (!p.contains(e.target) && e.target !== btnEl) {
         p.remove();
-        document.removeEventListener('click', close, true);
+        document.removeEventListener('click', _closeAiCorr, true);
       }
     }, true);
-  }, 0);
+  }, 50);
 }
 
-function _tmAiFieldApply(textareaId) {
-  const suggEl = document.getElementById('tmAiSuggestionText');
+/* Entrée Todo (description + commentaire) */
+function _aiOpenFieldPopup(textareaId, btnEl) {
   const ta = document.getElementById(textareaId);
-  if (!suggEl || !ta) return;
-  ta.value = suggEl.textContent;
-  ta.style.height = 'auto';
-  ta.style.height = ta.scrollHeight + 'px';
-  ta.dispatchEvent(new Event('input'));
-  document.getElementById('tmAiFieldPopup')?.remove();
+  if (!ta) return;
+  _aiCorrectAndShowPopup({
+    text:    ta.value,
+    btnEl,
+    popupId: 'tmAiFieldPopup',
+    onApply: corrected => {
+      ta.value = corrected;
+      ta.style.height = 'auto';
+      ta.style.height = ta.scrollHeight + 'px';
+      ta.dispatchEvent(new Event('input'));
+    }
+  });
 }
