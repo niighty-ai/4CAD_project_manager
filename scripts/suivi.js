@@ -1818,6 +1818,67 @@ function _suiviBlocNoteSaveEntry(id, text) {
   _suiviBlocNoteSaveTimer = setTimeout(() => _suiviSave(), 600);
 }
 
+async function _suiviBlocNoteAiCorrectEntry(entryId, btnEl) {
+  const p = _suiviGetActive(); if (!p || !p.blocNote) return;
+  const entry = p.blocNote.entries.find(e => e.id === entryId); if (!entry) return;
+  const text = entry.text.trim();
+  if (!text) return;
+  if (typeof _aiKey === 'undefined' || !_aiKey()) {
+    _suiviToast('Clé API Gemini manquante — configurez-la dans l\'onglet Todo > IA');
+    return;
+  }
+  document.getElementById('suiviBnAiPopup')?.remove();
+  btnEl.disabled = true;
+  _suiviAiShowLoader();
+  const prompt = `Tu es un assistant de rédaction professionnel. Corrige et améliore ce texte de note (orthographe, grammaire, concision). Retourne UNIQUEMENT le texte corrigé, sans guillemets ni explication.\n\nTexte :\n${text}`;
+  let corrected = '';
+  try {
+    corrected = (await _aiCall(prompt) || '').trim();
+  } catch(e) {
+    _suiviAiHideLoader();
+    btnEl.disabled = false;
+    _suiviToast('Erreur Gemini : ' + (e.message || '?'));
+    return;
+  }
+  _suiviAiHideLoader();
+  btnEl.disabled = false;
+
+  const popup = document.createElement('div');
+  popup.id = 'suiviBnAiPopup';
+  popup.className = 'suivi-ai-popup';
+  const rect = btnEl.getBoundingClientRect();
+  const left = Math.max(8, Math.min(rect.left - 200, window.innerWidth - 420));
+  popup.style.cssText = `top:${rect.bottom + 6}px;left:${left}px;z-index:10001`;
+  popup.innerHTML = `
+    <div class="suivi-ai-popup-label">✦ Suggestion IA</div>
+    <div class="suivi-ai-popup-text" id="suiviBnAiPopupText">${_suiviEsc(corrected)}</div>
+    <div class="suivi-ai-popup-actions">
+      <button class="suivi-ai-popup-accept" onclick="_suiviBlocNoteAiApply('${entryId}')">Appliquer</button>
+      <button class="suivi-ai-popup-cancel" onclick="document.getElementById('suiviBnAiPopup')?.remove()">Annuler</button>
+    </div>`;
+  document.body.appendChild(popup);
+  setTimeout(() => {
+    document.addEventListener('click', function _closeBnAiPopup(e) {
+      if (!popup.contains(e.target) && e.target !== btnEl) {
+        popup.remove();
+        document.removeEventListener('click', _closeBnAiPopup);
+      }
+    });
+  }, 50);
+}
+
+function _suiviBlocNoteAiApply(entryId) {
+  const textEl = document.getElementById('suiviBnAiPopupText');
+  if (!textEl) return;
+  const corrected = textEl.textContent;
+  const p = _suiviGetActive(); if (!p || !p.blocNote) return;
+  const entry = p.blocNote.entries.find(e => e.id === entryId); if (!entry) return;
+  entry.text = corrected;
+  _suiviSave();
+  document.getElementById('suiviBnAiPopup')?.remove();
+  _suiviRenderBlocNotePanel();
+}
+
 function _suiviBlocNoteOpenAi() {
   const p = _suiviGetActive(); if (!p) return;
   const entries = (p.blocNote?.entries || []).filter(e => e.text.trim());
@@ -1825,12 +1886,12 @@ function _suiviBlocNoteOpenAi() {
     _suiviToast('Le bloc-note est vide — ajoutez des notes avant d\'analyser', 'error');
     return;
   }
-  const aggregated = entries.map(e =>
-    `[${_suiviFmtBlocNoteTs(e.createdAt)}]\n${e.text.trim()}`
-  ).join('\n\n');
+  const aggregated = entries.map(e => e.text.trim()).join('\n\n');
 
   _suiviCloseBlocNotePanel();
+  _suiviAiShowLoader();
   _suiviOpenAiModal().then(() => {
+    _suiviAiHideLoader();
     /* Pré-remplir le textarea après ouverture de la modale */
     const ta = document.getElementById('suiviAiTranscript');
     if (ta) {
@@ -1886,6 +1947,9 @@ function _suiviRenderBlocNotePanel() {
         <div class="suivi-bn-entry" data-eid="${e.id}">
           <div class="suivi-bn-entry-header">
             <span class="suivi-bn-entry-ts">${_suiviEsc(_suiviFmtBlocNoteTs(e.createdAt))}</span>
+            <button class="suivi-bn-entry-ai" onclick="event.stopPropagation();_suiviBlocNoteAiCorrectEntry('${e.id}',this)" title="Corriger avec l'IA">
+              <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+            </button>
             <button class="suivi-bn-entry-del" onclick="_suiviBlocNoteDeleteEntry('${e.id}')" title="Supprimer cette note">×</button>
           </div>
           <textarea class="suivi-bn-textarea"
@@ -1913,11 +1977,9 @@ function _suiviRenderBlocNotePanel() {
       <button class="suivi-bn-btn-add" onclick="_suiviBlocNoteAddEntry()">+ Note</button>
     </div>`;
 
-  /* Positionnement : centré horizontalement, ancré sous le bouton */
-  const rect = btn.getBoundingClientRect();
+  /* Positionnement : centré à l'écran */
   const panelW = Math.min(window.innerWidth * 0.7, 780);
-  const left = Math.max(10, Math.min(rect.left, window.innerWidth - panelW - 10));
-  panel.style.cssText = `position:fixed;top:${rect.bottom + 6}px;left:${left}px;width:${panelW}px;`;
+  panel.style.cssText = `position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);width:${panelW}px;`;
 
   /* Auto-resize des textareas existants */
   requestAnimationFrame(() => {
