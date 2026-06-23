@@ -867,7 +867,7 @@ tr:hover .suivi-btn-rm-row { opacity: 1; }
   border: 1px solid var(--border);
   border-radius: 10px;
   box-shadow: 0 8px 32px var(--shadow);
-  max-height: 78vh;
+  max-height: 90vh;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -969,6 +969,11 @@ tr:hover .suivi-btn-rm-row { opacity: 1; }
   color: var(--accent);
   letter-spacing: 0.3px;
   font-family: Arial, sans-serif;
+}
+.suivi-bn-entry-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
 }
 .suivi-bn-entry-ai {
   background: none;
