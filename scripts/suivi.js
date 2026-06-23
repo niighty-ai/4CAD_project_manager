@@ -1092,8 +1092,9 @@ async function _suiviExportPPTX() {
       const typeLabel = _SUIVI_TYPE_LABELS[type] || type;
       const typeColor = _SUIVI_TYPE_COL_PPTX[type] || GRAY;
       const clientName = p.client || 'Client';
-      const societe   = a.societe || a.responsable || '4CAD';
-      const societeLabel = societe === '4CAD' ? '4CAD'
+      const societe   = a.societe || (isAction ? '4CAD' : '');
+      const societeLabel = !societe         ? '-'
+                         : societe === '4CAD'  ? '4CAD'
                          : societe === 'both'  ? '4CAD + ' + clientName
                          : clientName;
       const societeColor = societe === '4CAD' ? ORANGE : societe === 'both' ? '3fb950' : LBLUE;
@@ -1106,8 +1107,8 @@ async function _suiviExportPPTX() {
         { text:a.numero || '-',                      options:{ color:GRAY,                   fontSize:10, fontFace:'Courier New', align:'center', valign:'middle', fill:ROW_FILL, bold:true } },
         { text:typeLabel,                            options:{ color:typeColor,               fontSize:11, fontFace:FONT, align:'center', valign:'middle', fill:ROW_FILL, bold:true } },
         { text:a.action || '-',                      options:{ color:WHITE,                   fontSize:11, fontFace:FONT, align:'left',   valign:'top',    fill:ROW_FILL } },
-        { text:isAction ? respInitials : '-',         options:{ color:WHITE,                   fontSize:11, fontFace:FONT, align:'center', valign:'middle', fill:ROW_FILL } },
-        { text:isAction ? societeLabel : '-',         options:{ color:isAction?societeColor:GRAY, fontSize:11, fontFace:FONT, align:'center', valign:'middle', fill:ROW_FILL, bold:isAction } },
+        { text:respInitials,  options:{ color: respInitials !== '-' ? WHITE : GRAY,     fontSize:11, fontFace:FONT, align:'center', valign:'middle', fill:ROW_FILL } },
+        { text:societeLabel,  options:{ color: societe       ? societeColor : GRAY,    fontSize:11, fontFace:FONT, align:'center', valign:'middle', fill:ROW_FILL, bold:!!societe } },
         { text:dateStr,                              options:{ color:dateColor,               fontSize:11, fontFace:FONT, align:'center', valign:'middle', fill:ROW_FILL } },
         { text:statLabel,                            options:{ color:statColor,               fontSize:11, fontFace:FONT, align:'center', valign:'middle', fill:ROW_FILL, bold:isAction } }
       ];
