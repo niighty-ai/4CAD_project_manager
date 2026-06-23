@@ -362,6 +362,12 @@ document.addEventListener('click', e => {
       !e.target.closest('#suiviBnClearOverlay') && !e.target.closest('#suiviAiOverlay')) {
     _suiviCloseBlocNotePanel();
   }
+  const resumePanel = document.getElementById('suiviResumePanel');
+  const resumeBtn   = document.getElementById('suiviBtnResume');
+  if (resumePanel && !resumePanel.contains(e.target) && !resumeBtn?.contains(e.target) &&
+      !e.target.closest('#suiviAiOverlay')) {
+    _suiviCloseResumePanel();
+  }
 }, true);
 
 /* ── Commentaires sur les actions ── */
@@ -1984,6 +1990,7 @@ function _suiviRender() {
   const btnAi          = document.getElementById('suiviBtnAi');
   const btnHistorique  = document.getElementById('suiviBtnHistorique');
   const btnBlocNote    = document.getElementById('suiviBtnBlocNote');
+  const btnResume      = document.getElementById('suiviBtnResume');
   if (!empty || !view) return;
 
   if (!p) {
@@ -1994,6 +2001,7 @@ function _suiviRender() {
     if (btnAi)          btnAi.style.display           = 'none';
     if (btnHistorique)  btnHistorique.style.display   = 'none';
     if (btnBlocNote)    btnBlocNote.style.display     = 'none';
+    if (btnResume)      btnResume.style.display       = 'none';
     return;
   }
 
@@ -2012,6 +2020,7 @@ function _suiviRender() {
   if (btnAi)          btnAi.style.display          = '';
   if (btnHistorique)  btnHistorique.style.display  = '';
   if (btnBlocNote)    btnBlocNote.style.display    = '';
+  if (btnResume)      btnResume.style.display      = '';
   _suiviRenderActionsTbody();
   _suiviUpdateBacklogCount();
   _suiviUpdateBlocNoteCount();
@@ -2498,5 +2507,149 @@ function _suiviRenderRespPickerList(filter) {
     list.appendChild(addEl);
   } else if (!filtered.length) {
     list.innerHTML = '<div class="suivi-resp-picker-empty">Aucune ressource trouvée</div>';
+  }
+}
+
+/* ═══════════════════════════════════════════
+   Résumé IA — compte rendu email
+   ═══════════════════════════════════════════ */
+
+function _suiviCloseResumePanel() {
+  document.getElementById('suiviResumePanel')?.remove();
+}
+
+function _suiviRenderResumePanel(text) {
+  document.getElementById('suiviResumePanel')?.remove();
+
+  const panel = document.createElement('div');
+  panel.id = 'suiviResumePanel';
+
+  /* Formatage léger : ## Titre → section stylée */
+  const formatted = _suiviEsc(text)
+    .replace(/^## (.+)$/gm, '<span class="suivi-resume-section">$1</span>')
+    .replace(/^---+$/gm, '<hr style="border:none;border-top:1px solid var(--border);margin:10px 0">');
+
+  panel.innerHTML = `
+    <div class="suivi-resume-header">
+      <span class="suivi-resume-title">
+        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+        Compte rendu généré par IA
+      </span>
+      <button class="suivi-resume-btn-close" onclick="_suiviCloseResumePanel()">×</button>
+    </div>
+    <div class="suivi-resume-body">
+      <div class="suivi-resume-text">${formatted}</div>
+    </div>
+    <div class="suivi-resume-footer">
+      <button class="suivi-resume-btn-close" onclick="_suiviCloseResumePanel()">Fermer</button>
+      <button class="suivi-resume-btn-copy" id="suiviResumeCopyBtn" onclick="_suiviResumeCopy()">
+        <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+        Copier
+      </button>
+    </div>`;
+
+  /* Stocke le texte brut pour la copie */
+  panel._rawText = text;
+  document.body.appendChild(panel);
+}
+
+function _suiviResumeCopy() {
+  const panel = document.getElementById('suiviResumePanel');
+  const text  = panel?._rawText || panel?.querySelector('.suivi-resume-text')?.innerText || '';
+  if (!text) return;
+  navigator.clipboard.writeText(text).then(() => {
+    const btn = document.getElementById('suiviResumeCopyBtn');
+    if (btn) { btn.textContent = '✓ Copié !'; setTimeout(() => { btn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> Copier'; }, 2000); }
+  }).catch(() => _suiviToast('Impossible de copier — utilisez Ctrl+A / Ctrl+C', 'error'));
+}
+
+function _suiviBuildResumeData(p) {
+  const today    = new Date().toLocaleDateString('fr-FR', { day:'2-digit', month:'2-digit', year:'numeric' });
+  const clientName = p.client || 'Client';
+  const lines    = [];
+
+  const actions = (p.actions || []).filter(a => a.statut !== 'backlog');
+  actions.forEach(a => {
+    const typeLabel   = (_SUIVI_TYPE_LABELS[a.type || 'action'] || a.type || 'action').toUpperCase();
+    const statutLabel = a.type === 'action' ? (_SUIVI_STATUT_LABELS[a.statut] || a.statut) : null;
+    const resp        = (a.responsables || []).map(r => _suiviInitials(r.name)).join(', ');
+    const societeRaw  = a.societe || (a.type === 'action' ? '4CAD' : '');
+    const societe     = societeRaw === '4CAD' ? '4CAD'
+                      : societeRaw === 'both'  ? '4CAD + ' + clientName
+                      : societeRaw === 'client' ? clientName
+                      : societeRaw;
+    const echeance    = _suiviFmtDate(a.echeance) || '';
+    const overdue     = a.type === 'action' && a.statut !== 'done' && _suiviIsOverdue(a.echeance);
+
+    let line = `[${a.numero || '????'}] [${typeLabel}] ${a.action || '(sans contenu)'}`;
+    if (resp)     line += ` — Responsable : ${resp}`;
+    if (societe)  line += ` — Société : ${societe}`;
+    if (echeance) line += ` — Échéance : ${echeance}${overdue ? ' ⚠ EN RETARD' : ''}`;
+    if (statutLabel) line += ` — Statut : ${statutLabel}`;
+    lines.push(line);
+
+    const comments = _suiviGetActionComments(a);
+    comments.forEach(c => {
+      const dateStr = c.createdAt
+        ? new Date(c.createdAt).toLocaleDateString('fr-FR', { day:'2-digit', month:'2-digit', year:'numeric' })
+        : '';
+      lines.push(`  → Commentaire${dateStr ? ' (' + dateStr + ')' : ''} : ${c.text || ''}`);
+    });
+  });
+
+  return { today, clientName, donnees: lines.join('\n') };
+}
+
+async function _suiviGenerateResume() {
+  const p = _suiviGetActive();
+  if (!p) return;
+  if (!_aiKey || !_aiKey()) {
+    _suiviToast('Clé API Gemini manquante — configurez-la dans Paramètres > IA', 'error');
+    return;
+  }
+
+  const btn = document.getElementById('suiviBtnResume');
+  if (btn) btn.disabled = true;
+  _suiviAiShowLoader();
+
+  try {
+    /* Charger le prompt depuis le fichier */
+    let promptTemplate = '';
+    try {
+      const resp = await fetch('prompts/suivi-resume.txt?_=' + Date.now());
+      if (!resp.ok) throw new Error('HTTP ' + resp.status);
+      promptTemplate = await resp.text();
+    } catch (e) {
+      _suiviAiHideLoader();
+      if (btn) btn.disabled = false;
+      _suiviToast('Impossible de charger prompts/suivi-resume.txt : ' + e.message, 'error');
+      return;
+    }
+
+    /* Construire les données */
+    const { today, clientName, donnees } = _suiviBuildResumeData(p);
+
+    /* Injection des variables dans le prompt */
+    const prompt = promptTemplate
+      .replace(/\{\{CLIENT\}\}/g, clientName)
+      .replace(/\{\{DATE\}\}/g,   today)
+      .replace(/\{\{DONNEES\}\}/g, donnees);
+
+    /* Appel Gemini */
+    const result = await _aiCall(prompt);
+    _suiviAiHideLoader();
+    if (btn) btn.disabled = false;
+
+    if (!result?.trim()) {
+      _suiviToast('Gemini n\'a retourné aucun résultat', 'error');
+      return;
+    }
+
+    _suiviRenderResumePanel(result.trim());
+
+  } catch (err) {
+    _suiviAiHideLoader();
+    if (btn) btn.disabled = false;
+    _suiviToast('Erreur lors de la génération : ' + (err.message || err), 'error');
   }
 }
