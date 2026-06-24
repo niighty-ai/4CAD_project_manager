@@ -921,6 +921,7 @@ function _suiviOpenAddFromTodoPanel(btnEl) {
   }
 
   panel.innerHTML = html;
+  panel.style.display = 'block';
   document.body.appendChild(panel);
   _suiviAddFromTodoPanelOpen = true;
 
