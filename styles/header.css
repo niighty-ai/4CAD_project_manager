@@ -99,10 +99,14 @@
   border:1px solid var(--border);
   color:var(--muted);
   font-size:13px;
-  padding:5px 10px;
+  height:30px;
+  padding:0 10px;
   border-radius:4px;
   cursor:pointer;
-  transition:all .15s
+  transition:all .15s;
+  display:inline-flex;
+  align-items:center;
+  gap:6px
 }
 
 .btn-theme:hover {
