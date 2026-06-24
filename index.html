@@ -622,6 +622,7 @@
           <div class="suivi-section">
             <div class="suivi-section-header">
               <span class="suivi-section-title">Suivi — Actions, Alertes &amp; Commentaires</span>
+              <button class="suivi-btn-add-small suivi-btn-from-todo" onclick="_suiviOpenAddFromTodoPanel(this)">Depuis Todo</button>
               <button class="suivi-btn-add-small" onclick="_suiviAddAction()">+ Ajouter</button>
             </div>
             <div class="suivi-table-wrapper">
@@ -644,7 +645,10 @@
                 <tbody id="suiviActionsTbody"></tbody>
               </table>
             </div>
-            <button class="suivi-btn-add-row" onclick="_suiviAddAction()">+ Ajouter une ligne</button>
+            <div style="display:flex;gap:8px;align-items:center">
+              <button class="suivi-btn-add-row" onclick="_suiviAddAction()">+ Ajouter une ligne</button>
+              <button class="suivi-btn-add-row suivi-btn-from-todo suivi-btn-from-todo-outline" onclick="_suiviOpenAddFromTodoPanel(this)">Depuis Todo</button>
+            </div>
           </div>
 
           <!-- Interventions -->

@@ -345,6 +345,10 @@ document.addEventListener('click', e => {
       !linkPanel.contains(e.target) && !e.target.closest('.suivi-link-btn')) {
     _suiviCloseLinkPanel();
   }
+  const addFromTodoPanel = document.getElementById('suiviAddFromTodoPanel');
+  if (addFromTodoPanel && !addFromTodoPanel.contains(e.target) && !e.target.closest('.suivi-btn-from-todo')) {
+    _suiviCloseAddFromTodoPanel();
+  }
   const commentPanel = document.getElementById('suiviCommentPanel');
   if (commentPanel && commentPanel.style.display !== 'none' &&
       !commentPanel.contains(e.target) && !e.target.closest('.suivi-comment-btn') &&
@@ -862,6 +866,105 @@ function _suiviAddAction() {
   setTimeout(() => {
     const rows = document.querySelectorAll('.suivi-action-input');
     if (rows.length) rows[rows.length-1].focus();
+  }, 50);
+}
+
+/* ── Ajout d'une ligne depuis une tâche Todo ── */
+
+let _suiviAddFromTodoPanelOpen = false;
+
+function _suiviCloseAddFromTodoPanel() {
+  const el = document.getElementById('suiviAddFromTodoPanel');
+  if (el) el.remove();
+  _suiviAddFromTodoPanelOpen = false;
+}
+
+function _suiviOpenAddFromTodoPanel(btnEl) {
+  if (_suiviAddFromTodoPanelOpen) { _suiviCloseAddFromTodoPanel(); return; }
+  _suiviCloseLinkPanel();
+
+  const p = _suiviGetActive(); if (!p) return;
+  const folderId = _suiviGetClientFolderId();
+  const allTasks = typeof _todoData !== 'undefined' ? (_todoData.tasks || []) : [];
+  const folderTasks = folderId
+    ? allTasks.filter(t => t.folderId === folderId && !t.parentId)
+    : [];
+
+  /* Tâches déjà liées à une action de ce projet */
+  const linkedIds = new Set((p.actions || []).map(a => a.todoTaskId).filter(Boolean));
+  const available = folderTasks.filter(t => !linkedIds.has(t.id));
+
+  const panel = document.createElement('div');
+  panel.id = 'suiviAddFromTodoPanel';
+  panel.className = 'suivi-link-panel';
+
+  let html = `<div class="suivi-lp-title">Ajouter depuis Todo — ${_suiviEsc(p.client || '')}</div>`;
+
+  if (!folderId) {
+    html += `<div class="suivi-lp-empty">Aucun dossier Todo associé à ce client.</div>`;
+  } else if (!available.length) {
+    html += `<div class="suivi-lp-empty">Toutes les tâches de ce dossier sont déjà liées.</div>`;
+  } else {
+    html += `<div class="suivi-lp-list">` + available.map(t => {
+      const due = t.dueDate
+        ? new Date(t.dueDate + 'T00:00:00').toLocaleDateString('fr-FR', { day:'2-digit', month:'2-digit', year:'numeric' })
+        : '';
+      const statusDot = t.completed
+        ? `<span class="suivi-lp-check done">✓</span>`
+        : `<span class="suivi-lp-check">○</span>`;
+      return `<div class="suivi-lp-task" onclick="_suiviAddActionFromTodo('${t.id}')" title="Ajouter comme action">
+        ${statusDot}
+        <span class="suivi-lp-task-title">${_suiviEsc(t.title)}</span>
+        ${due ? `<span class="suivi-lp-task-due">${due}</span>` : ''}
+      </div>`;
+    }).join('') + `</div>`;
+  }
+
+  panel.innerHTML = html;
+  document.body.appendChild(panel);
+  _suiviAddFromTodoPanelOpen = true;
+
+  const r = btnEl.getBoundingClientRect();
+  panel.style.top  = (r.bottom + 4) + 'px';
+  panel.style.left = r.left + 'px';
+  requestAnimationFrame(() => {
+    const pr = panel.getBoundingClientRect();
+    if (pr.right  > window.innerWidth  - 8) panel.style.left = (window.innerWidth  - pr.width  - 8) + 'px';
+    if (pr.bottom > window.innerHeight - 8) panel.style.top  = (r.top - pr.height - 4) + 'px';
+  });
+}
+
+function _suiviAddActionFromTodo(taskId) {
+  const p = _suiviGetActive(); if (!p) return;
+  const task = typeof _todoData !== 'undefined'
+    ? (_todoData.tasks || []).find(t => t.id === taskId)
+    : null;
+  if (!task) return;
+
+  const resp = (task.assignees || []).map(a => ({ name: a.name }));
+  const statut = task.completed ? 'done' : 'todo';
+
+  p.actions.push({
+    id:          _suiviUid(),
+    numero:      _suiviNextNumero(p),
+    type:        'action',
+    action:      task.title || '',
+    societe:     '4CAD',
+    responsables: resp,
+    echeance:    task.dueDate || '',
+    statut,
+    todoTaskId:  task.id
+  });
+
+  p.updatedAt = new Date().toISOString();
+  _suiviSave();
+  _suiviCloseAddFromTodoPanel();
+  _suiviRenderActionsTbody();
+
+  /* Scroll vers la nouvelle ligne */
+  setTimeout(() => {
+    const rows = document.querySelectorAll('#suiviActionsTbody tr');
+    if (rows.length) rows[rows.length - 1].scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }, 50);
 }
 
