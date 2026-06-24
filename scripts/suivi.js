@@ -2524,10 +2524,20 @@ function _suiviRenderResumePanel(text) {
   const panel = document.createElement('div');
   panel.id = 'suiviResumePanel';
 
-  /* Formatage léger : ## Titre → section stylée */
+  /* Nettoyage et formatage du texte Gemini */
   const formatted = _suiviEsc(text)
+    /* Supprimer le gras markdown **texte** → texte */
+    .replace(/\*\*([^*]+)\*\*/g, '$1')
+    /* Supprimer l'italique markdown *texte* → texte */
+    .replace(/\*([^*]+)\*/g, '$1')
+    /* ## Titre → section colorée */
     .replace(/^## (.+)$/gm, '<span class="suivi-resume-section">$1</span>')
-    .replace(/^---+$/gm, '<hr style="border:none;border-top:1px solid var(--border);margin:10px 0">');
+    /* --- → séparateur */
+    .replace(/^---+$/gm, '<hr style="border:none;border-top:1px solid var(--border);margin:10px 0">')
+    /* Lignes de commentaires indentées "  - " → indentation visuelle */
+    .replace(/^  - /gm, '<span style="margin-left:18px;display:inline-block">↳ </span>')
+    /* Numéro d'action [XXXX] → badge monospace orange */
+    .replace(/\[(\d{4})\]/g, '<span style="font-family:\'Courier New\',monospace;font-weight:700;color:var(--accent);font-size:11px">[$1]</span>');
 
   panel.innerHTML = `
     <div class="suivi-resume-header">
