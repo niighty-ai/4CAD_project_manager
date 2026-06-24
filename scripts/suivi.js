@@ -2740,7 +2740,7 @@ function _suiviBuildResumeData(p) {
       const dateStr = c.createdAt
         ? new Date(c.createdAt).toLocaleDateString('fr-FR', { day:'2-digit', month:'2-digit', year:'numeric' })
         : '';
-      lines.push(`  → Commentaire${dateStr ? ' (' + dateStr + ')' : ''} : ${c.text || ''}`);
+      lines.push(`  - ${dateStr ? dateStr + ' : ' : ''}${c.text || ''}`);
     });
   });
 
