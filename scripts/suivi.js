@@ -1535,13 +1535,6 @@ function _suiviRenderActionsTbody() {
       title="Mettre en backlog">${_SUIVI_BACKLOG_ICON}</button>`;
 
     return `<tr class="${rowClass}" data-rid="${a.id}">
-      <td class="suivi-drag-handle" title="Glisser pour réordonner">
-        <svg width="12" height="16" viewBox="0 0 12 16" fill="currentColor">
-          <circle cx="4" cy="3" r="1.5"/><circle cx="8" cy="3" r="1.5"/>
-          <circle cx="4" cy="8" r="1.5"/><circle cx="8" cy="8" r="1.5"/>
-          <circle cx="4" cy="13" r="1.5"/><circle cx="8" cy="13" r="1.5"/>
-        </svg>
-      </td>
       <td class="suivi-col-num" title="N° action">${a.numero ? `<span class="suivi-num-badge">${_suiviEsc(a.numero)}</span>` : ''}</td>
       <td class="suivi-col-link">${linkBtnHtml}</td>
       <td class="suivi-col-comment">${commentBtnHtml}</td>
@@ -1580,7 +1573,6 @@ function _suiviRenderActionsTbody() {
     });
   });
 
-  _suiviInitActionDrag(tbody);
 }
 
 function _suiviRenderIntvTable() {
@@ -1615,8 +1607,6 @@ function _suiviRenderIntvThead() {
     <th style="width:30px;background:var(--surface2);border-bottom:1px solid var(--border)"></th>
   </tr>`;
 }
-
-let _suiviDragRowId = null;
 
 function _suiviRenderIntvTbody() {
   const p = _suiviGetActive(); if (!p || !p.interventions) return;
@@ -1677,102 +1667,6 @@ function _suiviRenderIntvTbody() {
       </td>
     </tr>`;
   }).join('');
-}
-
-function _suiviInitActionDrag(tbody) {
-  if (tbody._dragReady) return;   /* déjà initialisé sur ce tbody — ne pas ajouter de doublons */
-  tbody._dragReady = true;
-
-  let draggedTr     = null;
-  let placeholder   = null;
-  let dragFromHandle = false;
-
-  function cleanup() {
-    document.querySelectorAll('.suivi-drag-placeholder').forEach(el => el.remove());
-    document.querySelectorAll('.suivi-row-dragging').forEach(el => el.classList.remove('suivi-row-dragging'));
-    tbody.querySelectorAll('tr[data-rid]').forEach(tr => tr.removeAttribute('draggable'));
-    draggedTr      = null;
-    placeholder    = null;
-    dragFromHandle = false;
-    _suiviDragRowId = null;
-  }
-
-  /* Activer draggable uniquement sur la poignée → ne plus bloquer le curseur dans la textarea */
-  tbody.addEventListener('mousedown', e => {
-    dragFromHandle = !!e.target.closest('.suivi-drag-handle');
-    if (dragFromHandle) {
-      const tr = e.target.closest('tr[data-rid]');
-      if (tr) tr.setAttribute('draggable', 'true');
-    }
-  });
-  document.addEventListener('mouseup', () => {
-    if (!draggedTr) {
-      /* Pas de drag en cours : retirer draggable sur tous les tr */
-      tbody.querySelectorAll('tr[data-rid]').forEach(tr => tr.removeAttribute('draggable'));
-      dragFromHandle = false;
-    }
-  });
-
-  function movePlaceholder(overTr, clientY) {
-    if (!placeholder || !overTr || overTr === draggedTr || overTr === placeholder) return;
-    const rect = overTr.getBoundingClientRect();
-    if (clientY < rect.top + rect.height / 2) {
-      overTr.parentNode.insertBefore(placeholder, overTr);
-    } else {
-      overTr.parentNode.insertBefore(placeholder, overTr.nextSibling);
-    }
-  }
-
-  tbody.addEventListener('dragstart', e => {
-    const tr = e.target.closest('tr[data-rid]');
-    if (!tr || !dragFromHandle) { e.preventDefault(); return; }
-
-    /* Nettoyage de tout état orphelin avant de commencer */
-    cleanup();
-
-    draggedTr = tr;
-    _suiviDragRowId = tr.dataset.rid;
-    e.dataTransfer.effectAllowed = 'move';
-
-    /* Image de drag explicite (clone au rendu normal) pour éviter le flash
-       lié à l'opacité appliquée juste après */
-    const ghost = tr.cloneNode(true);
-    ghost.style.cssText = `position:fixed;top:-9999px;left:-9999px;width:${tr.offsetWidth}px`;
-    document.body.appendChild(ghost);
-    e.dataTransfer.setDragImage(ghost, e.offsetX, e.offsetY);
-    setTimeout(() => ghost.remove(), 0);
-
-    /* Placeholder + opacité : immédiat, pas de rAF */
-    placeholder = document.createElement('tr');
-    placeholder.className = 'suivi-drag-placeholder';
-    placeholder.innerHTML = `<td colspan="99" style="height:${tr.offsetHeight}px"></td>`;
-    tr.classList.add('suivi-row-dragging');
-    tr.parentNode.insertBefore(placeholder, tr.nextSibling);
-  });
-
-  tbody.addEventListener('dragover', e => {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = 'move';
-    movePlaceholder(e.target.closest('tr[data-rid]'), e.clientY);
-  });
-
-  tbody.addEventListener('dragend', () => {
-    cleanup();
-  });
-
-  tbody.addEventListener('drop', e => {
-    e.preventDefault();
-    if (!draggedTr || !placeholder || !placeholder.parentNode) return;
-    placeholder.parentNode.insertBefore(draggedTr, placeholder);
-    const p = _suiviGetActive();
-    if (p) {
-      const newOrder = [...tbody.querySelectorAll('tr[data-rid]')].map(tr => tr.dataset.rid);
-      p.actions.sort((a, b) => newOrder.indexOf(a.id) - newOrder.indexOf(b.id));
-      _suiviSave();
-    }
-    cleanup();
-    _suiviRenderActionsTbody();
-  });
 }
 
 /* ═══════════════════════════════════════════
