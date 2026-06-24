@@ -2565,12 +2565,75 @@ function _suiviRenderResumePanel(text) {
 
 function _suiviResumeCopy() {
   const panel = document.getElementById('suiviResumePanel');
-  const text  = panel?._rawText || panel?.querySelector('.suivi-resume-text')?.innerText || '';
-  if (!text) return;
-  navigator.clipboard.writeText(text).then(() => {
+  const raw   = panel?._rawText || '';
+  if (!raw) return;
+
+  /* ── Texte brut nettoyé pour Outlook ── */
+  const plainLines = raw.split('\n').map(line => {
+    // ## Titre → ligne en majuscules encadrée
+    line = line.replace(/^##\s+(.+)$/, (_, t) => '\r\n' + t.toUpperCase() + '\r\n' + '-'.repeat(t.length));
+    // Supprimer gras **texte**
+    line = line.replace(/\*\*([^*]+)\*\*/g, '$1');
+    // Supprimer italique *texte*
+    line = line.replace(/\*([^*]+)\*/g, '$1');
+    // Séparateurs ---
+    line = line.replace(/^---+$/, '─'.repeat(40));
+    return line;
+  });
+  // Jointure avec \r\n pour Windows/Outlook
+  const plain = plainLines.join('\r\n');
+
+  /* ── Version HTML pour collage enrichi dans Outlook ── */
+  const esc = s => s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const htmlLines = raw.split('\n').map(line => {
+    // ## Titre → <h3>
+    const hm = line.match(/^##\s+(.+)$/);
+    if (hm) return `<h3 style="margin:16px 0 4px;font-size:13px;border-bottom:1px solid #ccc;padding-bottom:4px;font-family:Arial,sans-serif">${esc(hm[1])}</h3>`;
+    // Séparateur ---
+    if (/^---+$/.test(line.trim())) return '<hr style="border:none;border-top:1px solid #ccc;margin:8px 0">';
+    // Ligne indentée commentaire "  - "
+    const cm = line.match(/^  - (.+)$/);
+    if (cm) {
+      let content = esc(cm[1]).replace(/\*\*([^*]+)\*\*/g,'<b>$1</b>').replace(/\[(\d{4})\]/g,'<b>[$1]</b>');
+      return `<p style="margin:2px 0 2px 18px;font-family:Arial,sans-serif;font-size:12px;color:#444">↳ ${content}</p>`;
+    }
+    // Ligne à puce "- "
+    const bm = line.match(/^(- )(.+)$/);
+    if (bm) {
+      let content = esc(bm[2]).replace(/\*\*([^*]+)\*\*/g,'<b>$1</b>').replace(/\[(\d{4})\]/g,'<b>[$1]</b>');
+      return `<p style="margin:3px 0;font-family:Arial,sans-serif;font-size:12px">&#8226; ${content}</p>`;
+    }
+    // Ligne vide
+    if (!line.trim()) return '<br>';
+    // Ligne normale
+    let content = esc(line).replace(/\*\*([^*]+)\*\*/g,'<b>$1</b>').replace(/\[(\d{4})\]/g,'<b>[$1]</b>');
+    return `<p style="margin:3px 0;font-family:Arial,sans-serif;font-size:12px">${content}</p>`;
+  });
+  const html = `<html><body>${htmlLines.join('')}</body></html>`;
+
+  const _onSuccess = () => {
     const btn = document.getElementById('suiviResumeCopyBtn');
-    if (btn) { btn.textContent = '✓ Copié !'; setTimeout(() => { btn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> Copier'; }, 2000); }
-  }).catch(() => _suiviToast('Impossible de copier — utilisez Ctrl+A / Ctrl+C', 'error'));
+    if (btn) {
+      btn.textContent = '✓ Copié !';
+      setTimeout(() => { btn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> Copier'; }, 2000);
+    }
+  };
+
+  /* Tentative avec ClipboardItem (HTML + texte) pour Outlook */
+  if (window.ClipboardItem) {
+    const item = new ClipboardItem({
+      'text/html' : new Blob([html],  { type: 'text/html'  }),
+      'text/plain': new Blob([plain], { type: 'text/plain' })
+    });
+    navigator.clipboard.write([item]).then(_onSuccess).catch(() => {
+      /* Fallback : texte seul */
+      navigator.clipboard.writeText(plain).then(_onSuccess)
+        .catch(() => _suiviToast('Impossible de copier — utilisez Ctrl+A / Ctrl+C', 'error'));
+    });
+  } else {
+    navigator.clipboard.writeText(plain).then(_onSuccess)
+      .catch(() => _suiviToast('Impossible de copier — utilisez Ctrl+A / Ctrl+C', 'error'));
+  }
 }
 
 function _suiviBuildResumeData(p) {
