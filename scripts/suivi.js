@@ -2732,7 +2732,7 @@ function _suiviBuildResumeData(p) {
     if (resp)        line += ` — Responsable : ${resp}`;
     if (societe)     line += ` — Société : ${societe}`;
     if (echeance)    line += ` — Échéance : ${echeance}${overdue ? ' ⚠ EN RETARD' : ''}`;
-    if (statutLabel) line += ` — Statut : ${statutLabel}`;
+    line += ` — Statut : ${statutLabel || '-'}`;
     lines.push(line);
 
     const comments = _suiviGetActionComments(a);
