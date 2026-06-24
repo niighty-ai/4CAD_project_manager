@@ -906,7 +906,7 @@ function _suiviOpenAddFromTodoPanel(btnEl) {
     html += `<div class="suivi-lp-empty">Toutes les tâches de ce dossier sont déjà liées.</div>`;
   } else {
     html += `<div class="suivi-lp-list">` + available.map(t => {
-      const due = _suiviFmtDate(t.dueDate);
+      const due = _suiviFmtDate(t.dueDate ? t.dueDate.split('T')[0] : '');
       const statusDot = t.completed
         ? `<span class="suivi-lp-check done">✓</span>`
         : `<span class="suivi-lp-check">○</span>`;
@@ -950,7 +950,7 @@ function _suiviAddActionFromTodo(taskId) {
     action:      task.title || '',
     societe:     '4CAD',
     responsables: resp,
-    echeance:    task.dueDate || '',
+    echeance:    task.dueDate ? task.dueDate.split('T')[0] : '',
     statut,
     todoTaskId:  task.id
   });
