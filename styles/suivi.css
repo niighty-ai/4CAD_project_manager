@@ -936,12 +936,36 @@ tr:hover .suivi-btn-rm-row { opacity: 1; }
   font-family: Arial, sans-serif;
 }
 .suivi-resume-text h2, .suivi-resume-text .suivi-resume-section {
-  color: var(--accent);
+  color: var(--text);
   font-weight: 700;
-  margin: 16px 0 6px;
+  display: block;
+  margin: 18px 0 6px;
   font-size: 12px;
   text-transform: uppercase;
   letter-spacing: 0.5px;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.suivi-resume-table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 8px 0 12px;
+  font-size: 11px;
+  font-family: Arial, sans-serif;
+}
+.suivi-resume-table th,
+.suivi-resume-table td {
+  border: 1px solid var(--border);
+  padding: 4px 8px;
+  text-align: left;
+  vertical-align: top;
+}
+.suivi-resume-table th {
+  background: var(--surface2);
+  font-weight: 700;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
 }
 .suivi-resume-footer {
   padding: 10px 16px;

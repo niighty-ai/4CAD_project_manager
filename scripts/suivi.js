@@ -2525,19 +2525,48 @@ function _suiviRenderResumePanel(text) {
   panel.id = 'suiviResumePanel';
 
   /* Nettoyage et formatage du texte Gemini */
-  const formatted = _suiviEsc(text)
-    /* Supprimer le gras markdown **texte** → texte */
-    .replace(/\*\*([^*]+)\*\*/g, '$1')
-    /* Supprimer l'italique markdown *texte* → texte */
-    .replace(/\*([^*]+)\*/g, '$1')
-    /* ## Titre → section colorée */
-    .replace(/^## (.+)$/gm, '<span class="suivi-resume-section">$1</span>')
-    /* --- → séparateur */
-    .replace(/^---+$/gm, '<hr style="border:none;border-top:1px solid var(--border);margin:10px 0">')
-    /* Lignes de commentaires indentées "  - " → indentation visuelle */
-    .replace(/^  - /gm, '<span style="margin-left:18px;display:inline-block">↳ </span>')
-    /* Numéro d'action [XXXX] → badge monospace orange */
-    .replace(/\[(\d{4})\]/g, '<span style="font-family:\'Courier New\',monospace;font-weight:700;color:var(--accent);font-size:11px">[$1]</span>');
+
+  /* Convertir les tableaux pipe markdown en <table> HTML avant l'échappement */
+  const textWithTables = text.replace(
+    /((?:^\|.+\|\s*\n)+)/gm,
+    (block) => {
+      const rows = block.trim().split('\n').filter(r => r.trim());
+      let html = '<table class="suivi-resume-table">';
+      let isHeader = true;
+      for (const row of rows) {
+        if (/^\|[-| :]+\|$/.test(row.trim())) { isHeader = false; continue; }
+        const cells = row.trim().replace(/^\||\|$/g, '').split('|');
+        const tag = isHeader ? 'th' : 'td';
+        html += '<tr>' + cells.map(c => `<${tag}>${c.trim().replace(/\*\*([^*]+)\*\*/g,'$1')}</${tag}>`).join('') + '</tr>';
+        if (isHeader) isHeader = false;
+      }
+      html += '</table>';
+      return '\x00TABLE\x00' + html + '\x00ENDTABLE\x00';
+    }
+  );
+
+  /* Séparer les blocs table des blocs texte pour échapper seulement le texte */
+  const parts = textWithTables.split(/\x00TABLE\x00|\x00ENDTABLE\x00/);
+  let formatted = '';
+  for (let i = 0; i < parts.length; i++) {
+    if (i % 2 === 1) {
+      formatted += parts[i]; // bloc table déjà en HTML, pas d'échappement
+    } else {
+      formatted += _suiviEsc(parts[i])
+        /* Supprimer le gras markdown **texte** → texte */
+        .replace(/\*\*([^*]+)\*\*/g, '$1')
+        /* Supprimer l'italique markdown *texte* → texte */
+        .replace(/\*([^*]+)\*/g, '$1')
+        /* ## Titre → titre souligné */
+        .replace(/^## (.+)$/gm, '<span class="suivi-resume-section">$1</span>')
+        /* --- en début/fin de mail → ignoré (pas de séparateur horizontal entre sections) */
+        .replace(/^---+$/gm, '')
+        /* Lignes de commentaires indentées "  - " → indentation visuelle */
+        .replace(/^  - /gm, '<span style="margin-left:18px;display:inline-block">↳ </span>')
+        /* Numéro d'action [XXXX] → badge monospace orange */
+        .replace(/\[(\d{4})\]/g, '<span style="font-family:\'Courier New\',monospace;font-weight:700;color:var(--accent);font-size:11px">[$1]</span>');
+    }
+  }
 
   panel.innerHTML = `
     <div class="suivi-resume-header">
@@ -2568,48 +2597,93 @@ function _suiviResumeCopy() {
   const raw   = panel?._rawText || '';
   if (!raw) return;
 
+  const esc = s => s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+
   /* ── Texte brut nettoyé pour Outlook ── */
-  const plainLines = raw.split('\n').map(line => {
-    // ## Titre → ligne en majuscules encadrée
-    line = line.replace(/^##\s+(.+)$/, (_, t) => '\r\n' + t.toUpperCase() + '\r\n' + '-'.repeat(t.length));
-    // Supprimer gras **texte**
-    line = line.replace(/\*\*([^*]+)\*\*/g, '$1');
-    // Supprimer italique *texte*
-    line = line.replace(/\*([^*]+)\*/g, '$1');
-    // Séparateurs ---
-    line = line.replace(/^---+$/, '─'.repeat(40));
-    return line;
-  });
-  // Jointure avec \r\n pour Windows/Outlook
+  const plainLines = [];
+  const rawLines = raw.split('\n');
+  let i = 0;
+  while (i < rawLines.length) {
+    const line = rawLines[i];
+    // Ligne de tableau pipe → représentation texte condensée
+    if (/^\|/.test(line)) {
+      if (/^\|[-| :]+\|$/.test(line.trim())) { i++; continue; } // séparateur entête
+      const cells = line.trim().replace(/^\||\|$/g,'').split('|').map(c => c.trim().replace(/\*\*([^*]+)\*\*/g,'$1'));
+      plainLines.push(cells.join(' | '));
+      i++; continue;
+    }
+    // ## Titre → majuscules soulignées
+    const hm = line.match(/^##\s+(.+)$/);
+    if (hm) {
+      plainLines.push('', hm[1].toUpperCase(), '─'.repeat(hm[1].length), '');
+      i++; continue;
+    }
+    // Séparateurs --- → ignorer
+    if (/^---+$/.test(line.trim())) { i++; continue; }
+    // Nettoyage markdown courant
+    plainLines.push(line.replace(/\*\*([^*]+)\*\*/g,'$1').replace(/\*([^*]+)\*/g,'$1'));
+    i++;
+  }
   const plain = plainLines.join('\r\n');
 
   /* ── Version HTML pour collage enrichi dans Outlook ── */
-  const esc = s => s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-  const htmlLines = raw.split('\n').map(line => {
-    // ## Titre → <h3>
+  const htmlParts = [];
+  let j = 0;
+  while (j < rawLines.length) {
+    const line = rawLines[j];
+    // Bloc de tableau pipe markdown → <table>
+    if (/^\|/.test(line)) {
+      const tableRows = [];
+      while (j < rawLines.length && /^\|/.test(rawLines[j])) {
+        tableRows.push(rawLines[j]);
+        j++;
+      }
+      let tbl = '<table style="border-collapse:collapse;width:100%;font-family:Arial,sans-serif;font-size:11px;margin:8px 0 14px">';
+      let hdr = true;
+      for (const tr of tableRows) {
+        if (/^\|[-| :]+\|$/.test(tr.trim())) { hdr = false; continue; }
+        const cells = tr.trim().replace(/^\||\|$/g,'').split('|');
+        const tag = hdr ? 'th' : 'td';
+        const style = hdr
+          ? 'border:1px solid #ccc;padding:4px 8px;background:#f0f0f0;font-weight:bold;font-size:10px;text-transform:uppercase'
+          : 'border:1px solid #ccc;padding:4px 8px;vertical-align:top';
+        tbl += '<tr>' + cells.map(c => `<${tag} style="${style}">${esc(c.trim()).replace(/\*\*([^*]+)\*\*/g,'<b>$1</b>').replace(/\[(\d{4})\]/g,'<b>[$1]</b>')}</${tag}>`).join('') + '</tr>';
+        if (hdr) hdr = false;
+      }
+      tbl += '</table>';
+      htmlParts.push(tbl);
+      continue;
+    }
+    // ## Titre → <h3> souligné
     const hm = line.match(/^##\s+(.+)$/);
-    if (hm) return `<h3 style="margin:16px 0 4px;font-size:13px;border-bottom:1px solid #ccc;padding-bottom:4px;font-family:Arial,sans-serif">${esc(hm[1])}</h3>`;
-    // Séparateur ---
-    if (/^---+$/.test(line.trim())) return '<hr style="border:none;border-top:1px solid #ccc;margin:8px 0">';
+    if (hm) {
+      htmlParts.push(`<h3 style="margin:18px 0 5px;font-size:12px;font-family:Arial,sans-serif;text-decoration:underline;text-transform:uppercase;letter-spacing:0.5px">${esc(hm[1])}</h3>`);
+      j++; continue;
+    }
+    // Séparateurs --- → ignorer
+    if (/^---+$/.test(line.trim())) { j++; continue; }
     // Ligne indentée commentaire "  - "
     const cm = line.match(/^  - (.+)$/);
     if (cm) {
-      let content = esc(cm[1]).replace(/\*\*([^*]+)\*\*/g,'<b>$1</b>').replace(/\[(\d{4})\]/g,'<b>[$1]</b>');
-      return `<p style="margin:2px 0 2px 18px;font-family:Arial,sans-serif;font-size:12px;color:#444">↳ ${content}</p>`;
+      const content = esc(cm[1]).replace(/\*\*([^*]+)\*\*/g,'<b>$1</b>').replace(/\[(\d{4})\]/g,'<b>[$1]</b>');
+      htmlParts.push(`<p style="margin:2px 0 2px 18px;font-family:Arial,sans-serif;font-size:11px;color:#555">&#8627; ${content}</p>`);
+      j++; continue;
     }
     // Ligne à puce "- "
-    const bm = line.match(/^(- )(.+)$/);
+    const bm = line.match(/^- (.+)$/);
     if (bm) {
-      let content = esc(bm[2]).replace(/\*\*([^*]+)\*\*/g,'<b>$1</b>').replace(/\[(\d{4})\]/g,'<b>[$1]</b>');
-      return `<p style="margin:3px 0;font-family:Arial,sans-serif;font-size:12px">&#8226; ${content}</p>`;
+      const content = esc(bm[1]).replace(/\*\*([^*]+)\*\*/g,'<b>$1</b>').replace(/\[(\d{4})\]/g,'<b>[$1]</b>');
+      htmlParts.push(`<p style="margin:3px 0;font-family:Arial,sans-serif;font-size:12px">&#8226; ${content}</p>`);
+      j++; continue;
     }
     // Ligne vide
-    if (!line.trim()) return '<br>';
+    if (!line.trim()) { htmlParts.push('<br>'); j++; continue; }
     // Ligne normale
-    let content = esc(line).replace(/\*\*([^*]+)\*\*/g,'<b>$1</b>').replace(/\[(\d{4})\]/g,'<b>[$1]</b>');
-    return `<p style="margin:3px 0;font-family:Arial,sans-serif;font-size:12px">${content}</p>`;
-  });
-  const html = `<html><body>${htmlLines.join('')}</body></html>`;
+    const content = esc(line).replace(/\*\*([^*]+)\*\*/g,'<b>$1</b>').replace(/\[(\d{4})\]/g,'<b>[$1]</b>');
+    htmlParts.push(`<p style="margin:3px 0;font-family:Arial,sans-serif;font-size:12px">${content}</p>`);
+    j++;
+  }
+  const html = `<html><body style="font-family:Arial,sans-serif;font-size:12px">${htmlParts.join('')}</body></html>`;
 
   const _onSuccess = () => {
     const btn = document.getElementById('suiviResumeCopyBtn');

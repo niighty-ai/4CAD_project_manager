@@ -14,14 +14,18 @@ Veuillez trouver ci-dessous le compte rendu de notre point de suivi du {{DATE}} 
 ## Synthèse générale
 [2 à 4 phrases résumant l'avancement global, les points clés et les alertes éventuelles]
 
-## Actions en cours
-[Liste des actions avec statut "En cours" ou "Planifié"]
+## Tableau de suivi
+| N° | Type | Description | Responsable | Société | Échéance | Statut |
+|---|---|---|---|---|---|---|
+[Une ligne par entrée du tableau de suivi]
 
-## Actions terminées
-[Liste des actions terminées depuis le dernier point — si aucune, écrire "Aucune action clôturée depuis le dernier point."]
+## Point action
+[Liste uniquement des actions de type "Action" qui ont au moins un commentaire]
+- [0001] Libellé de l'action (Responsable : XX, Société) – Échéance : JJ/MM/AAAA – Statut : ...
+  - Commentaire (JJ/MM/AAAA) : texte du commentaire
 
 ## Points d'attention
-[Alertes, actions en retard (échéance dépassée), informations importantes]
+[Alertes, actions en retard (échéance dépassée), informations importantes. Si aucun, écrire "Aucun point d'attention particulier."]
 
 ## Prochaines étapes
 [Résumé des prochaines échéances et actions prioritaires]
@@ -32,16 +36,19 @@ Cordialement,
 ---
 
 Règles de mise en forme (OBLIGATOIRES) :
-- Ne jamais utiliser ** (gras markdown) ni * (italique markdown) ni aucun autre marqueur markdown
-- Chaque action doit commencer par un tiret - suivi du numéro entre crochets : - [0001] Libellé de l'action (Responsable : XX, Société) – Échéance : JJ/MM/AAAA – Statut : ...
-- Les commentaires liés à une action sont placés sur des lignes séparées, chacune précédée d'un retour à la ligne et indentée avec deux espaces et un tiret : "  - Commentaire (JJ/MM/AAAA) : texte du commentaire"
+- Ne jamais utiliser ** (gras markdown) ni * (italique markdown) dans le texte courant
+- Le tableau de suivi doit être au format markdown avec des pipes : | col1 | col2 | ... |
+- La ligne de séparation d'en-tête du tableau doit être : |---|---|---|---|---|---|---|
+- Dans les cellules du tableau, si une valeur est absente mettre -
+- Chaque action dans "Point action" doit commencer par un tiret - suivi du numéro entre crochets : - [0001] Libellé (Responsable : XX, Société) – Échéance : JJ/MM/AAAA – Statut : ...
+- Les commentaires sont placés sur des lignes séparées, indentées avec deux espaces et un tiret : "  - Commentaire (JJ/MM/AAAA) : texte du commentaire"
+- Si aucune action n'a de commentaire, écrire dans "Point action" : "Aucune action avec commentaire."
 - Utiliser uniquement des tirets - comme puces, jamais des astérisques
+- Ne pas mettre de ligne séparatrice horizontale (---) entre les sections du corps du mail
 - Langue : français, ton professionnel et concis
 - Ne pas inventer d'informations absentes des données
-- Si un champ est vide ou manquant, l'ignorer
-- Les actions de type "Commentaire", "Info" ou "Alerte" sont des points d'information à intégrer dans la section appropriée, avec leur numéro
 - Date au format JJ/MM/AAAA
-- Les actions au statut "Terminé" ne sont à mentionner que si elles ont été clôturées récemment (échéance ou commentaire datant de moins de 30 jours)
+- Les actions au statut "Terminé" ne sont à mentionner dans "Point action" que si elles ont été clôturées récemment (moins de 30 jours)
 
 Données du tableau :
 {{DONNEES}}
