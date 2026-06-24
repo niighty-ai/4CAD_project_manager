@@ -2718,7 +2718,7 @@ function _suiviBuildResumeData(p) {
   const actions = (p.actions || []).filter(a => a.statut !== 'backlog');
   actions.forEach(a => {
     const typeLabel   = (_SUIVI_TYPE_LABELS[a.type || 'action'] || a.type || 'action').toUpperCase();
-    const statutLabel = a.type === 'action' ? (_SUIVI_STATUT_LABELS[a.statut] || a.statut) : null;
+    const statutLabel = _SUIVI_STATUT_LABELS[a.statut] || a.statut || '';
     const resp        = (a.responsables || []).map(r => _suiviInitials(r.name)).join(', ');
     const societeRaw  = a.societe || (a.type === 'action' ? '4CAD' : '');
     const societe     = societeRaw === '4CAD' ? '4CAD'
@@ -2729,9 +2729,9 @@ function _suiviBuildResumeData(p) {
     const overdue     = a.type === 'action' && a.statut !== 'done' && _suiviIsOverdue(a.echeance);
 
     let line = `[${a.numero || '????'}] [${typeLabel}] ${a.action || '(sans contenu)'}`;
-    if (resp)     line += ` — Responsable : ${resp}`;
-    if (societe)  line += ` — Société : ${societe}`;
-    if (echeance) line += ` — Échéance : ${echeance}${overdue ? ' ⚠ EN RETARD' : ''}`;
+    if (resp)        line += ` — Responsable : ${resp}`;
+    if (societe)     line += ` — Société : ${societe}`;
+    if (echeance)    line += ` — Échéance : ${echeance}${overdue ? ' ⚠ EN RETARD' : ''}`;
     if (statutLabel) line += ` — Statut : ${statutLabel}`;
     lines.push(line);
 
@@ -2742,6 +2742,7 @@ function _suiviBuildResumeData(p) {
         : '';
       lines.push(`  - ${dateStr ? dateStr + ' : ' : ''}${c.text || ''}`);
     });
+    if (comments.length > 0) lines.push(''); // ligne vide après chaque action avec commentaires
   });
 
   return { today, clientName, donnees: lines.join('\n') };
