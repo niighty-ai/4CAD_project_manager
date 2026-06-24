@@ -906,9 +906,7 @@ function _suiviOpenAddFromTodoPanel(btnEl) {
     html += `<div class="suivi-lp-empty">Toutes les tâches de ce dossier sont déjà liées.</div>`;
   } else {
     html += `<div class="suivi-lp-list">` + available.map(t => {
-      const due = t.dueDate
-        ? new Date(t.dueDate + 'T00:00:00').toLocaleDateString('fr-FR', { day:'2-digit', month:'2-digit', year:'numeric' })
-        : '';
+      const due = _suiviFmtDate(t.dueDate);
       const statusDot = t.completed
         ? `<span class="suivi-lp-check done">✓</span>`
         : `<span class="suivi-lp-check">○</span>`;
