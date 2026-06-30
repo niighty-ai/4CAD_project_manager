@@ -242,7 +242,7 @@ function _startSuiviLoad(userId) {
   _suiviReadLS();
   if (typeof window._fbOnSuiviData === 'function') {
     window._fbOnSuiviData(userId, val => {
-      if ((Date.now() - _suiviSaveTs) < 3000) return;
+      if ((Date.now() - _suiviSaveTs) < 10000) return;
       if (val) {
         _suiviState = val;
         _suiviMigrateState(_suiviState);
@@ -1355,40 +1355,57 @@ async function _suiviExportPPTX() {
     }
 
     if (p.interventions && p.interventions.rows.length > 0) {
-      const intv = p.interventions;
-      const s3 = pptx.addSlide();
-      s3.background = { color: NAVY };
-      addBadge(s3);
-      addOrangeBar(s3, 0.25, 0.5);
-      s3.addText('Planning des interventions', { x:0.5, y:0.2, w:11.5, h:0.6, fontSize:22, bold:true, color:WHITE, fontFace:FONT });
-      s3.addText(p.client, { x:0.5, y:0.75, w:11.5, h:0.3, fontSize:12, color:ORANGE, fontFace:FONT, bold:true });
-
-      const nInt = intv.intervenants.length;
-      const totalW = 12.7;
-      const dateW  = 1.6;
+      const intv   = p.interventions;
+      const nInt   = intv.intervenants.length;
+      const totalW = 13.1;
+      const dateW  = 1.4;
       const intW   = (totalW - dateW) / Math.max(nInt, 1);
 
-      const intvHdr = [
-        { text:'Date', options:{ bold:true, color:WHITE, fill:{color:'1e2f3f'}, fontSize:11, fontFace:FONT, align:'center', valign:'middle' } },
-        ...intv.intervenants.map(n => ({ text:n, options:{ bold:true, color:WHITE, fill:{color:'1e2f3f'}, fontSize:11, fontFace:FONT, align:'center', valign:'middle' } }))
-      ];
-      const intvRows = intv.rows.map(row => [
-        { text: _suiviFmtIntvDateShort(row.date), options:{ color:WHITE, fontSize:11, fontFace:FONT, align:'center', valign:'middle', fill:{color:NAVY}, bold:true } },
-        ...intv.intervenants.map(name => {
-          const cell  = row.cells[name] || null;
-          const text  = cell ? _suiviFmtCell(cell) : '';
-          const color = (cell && !cell.valide) ? ORANGE : (cell ? WHITE : '3d5972');
-          return { text: text || '-', options:{ color, fontSize:11, fontFace:FONT, align:'center', valign:'middle', fill:{color:NAVY}, italic: !!(cell && !cell.valide) } };
-        })
-      ]);
+      /* Calcul dynamique pour tenir sur une seule diapositive */
+      const TABLE_Y   = 1.05;
+      const FOOTER_H  = 0.35;
+      const AVAIL_H   = 7.5 - TABLE_Y - FOOTER_H;          /* ~6.1 in disponibles */
+      const MAX_PER_SLIDE = Math.floor(AVAIL_H / 0.14);     /* plancher absolu 0.14in */
+      const allRows = intv.rows;
+      const CHUNK   = Math.min(allRows.length, MAX_PER_SLIDE);
 
-      s3.addTable([intvHdr, ...intvRows], {
-        x:0.3, y:1.1, w:totalW,
-        colW:[dateW, ...intv.intervenants.map(() => intW)],
-        rowH:0.32,
-        border:{ type:'solid', color:'3d5972', pt:0.5 }
-      });
-      addFooter(s3, today);
+      /* Paginer si nécessaire */
+      for (let start = 0; start < allRows.length; start += CHUNK) {
+        const chunk = allRows.slice(start, start + CHUNK);
+        const nRows = chunk.length + 1;                     /* +1 en-tête */
+        const rowH  = Math.max(0.14, Math.min(0.30, AVAIL_H / nRows));
+        const fSize = rowH >= 0.26 ? 11 : rowH >= 0.20 ? 9 : rowH >= 0.16 ? 8 : 7;
+        const hSize = Math.min(fSize + 1, 11);
+
+        const s3 = pptx.addSlide();
+        s3.background = { color: NAVY };
+        addBadge(s3);
+        addOrangeBar(s3, 0.25, 0.5);
+        s3.addText('Planning des interventions', { x:0.5, y:0.2, w:11.5, h:0.55, fontSize:20, bold:true, color:WHITE, fontFace:FONT });
+        s3.addText(p.client, { x:0.5, y:0.7, w:11.5, h:0.28, fontSize:11, color:ORANGE, fontFace:FONT, bold:true });
+
+        const intvHdr = [
+          { text:'Date', options:{ bold:true, color:WHITE, fill:{color:'1e2f3f'}, fontSize:hSize, fontFace:FONT, align:'center', valign:'middle' } },
+          ...intv.intervenants.map(n => ({ text:n, options:{ bold:true, color:WHITE, fill:{color:'1e2f3f'}, fontSize:hSize, fontFace:FONT, align:'center', valign:'middle' } }))
+        ];
+        const intvRows = chunk.map(row => [
+          { text: _suiviFmtIntvDateShort(row.date), options:{ color:WHITE, fontSize:fSize, fontFace:FONT, align:'center', valign:'middle', fill:{color:NAVY}, bold:true } },
+          ...intv.intervenants.map(name => {
+            const cell  = row.cells[name] || null;
+            const text  = cell ? _suiviFmtCell(cell) : '';
+            const color = (cell && !cell.valide) ? ORANGE : (cell ? WHITE : '3d5972');
+            return { text: text || '-', options:{ color, fontSize:fSize, fontFace:FONT, align:'center', valign:'middle', fill:{color:NAVY}, italic: !!(cell && !cell.valide) } };
+          })
+        ]);
+
+        s3.addTable([intvHdr, ...intvRows], {
+          x:0.3, y:TABLE_Y, w:totalW,
+          colW:[dateW, ...intv.intervenants.map(() => intW)],
+          rowH,
+          border:{ type:'solid', color:'3d5972', pt:0.5 }
+        });
+        addFooter(s3, today);
+      }
     }
 
     await pptx.writeFile({ fileName: `COPROJ_${p.client.replace(/\s+/g,'_')}_${new Date().toISOString().slice(0,10)}.pptx` });
