@@ -2716,7 +2716,12 @@ function _suiviResumeCopy() {
           ? 'border:1px solid #ccc;padding:4px 8px;background:#f0f0f0;font-weight:bold;font-size:10px;text-transform:uppercase'
           : 'border:1px solid #ccc;padding:4px 8px;vertical-align:top';
         const cellStyle = isAlert ? baseStyle + ';color:#f85149;font-weight:bold' : baseStyle;
-        tbl += '<tr>' + cells.map(c => `<${tag} style="${cellStyle}">${esc(c.trim()).replace(/\*\*([^*]+)\*\*/g,'<b>$1</b>').replace(/\[(\d{4})\]/g,'<b>[$1]</b>')}</${tag}>`).join('') + '</tr>';
+        tbl += '<tr>' + cells.map(c => {
+          const content = esc(c.trim()).replace(/\*\*([^*]+)\*\*/g,'<b>$1</b>').replace(/\[(\d{4})\]/g,'<b>[$1]</b>');
+          /* <font color> est nécessaire car Outlook/Word ignore color dans les styles CSS inline des cellules */
+          const inner = isAlert ? `<font color="#f85149"><b>${content}</b></font>` : content;
+          return `<${tag} style="${cellStyle}">${inner}</${tag}>`;
+        }).join('') + '</tr>';
         if (hdr) hdr = false;
       }
       tbl += '</table>';
