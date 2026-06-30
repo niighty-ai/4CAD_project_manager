@@ -1363,8 +1363,8 @@ async function _suiviExportPPTX() {
 
       /* Calcul dynamique pour tenir sur une seule diapositive */
       const TABLE_Y   = 1.05;
-      const FOOTER_H  = 0.35;
-      const AVAIL_H   = 7.5 - TABLE_Y - FOOTER_H;          /* ~6.1 in disponibles */
+      const FOOTER_Y  = 7.1;   /* position réelle du footer addFooter() */
+      const AVAIL_H   = FOOTER_Y - TABLE_Y - 0.06;          /* ~5.99 in, petit buffer */
       const MAX_PER_SLIDE = Math.floor(AVAIL_H / 0.14);     /* plancher absolu 0.14in */
       const allRows = intv.rows;
       const CHUNK   = Math.min(allRows.length, MAX_PER_SLIDE);
