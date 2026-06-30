@@ -832,11 +832,11 @@ function _suiviSyncTodoToSuivi() {
         action.updatedAt = new Date().toISOString();
         changed = true;
       }
-      /* Sync échéance Todo → Suivi
-         Normalise en YYYY-MM-DD : task.dueDate peut être un ISO complet
-         ("2026-06-25T00:00:00.000Z") selon l'origine de la mise à jour */
+      /* Sync échéance Todo → Suivi uniquement si le todo a une date
+         (ne jamais vider l'échéance suivi si la tâche n'a pas de dueDate)
+         Normalise en YYYY-MM-DD : task.dueDate peut être un ISO complet */
       const taskDate = (task.dueDate || '').slice(0, 10);
-      if (taskDate !== (action.echeance || '')) {
+      if (taskDate && taskDate !== (action.echeance || '')) {
         action.echeance = taskDate;
         action.updatedAt = new Date().toISOString();
         changed = true;

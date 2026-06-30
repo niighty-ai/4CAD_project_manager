@@ -408,6 +408,21 @@ function _todoDeleteTask(taskId) {
   /* Supprimer sous-tâches récursivement */
   _todoData.tasks.filter(t => t.parentId === taskId).forEach(st => _todoDeleteTask(st.id));
   const task = _todoData.tasks.find(t => t.id === taskId);
+
+  /* Migration des commentaires vers l'action Suivi liée AVANT suppression */
+  if (task && task.comments && task.comments.length) {
+    if (typeof _suiviState !== 'undefined') {
+      (_suiviState.projects || []).forEach(proj => {
+        (proj.actions || []).forEach(action => {
+          if (action.todoTaskId === taskId) {
+            action.comments = [...(task.comments || [])];
+          }
+        });
+      });
+      if (typeof _suiviSave === 'function') _suiviSave();
+    }
+  }
+
   if (task && task.sharedWith && task.sharedWith.length > 0) {
     if (typeof window._fbRemoveSharedTask === 'function') window._fbRemoveSharedTask(taskId);
     /* Nettoyer les refs de partage */
