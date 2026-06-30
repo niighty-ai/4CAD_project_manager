@@ -1409,33 +1409,32 @@ async function _suiviExportPPTX() {
     if (p.interventions && p.interventions.rows.length > 0) {
       const intv   = p.interventions;
       const nInt   = intv.intervenants.length;
-      const totalW = 13.1;
+
+      /* Largeur : slide 13.33in, départ x=0.3 → max 13.0in utilisables */
+      const totalW = 12.7;
       const dateW  = 1.4;
       const intW   = (totalW - dateW) / Math.max(nInt, 1);
 
-      /* Calcul dynamique pour tenir sur une seule diapositive.
-         PptxGenJS ajoute du padding interne : buffer généreux de 0.45in */
-      const TABLE_Y   = 1.0;
-      const FOOTER_Y  = 7.1;
-      const AVAIL_H   = FOOTER_Y - TABLE_Y - 0.45;          /* ~5.65 in utilisables */
-      const MAX_PER_SLIDE = Math.floor(AVAIL_H / 0.14);     /* plancher absolu 0.14in */
-      const allRows = intv.rows;
-      const CHUNK   = Math.min(allRows.length, MAX_PER_SLIDE);
+      /* Hauteur : empiriquement PptxGenJS dépasse le rowH calculé.
+         On fixe un MAX_PER_SLIDE conservateur et on pagine le surplus. */
+      const TABLE_Y       = 1.0;
+      const AVAIL_H       = 5.7;   /* espace réel fiable (testé) */
+      const MAX_PER_SLIDE = 20;    /* limite sûre : 20 lignes données + 1 en-tête */
+      const allRows       = intv.rows;
 
-      /* Paginer si nécessaire */
-      for (let start = 0; start < allRows.length; start += CHUNK) {
-        const chunk = allRows.slice(start, start + CHUNK);
-        const nRows = chunk.length + 1;                     /* +1 en-tête */
-        const rowH  = Math.max(0.14, Math.min(0.30, AVAIL_H / nRows));
-        const fSize = rowH >= 0.26 ? 11 : rowH >= 0.20 ? 9 : rowH >= 0.16 ? 8 : 7;
+      for (let start = 0; start < allRows.length; start += MAX_PER_SLIDE) {
+        const chunk = allRows.slice(start, start + MAX_PER_SLIDE);
+        const nRows = chunk.length + 1;           /* +1 en-tête */
+        const rowH  = Math.max(0.16, Math.min(0.30, AVAIL_H / nRows));
+        const fSize = rowH >= 0.26 ? 11 : rowH >= 0.22 ? 9 : rowH >= 0.18 ? 8 : 7;
         const hSize = Math.min(fSize + 1, 11);
 
         const s3 = pptx.addSlide();
         s3.background = { color: NAVY };
         addBadge(s3);
-        addOrangeBar(s3, 0.25, 0.5);
-        s3.addText('Planning des interventions', { x:0.5, y:0.15, w:11.5, h:0.5, fontSize:18, bold:true, color:WHITE, fontFace:FONT });
-        s3.addText(p.client, { x:0.5, y:0.62, w:11.5, h:0.26, fontSize:10, color:ORANGE, fontFace:FONT, bold:true });
+        addOrangeBar(s3, 0.22, 0.55);
+        s3.addText('Planning des interventions', { x:0.5, y:0.12, w:11.5, h:0.48, fontSize:18, bold:true, color:WHITE, fontFace:FONT });
+        s3.addText(p.client, { x:0.5, y:0.58, w:11.5, h:0.26, fontSize:10, color:ORANGE, fontFace:FONT, bold:true });
 
         const intvHdr = [
           { text:'Date', options:{ bold:true, color:WHITE, fill:{color:'1e2f3f'}, fontSize:hSize, fontFace:FONT, align:'center', valign:'middle' } },
