@@ -2705,7 +2705,7 @@ function _suiviResumeCopy() {
         tableRows.push(rawLines[j]);
         j++;
       }
-      let tbl = '<table style="border-collapse:collapse;width:100%;font-family:Arial,sans-serif;font-size:11px;margin:8px 0 14px">';
+      let tbl = '<table style="border-collapse:collapse;width:100%;font-family:Aptos,Calibri,Arial,sans-serif;font-size:12px;margin:8px 0 14px">';
       let hdr = true;
       for (const tr of tableRows) {
         if (/^\|[-| :]+\|$/.test(tr.trim())) { hdr = false; continue; }
@@ -2713,8 +2713,8 @@ function _suiviResumeCopy() {
         const tag = hdr ? 'th' : 'td';
         const isAlert = !hdr && cells.length > 1 && /alerte/i.test(cells[1].trim());
         const baseStyle = hdr
-          ? 'border:1px solid #ccc;padding:4px 8px;background:#f0f0f0;font-weight:bold;font-size:10px;text-transform:uppercase'
-          : 'border:1px solid #ccc;padding:4px 8px;vertical-align:top';
+          ? 'border:1px solid #ccc;padding:4px 8px;background:#f0f0f0;font-weight:bold;font-size:12px;text-transform:uppercase;font-family:Aptos,Calibri,Arial,sans-serif'
+          : 'border:1px solid #ccc;padding:4px 8px;vertical-align:top;font-family:Aptos,Calibri,Arial,sans-serif;font-size:12px';
         const cellStyle = isAlert ? baseStyle + ';color:#f85149;font-weight:bold' : baseStyle;
         tbl += '<tr>' + cells.map(c => {
           const content = esc(c.trim()).replace(/\*\*([^*]+)\*\*/g,'<b>$1</b>').replace(/\[(\d{4})\]/g,'<b>[$1]</b>');
@@ -2731,7 +2731,7 @@ function _suiviResumeCopy() {
     // ## Titre → <h3> souligné
     const hm = line.match(/^##\s+(.+)$/);
     if (hm) {
-      htmlParts.push(`<h3 style="margin:18px 0 5px;font-size:12px;font-family:Arial,sans-serif;text-decoration:underline;text-transform:uppercase;letter-spacing:0.5px">${esc(hm[1])}</h3>`);
+      htmlParts.push(`<h3 style="margin:18px 0 5px;font-size:12px;font-family:Aptos,Calibri,Arial,sans-serif;text-decoration:underline;text-transform:uppercase;letter-spacing:0.5px">${esc(hm[1])}</h3>`);
       j++; continue;
     }
     // Séparateurs --- → ignorer
@@ -2740,24 +2740,24 @@ function _suiviResumeCopy() {
     const cm = line.match(/^  - (.+)$/);
     if (cm) {
       const content = esc(cm[1]).replace(/\*\*([^*]+)\*\*/g,'<b>$1</b>').replace(/\[(\d{4})\]/g,'<b>[$1]</b>');
-      htmlParts.push(`<p style="margin:2px 0 2px 18px;font-family:Arial,sans-serif;font-size:11px;color:#555">&#8627; ${content}</p>`);
+      htmlParts.push(`<p style="margin:2px 0 2px 18px;font-family:Aptos,Calibri,Arial,sans-serif;font-size:12px;color:#555">&#8627; ${content}</p>`);
       j++; continue;
     }
     // Ligne à puce "- "
     const bm = line.match(/^- (.+)$/);
     if (bm) {
       const content = esc(bm[1]).replace(/\*\*([^*]+)\*\*/g,'<b>$1</b>').replace(/\[(\d{4})\]/g,'<b>[$1]</b>');
-      htmlParts.push(`<p style="margin:3px 0;font-family:Arial,sans-serif;font-size:12px">&#8226; ${content}</p>`);
+      htmlParts.push(`<p style="margin:3px 0;font-family:Aptos,Calibri,Arial,sans-serif;font-size:12px">&#8226; ${content}</p>`);
       j++; continue;
     }
     // Ligne vide
     if (!line.trim()) { htmlParts.push('<br>'); j++; continue; }
     // Ligne normale
     const content = esc(line).replace(/\*\*([^*]+)\*\*/g,'<b>$1</b>').replace(/\[(\d{4})\]/g,'<b>[$1]</b>');
-    htmlParts.push(`<p style="margin:3px 0;font-family:Arial,sans-serif;font-size:12px">${content}</p>`);
+    htmlParts.push(`<p style="margin:3px 0;font-family:Aptos,Calibri,Arial,sans-serif;font-size:12px">${content}</p>`);
     j++;
   }
-  const html = `<html><body style="font-family:Arial,sans-serif;font-size:12px">${htmlParts.join('')}</body></html>`;
+  const html = `<html><body style="font-family:Aptos,Calibri,Arial,sans-serif;font-size:12px">${htmlParts.join('')}</body></html>`;
 
   const _onSuccess = () => {
     const btn = document.getElementById('suiviResumeCopyBtn');
