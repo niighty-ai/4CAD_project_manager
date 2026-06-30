@@ -242,7 +242,11 @@ function _startSuiviLoad(userId) {
   _suiviReadLS();
   if (typeof window._fbOnSuiviData === 'function') {
     window._fbOnSuiviData(userId, val => {
-      if ((Date.now() - _suiviSaveTs) < 10000) return;
+      /* Après le chargement initial : ignorer Firebase si on vient de sauvegarder
+         localement (évite l'écho Firebase d'écraser nos propres modifications).
+         Au premier chargement (_suiviLoaded = false), Firebase l'emporte toujours
+         sur le localStorage pour prendre les données d'un autre appareil. */
+      if (_suiviLoaded && (Date.now() - _suiviSaveTs) < 10000) return;
       if (val) {
         _suiviState = val;
         _suiviMigrateState(_suiviState);
