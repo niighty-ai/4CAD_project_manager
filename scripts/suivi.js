@@ -2589,6 +2589,10 @@ function _suiviRenderResumePanel(text) {
   const panel = document.createElement('div');
   panel.id = 'suiviResumePanel';
 
+  /* Numéros des actions Alerte pour coloration rouge du [XXXX] dans le panel */
+  const _rp = (typeof _suiviGetActive === 'function') ? _suiviGetActive() : null;
+  const _alertNumsPanel = new Set((_rp?.actions || []).filter(a => a.type === 'alert').map(a => String(a.numero)));
+
   /* Nettoyage et formatage du texte Gemini */
 
   /* Convertir les tableaux pipe markdown en <table> HTML avant l'échappement */
@@ -2630,8 +2634,11 @@ function _suiviRenderResumePanel(text) {
         .replace(/^---+$/gm, '')
         /* Lignes de commentaires indentées "  - " → indentation visuelle */
         .replace(/^  - /gm, '<span style="margin-left:18px;display:inline-block">↳ </span>')
-        /* Numéro d'action [XXXX] → badge monospace orange */
-        .replace(/\[(\d{4})\]/g, '<span style="font-family:\'Courier New\',monospace;font-weight:700;color:var(--accent);font-size:11px">[$1]</span>');
+        /* Numéro d'action [XXXX] → badge monospace ; rouge si Alerte, orange sinon */
+        .replace(/\[(\d{4})\]/g, (_, n) => {
+          const col = _alertNumsPanel.has(n) ? '#f85149' : 'var(--accent)';
+          return `<span style="font-family:'Courier New',monospace;font-weight:700;color:${col};font-size:11px">[${n}]</span>`;
+        });
     }
   }
 
@@ -2665,6 +2672,13 @@ function _suiviResumeCopy() {
   if (!raw) return;
 
   const esc = s => s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+
+  /* Numéros des actions de type Alerte pour coloration du [XXXX] dans Point action */
+  const _p = (typeof _suiviGetActive === 'function') ? _suiviGetActive() : null;
+  const alertNums = new Set((_p?.actions || []).filter(a => a.type === 'alert').map(a => String(a.numero)));
+  const _numHtml = num => alertNums.has(num)
+    ? `<font color="#f85149"><b>[${num}]</b></font>`
+    : `<b>[${num}]</b>`;
 
   /* ── Texte brut nettoyé pour Outlook ── */
   const plainLines = [];
@@ -2746,14 +2760,14 @@ function _suiviResumeCopy() {
     // Ligne à puce "- "
     const bm = line.match(/^- (.+)$/);
     if (bm) {
-      const content = esc(bm[1]).replace(/\*\*([^*]+)\*\*/g,'<b>$1</b>').replace(/\[(\d{4})\]/g,'<b>[$1]</b>');
+      const content = esc(bm[1]).replace(/\*\*([^*]+)\*\*/g,'<b>$1</b>').replace(/\[(\d{4})\]/g, (_, n) => _numHtml(n));
       htmlParts.push(`<p style="margin:3px 0;font-family:Aptos,Calibri,Arial,sans-serif;font-size:12pt">&#8226; ${content}</p>`);
       j++; continue;
     }
     // Ligne vide
     if (!line.trim()) { htmlParts.push('<br>'); j++; continue; }
     // Ligne normale
-    const content = esc(line).replace(/\*\*([^*]+)\*\*/g,'<b>$1</b>').replace(/\[(\d{4})\]/g,'<b>[$1]</b>');
+    const content = esc(line).replace(/\*\*([^*]+)\*\*/g,'<b>$1</b>').replace(/\[(\d{4})\]/g, (_, n) => _numHtml(n));
     htmlParts.push(`<p style="margin:3px 0;font-family:Aptos,Calibri,Arial,sans-serif;font-size:12pt">${content}</p>`);
     j++;
   }
