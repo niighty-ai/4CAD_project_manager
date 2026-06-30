@@ -445,6 +445,54 @@ function _suiviDeleteActionComment(actionId, commentId) {
   _suiviSave();
 }
 
+function _suiviEditCpCommentDate(actionId, commentId) {
+  const p = _suiviGetActive(); if (!p) return;
+  const action = p.actions.find(a => a.id === actionId); if (!action) return;
+
+  /* Trouver le commentaire dans la bonne source */
+  let comment = null;
+  if (action.todoTaskId) {
+    const task = _suiviGetTodoTask(action.todoTaskId);
+    comment = (task?.comments || []).find(c => c.id === commentId);
+  }
+  if (!comment) comment = (action.comments || []).find(c => c.id === commentId);
+  if (!comment) return;
+
+  /* Date actuelle au format YYYY-MM-DD pour l'input */
+  const current = comment.createdAt ? comment.createdAt.slice(0, 10) : new Date().toISOString().slice(0, 10);
+
+  /* Remplacer la date par un input inline */
+  const dateEl = document.querySelector(`[data-cid="${commentId}"] .suivi-cp-date`);
+  if (!dateEl) return;
+
+  const inp = document.createElement('input');
+  inp.type = 'date';
+  inp.value = current;
+  inp.className = 'suivi-cp-date-input';
+  inp.onclick = e => e.stopPropagation();
+
+  const apply = () => {
+    if (!inp.value) return;
+    /* Conserver l'heure originale, remplacer seulement la date */
+    const origTime = comment.createdAt ? comment.createdAt.slice(10) : 'T12:00:00.000Z';
+    comment.createdAt = inp.value + origTime;
+    /* Sauvegarder dans la bonne source */
+    if (action.todoTaskId && typeof _todoSave === 'function') {
+      _todoSave();
+    } else {
+      p.updatedAt = new Date().toISOString();
+      _suiviSave();
+    }
+    _suiviRenderCommentPanel(actionId);
+  };
+
+  inp.addEventListener('change', apply);
+  inp.addEventListener('blur', apply);
+  dateEl.replaceWith(inp);
+  inp.focus();
+  inp.showPicker?.();
+}
+
 function _suiviOpenCommentPanel(actionId, btnEl) {
   _suiviCloseLinkPanel();
 
@@ -508,7 +556,7 @@ function _suiviRenderCommentPanel(actionId) {
       <div class="suivi-cp-body">
         <div class="suivi-cp-header">
           <span class="suivi-cp-author">${_suiviEsc(authorShort)}</span>
-          <span class="suivi-cp-date">${dateStr}</span>
+          <span class="suivi-cp-date" onclick="_suiviEditCpCommentDate('${actionId}','${c.id}')" title="Cliquer pour modifier la date">${dateStr}</span>
           ${c.updatedAt ? `<span class="suivi-cp-edited">(modifié)</span>` : ''}
         </div>
         <div class="suivi-cp-text" id="scptxt_${c.id}">${_suiviEsc(c.text).replace(/\n/g,'<br>')}</div>
