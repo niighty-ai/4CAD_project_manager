@@ -2602,7 +2602,9 @@ function _suiviRenderResumePanel(text) {
         if (/^\|[-| :]+\|$/.test(row.trim())) { isHeader = false; continue; }
         const cells = row.trim().replace(/^\||\|$/g, '').split('|');
         const tag = isHeader ? 'th' : 'td';
-        html += '<tr>' + cells.map(c => `<${tag}>${c.trim().replace(/\*\*([^*]+)\*\*/g,'$1')}</${tag}>`).join('') + '</tr>';
+        const isAlert = !isHeader && cells.length > 1 && /alerte/i.test(cells[1].trim());
+        const trClass = isAlert ? ' class="suivi-resume-row-alert"' : '';
+        html += `<tr${trClass}>` + cells.map(c => `<${tag}>${c.trim().replace(/\*\*([^*]+)\*\*/g,'$1')}</${tag}>`).join('') + '</tr>';
         if (isHeader) isHeader = false;
       }
       html += '</table>';
@@ -2709,10 +2711,12 @@ function _suiviResumeCopy() {
         if (/^\|[-| :]+\|$/.test(tr.trim())) { hdr = false; continue; }
         const cells = tr.trim().replace(/^\||\|$/g,'').split('|');
         const tag = hdr ? 'th' : 'td';
-        const style = hdr
+        const isAlert = !hdr && cells.length > 1 && /alerte/i.test(cells[1].trim());
+        const baseStyle = hdr
           ? 'border:1px solid #ccc;padding:4px 8px;background:#f0f0f0;font-weight:bold;font-size:10px;text-transform:uppercase'
           : 'border:1px solid #ccc;padding:4px 8px;vertical-align:top';
-        tbl += '<tr>' + cells.map(c => `<${tag} style="${style}">${esc(c.trim()).replace(/\*\*([^*]+)\*\*/g,'<b>$1</b>').replace(/\[(\d{4})\]/g,'<b>[$1]</b>')}</${tag}>`).join('') + '</tr>';
+        const cellStyle = isAlert ? baseStyle + ';color:#f85149;font-weight:bold' : baseStyle;
+        tbl += '<tr>' + cells.map(c => `<${tag} style="${cellStyle}">${esc(c.trim()).replace(/\*\*([^*]+)\*\*/g,'<b>$1</b>').replace(/\[(\d{4})\]/g,'<b>[$1]</b>')}</${tag}>`).join('') + '</tr>';
         if (hdr) hdr = false;
       }
       tbl += '</table>';
