@@ -1413,10 +1413,11 @@ async function _suiviExportPPTX() {
       const dateW  = 1.4;
       const intW   = (totalW - dateW) / Math.max(nInt, 1);
 
-      /* Calcul dynamique pour tenir sur une seule diapositive */
-      const TABLE_Y   = 1.05;
-      const FOOTER_Y  = 7.1;   /* position réelle du footer addFooter() */
-      const AVAIL_H   = FOOTER_Y - TABLE_Y - 0.06;          /* ~5.99 in, petit buffer */
+      /* Calcul dynamique pour tenir sur une seule diapositive.
+         PptxGenJS ajoute du padding interne : buffer généreux de 0.45in */
+      const TABLE_Y   = 1.0;
+      const FOOTER_Y  = 7.1;
+      const AVAIL_H   = FOOTER_Y - TABLE_Y - 0.45;          /* ~5.65 in utilisables */
       const MAX_PER_SLIDE = Math.floor(AVAIL_H / 0.14);     /* plancher absolu 0.14in */
       const allRows = intv.rows;
       const CHUNK   = Math.min(allRows.length, MAX_PER_SLIDE);
@@ -1433,8 +1434,8 @@ async function _suiviExportPPTX() {
         s3.background = { color: NAVY };
         addBadge(s3);
         addOrangeBar(s3, 0.25, 0.5);
-        s3.addText('Planning des interventions', { x:0.5, y:0.2, w:11.5, h:0.55, fontSize:20, bold:true, color:WHITE, fontFace:FONT });
-        s3.addText(p.client, { x:0.5, y:0.7, w:11.5, h:0.28, fontSize:11, color:ORANGE, fontFace:FONT, bold:true });
+        s3.addText('Planning des interventions', { x:0.5, y:0.15, w:11.5, h:0.5, fontSize:18, bold:true, color:WHITE, fontFace:FONT });
+        s3.addText(p.client, { x:0.5, y:0.62, w:11.5, h:0.26, fontSize:10, color:ORANGE, fontFace:FONT, bold:true });
 
         const intvHdr = [
           { text:'Date', options:{ bold:true, color:WHITE, fill:{color:'1e2f3f'}, fontSize:hSize, fontFace:FONT, align:'center', valign:'middle' } },
