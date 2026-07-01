@@ -2684,24 +2684,36 @@ function _suiviResumeCopy() {
   const plainLines = [];
   const rawLines = raw.split('\n');
   let i = 0;
+  let inSubPlain = false; // true après un commentaire "  - ", pour indenter les sous-items
   while (i < rawLines.length) {
     const line = rawLines[i];
     // Ligne de tableau pipe → représentation texte condensée
     if (/^\|/.test(line)) {
-      if (/^\|[-| :]+\|$/.test(line.trim())) { i++; continue; } // séparateur entête
+      if (/^\|[-| :]+\|$/.test(line.trim())) { i++; continue; }
       const cells = line.trim().replace(/^\||\|$/g,'').split('|').map(c => c.trim().replace(/\*\*([^*]+)\*\*/g,'$1'));
       plainLines.push(cells.join(' | '));
       i++; continue;
     }
-    // ## Titre → majuscules soulignées
+    // ## Titre → majuscules soulignées + reset état
     const hm = line.match(/^##\s+(.+)$/);
     if (hm) {
+      inSubPlain = false;
       plainLines.push('', hm[1].toUpperCase(), '─'.repeat(hm[1].length), '');
       i++; continue;
     }
     // Séparateurs --- → ignorer
     if (/^---+$/.test(line.trim())) { i++; continue; }
-    // Nettoyage markdown courant
+    // Commentaire "  - " → active l'état sous-item
+    if (/^  - /.test(line)) { inSubPlain = true; }
+    // Puce "- " sans numéro d'action → sous-item si dans l'état
+    const bPlain = line.match(/^- (.+)$/);
+    if (bPlain) {
+      if (/^\[\d{4}\]/.test(bPlain[1].trim())) { inSubPlain = false; } // nouvelle action = reset
+      else if (inSubPlain) {
+        plainLines.push('      ' + bPlain[1].replace(/\*\*([^*]+)\*\*/g,'$1'));
+        i++; continue;
+      }
+    }
     plainLines.push(line.replace(/\*\*([^*]+)\*\*/g,'$1').replace(/\*([^*]+)\*/g,'$1'));
     i++;
   }
@@ -2710,6 +2722,7 @@ function _suiviResumeCopy() {
   /* ── Version HTML pour collage enrichi dans Outlook ── */
   const htmlParts = [];
   let j = 0;
+  let inSubHtml = false; // true après un commentaire "  - ", pour indenter les sous-items
   while (j < rawLines.length) {
     const line = rawLines[j];
     // Bloc de tableau pipe markdown → <table>
@@ -2742,17 +2755,19 @@ function _suiviResumeCopy() {
       htmlParts.push(tbl);
       continue;
     }
-    // ## Titre → <h3> souligné
+    // ## Titre → <h3> souligné + reset état
     const hm = line.match(/^##\s+(.+)$/);
     if (hm) {
+      inSubHtml = false;
       htmlParts.push(`<h3 style="margin:18px 0 5px;font-size:12pt;font-family:Aptos,Calibri,Arial,sans-serif;text-decoration:underline;text-transform:uppercase;letter-spacing:0.5px">${esc(hm[1])}</h3>`);
       j++; continue;
     }
     // Séparateurs --- → ignorer
     if (/^---+$/.test(line.trim())) { j++; continue; }
-    // Ligne indentée commentaire "  - "
+    // Ligne indentée commentaire "  - " → active l'état sous-item
     const cm = line.match(/^  - (.+)$/);
     if (cm) {
+      inSubHtml = true;
       const content = esc(cm[1]).replace(/\*\*([^*]+)\*\*/g,'<b>$1</b>').replace(/\[(\d{4})\]/g,'<b>[$1]</b>');
       htmlParts.push(`<p style="margin:2px 0 2px 18px;font-family:Aptos,Calibri,Arial,sans-serif;font-size:12pt;color:#555">&#8627; ${content}</p>`);
       j++; continue;
@@ -2760,6 +2775,14 @@ function _suiviResumeCopy() {
     // Ligne à puce "- "
     const bm = line.match(/^- (.+)$/);
     if (bm) {
+      const isAction = /^\[\d{4}\]/.test(bm[1].trim());
+      if (isAction) inSubHtml = false; // nouvelle action → reset
+      if (!isAction && inSubHtml) {
+        // Sous-item d'un commentaire : même indentation, même couleur #555
+        const content = esc(bm[1]).replace(/\*\*([^*]+)\*\*/g,'<b>$1</b>').replace(/\[(\d{4})\]/g,'<b>[$1]</b>');
+        htmlParts.push(`<p style="margin:1px 0 1px 36px;font-family:Aptos,Calibri,Arial,sans-serif;font-size:12pt;color:#555">&#8226; ${content}</p>`);
+        j++; continue;
+      }
       const content = esc(bm[1]).replace(/\*\*([^*]+)\*\*/g,'<b>$1</b>').replace(/\[(\d{4})\]/g, (_, n) => _numHtml(n));
       htmlParts.push(`<p style="margin:3px 0;font-family:Aptos,Calibri,Arial,sans-serif;font-size:12pt">&#8226; ${content}</p>`);
       j++; continue;
