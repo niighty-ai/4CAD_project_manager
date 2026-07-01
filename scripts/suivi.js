@@ -2714,7 +2714,9 @@ function _suiviResumeCopy() {
         i++; continue;
       }
     }
-    plainLines.push(line.replace(/\*\*([^*]+)\*\*/g,'$1').replace(/\*([^*]+)\*/g,'$1'));
+    // Ligne normale — indenter si dans un bloc sous-item
+    const cleaned = line.replace(/\*\*([^*]+)\*\*/g,'$1').replace(/\*([^*]+)\*/g,'$1');
+    plainLines.push(inSubPlain ? '      ' + cleaned : cleaned);
     i++;
   }
   const plain = plainLines.join('\r\n');
@@ -2789,9 +2791,13 @@ function _suiviResumeCopy() {
     }
     // Ligne vide
     if (!line.trim()) { htmlParts.push('<br>'); j++; continue; }
-    // Ligne normale
+    // Ligne normale — si dans un bloc sous-item, indenter et colorer comme le commentaire parent
     const content = esc(line).replace(/\*\*([^*]+)\*\*/g,'<b>$1</b>').replace(/\[(\d{4})\]/g, (_, n) => _numHtml(n));
-    htmlParts.push(`<p style="margin:3px 0;font-family:Aptos,Calibri,Arial,sans-serif;font-size:12pt">${content}</p>`);
+    if (inSubHtml) {
+      htmlParts.push(`<p style="margin:1px 0 1px 36px;font-family:Aptos,Calibri,Arial,sans-serif;font-size:12pt;color:#555">${content}</p>`);
+    } else {
+      htmlParts.push(`<p style="margin:3px 0;font-family:Aptos,Calibri,Arial,sans-serif;font-size:12pt">${content}</p>`);
+    }
     j++;
   }
   const html = `<html><body style="font-family:Aptos,Calibri,Arial,sans-serif;font-size:12pt">${htmlParts.join('')}</body></html>`;
