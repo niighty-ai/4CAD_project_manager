@@ -2632,6 +2632,8 @@ function _suiviRenderResumePanel(text) {
         .replace(/^## (.+)$/gm, '<span class="suivi-resume-section">$1</span>')
         /* --- en début/fin de mail → ignoré (pas de séparateur horizontal entre sections) */
         .replace(/^---+$/gm, '')
+        /* Continuation de commentaire encodée (4 espaces) → indentation visuelle, couleur atténuée */
+        .replace(/^    (.+)$/gm, '<span style="margin-left:36px;display:inline-block;color:var(--muted)">$1</span>')
         /* Lignes de commentaires indentées "  - " → indentation visuelle */
         .replace(/^  - /gm, '<span style="margin-left:18px;display:inline-block">↳ </span>')
         /* Numéro d'action [XXXX] → badge monospace ; rouge si Alerte, orange sinon */
@@ -2684,7 +2686,6 @@ function _suiviResumeCopy() {
   const plainLines = [];
   const rawLines = raw.split('\n');
   let i = 0;
-  let inSubPlain = false; // true après un commentaire "  - ", pour indenter les sous-items
   while (i < rawLines.length) {
     const line = rawLines[i];
     // Ligne de tableau pipe → représentation texte condensée
@@ -2694,37 +2695,29 @@ function _suiviResumeCopy() {
       plainLines.push(cells.join(' | '));
       i++; continue;
     }
-    // ## Titre → majuscules soulignées + reset état
+    // ## Titre → majuscules soulignées
     const hm = line.match(/^##\s+(.+)$/);
     if (hm) {
-      inSubPlain = false;
       plainLines.push('', hm[1].toUpperCase(), '─'.repeat(hm[1].length), '');
       i++; continue;
     }
     // Séparateurs --- → ignorer
     if (/^---+$/.test(line.trim())) { i++; continue; }
-    // Commentaire "  - " → active l'état sous-item
-    if (/^  - /.test(line)) { inSubPlain = true; }
-    // Puce "- " sans numéro d'action → sous-item si dans l'état
-    const bPlain = line.match(/^- (.+)$/);
-    if (bPlain) {
-      if (/^\[\d{4}\]/.test(bPlain[1].trim())) { inSubPlain = false; } // nouvelle action = reset
-      else if (inSubPlain) {
-        plainLines.push('      ' + bPlain[1].replace(/\*\*([^*]+)\*\*/g,'$1'));
-        i++; continue;
-      }
+    // Continuation de commentaire encodée (4 espaces par _suiviBuildResumeData)
+    if (/^    /.test(line)) {
+      plainLines.push('    ' + line.trimStart().replace(/\*\*([^*]+)\*\*/g,'$1'));
+      i++; continue;
     }
-    // Ligne normale — indenter si dans un bloc sous-item
-    const cleaned = line.replace(/\*\*([^*]+)\*\*/g,'$1').replace(/\*([^*]+)\*/g,'$1');
-    plainLines.push(inSubPlain ? '      ' + cleaned : cleaned);
+    // Ligne normale
+    plainLines.push(line.replace(/\*\*([^*]+)\*\*/g,'$1').replace(/\*([^*]+)\*/g,'$1'));
     i++;
   }
   const plain = plainLines.join('\r\n');
 
   /* ── Version HTML pour collage enrichi dans Outlook ── */
   const htmlParts = [];
+  const CONT_STYLE = 'margin:1px 0 1px 36px;font-family:Aptos,Calibri,Arial,sans-serif;font-size:12pt;color:#555';
   let j = 0;
-  let inSubHtml = false; // true après un commentaire "  - ", pour indenter les sous-items
   while (j < rawLines.length) {
     const line = rawLines[j];
     // Bloc de tableau pipe markdown → <table>
@@ -2757,19 +2750,23 @@ function _suiviResumeCopy() {
       htmlParts.push(tbl);
       continue;
     }
-    // ## Titre → <h3> souligné + reset état
+    // ## Titre → <h3> souligné
     const hm = line.match(/^##\s+(.+)$/);
     if (hm) {
-      inSubHtml = false;
       htmlParts.push(`<h3 style="margin:18px 0 5px;font-size:12pt;font-family:Aptos,Calibri,Arial,sans-serif;text-decoration:underline;text-transform:uppercase;letter-spacing:0.5px">${esc(hm[1])}</h3>`);
       j++; continue;
     }
     // Séparateurs --- → ignorer
     if (/^---+$/.test(line.trim())) { j++; continue; }
-    // Ligne indentée commentaire "  - " → active l'état sous-item
+    // Continuation de commentaire : 4 espaces (encodés par _suiviBuildResumeData)
+    if (/^    /.test(line)) {
+      const content = esc(line.trimStart()).replace(/\*\*([^*]+)\*\*/g,'<b>$1</b>').replace(/\[(\d{4})\]/g,'<b>[$1]</b>');
+      htmlParts.push(`<p style="${CONT_STYLE}">${content}</p>`);
+      j++; continue;
+    }
+    // Ligne indentée commentaire "  - "
     const cm = line.match(/^  - (.+)$/);
     if (cm) {
-      inSubHtml = true;
       const content = esc(cm[1]).replace(/\*\*([^*]+)\*\*/g,'<b>$1</b>').replace(/\[(\d{4})\]/g,'<b>[$1]</b>');
       htmlParts.push(`<p style="margin:2px 0 2px 18px;font-family:Aptos,Calibri,Arial,sans-serif;font-size:12pt;color:#555">&#8627; ${content}</p>`);
       j++; continue;
@@ -2777,27 +2774,15 @@ function _suiviResumeCopy() {
     // Ligne à puce "- "
     const bm = line.match(/^- (.+)$/);
     if (bm) {
-      const isAction = /^\[\d{4}\]/.test(bm[1].trim());
-      if (isAction) inSubHtml = false; // nouvelle action → reset
-      if (!isAction && inSubHtml) {
-        // Sous-item d'un commentaire : même indentation, même couleur #555
-        const content = esc(bm[1]).replace(/\*\*([^*]+)\*\*/g,'<b>$1</b>').replace(/\[(\d{4})\]/g,'<b>[$1]</b>');
-        htmlParts.push(`<p style="margin:1px 0 1px 36px;font-family:Aptos,Calibri,Arial,sans-serif;font-size:12pt;color:#555">&#8226; ${content}</p>`);
-        j++; continue;
-      }
       const content = esc(bm[1]).replace(/\*\*([^*]+)\*\*/g,'<b>$1</b>').replace(/\[(\d{4})\]/g, (_, n) => _numHtml(n));
       htmlParts.push(`<p style="margin:3px 0;font-family:Aptos,Calibri,Arial,sans-serif;font-size:12pt">&#8226; ${content}</p>`);
       j++; continue;
     }
     // Ligne vide
     if (!line.trim()) { htmlParts.push('<br>'); j++; continue; }
-    // Ligne normale — si dans un bloc sous-item, indenter et colorer comme le commentaire parent
+    // Ligne normale
     const content = esc(line).replace(/\*\*([^*]+)\*\*/g,'<b>$1</b>').replace(/\[(\d{4})\]/g, (_, n) => _numHtml(n));
-    if (inSubHtml) {
-      htmlParts.push(`<p style="margin:1px 0 1px 36px;font-family:Aptos,Calibri,Arial,sans-serif;font-size:12pt;color:#555">${content}</p>`);
-    } else {
-      htmlParts.push(`<p style="margin:3px 0;font-family:Aptos,Calibri,Arial,sans-serif;font-size:12pt">${content}</p>`);
-    }
+    htmlParts.push(`<p style="margin:3px 0;font-family:Aptos,Calibri,Arial,sans-serif;font-size:12pt">${content}</p>`);
     j++;
   }
   const html = `<html><body style="font-family:Aptos,Calibri,Arial,sans-serif;font-size:12pt">${htmlParts.join('')}</body></html>`;
@@ -2857,7 +2842,10 @@ function _suiviBuildResumeData(p) {
       const dateStr = c.createdAt
         ? new Date(c.createdAt).toLocaleDateString('fr-FR', { day:'2-digit', month:'2-digit', year:'numeric' })
         : '';
-      lines.push(`  - ${dateStr ? dateStr + ' : ' : ''}${c.text || ''}`);
+      /* Les retours à la ligne du commentaire sont indentés 4 espaces
+         pour que Gemini les traite comme continuation du même item */
+      const commentText = (c.text || '').replace(/\r?\n/g, '\n    ');
+      lines.push(`  - ${dateStr ? dateStr + ' : ' : ''}${commentText}`);
     });
     if (comments.length > 0) lines.push(''); // ligne vide après chaque action avec commentaires
   });
