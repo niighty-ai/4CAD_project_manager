@@ -954,6 +954,24 @@ tr:hover .suivi-btn-rm-row { opacity: 1; }
   text-decoration: underline;
   text-underline-offset: 3px;
 }
+.suivi-resume-cmt {
+  display: flex;
+  gap: 8px;
+  margin: 3px 0 3px 18px;
+  color: var(--muted);
+  font-size: 11px;
+  align-items: flex-start;
+}
+.suivi-resume-cmt-pre {
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.suivi-resume-cmt-body {
+  flex: 1;
+}
+.suivi-resume-cmt-cont {
+  display: block;
+}
 .suivi-resume-table {
   border-collapse: collapse;
   width: 100%;

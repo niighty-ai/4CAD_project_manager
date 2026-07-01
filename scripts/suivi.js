@@ -2632,10 +2632,18 @@ function _suiviRenderResumePanel(text) {
         .replace(/^## (.+)$/gm, '<span class="suivi-resume-section">$1</span>')
         /* --- en début/fin de mail → ignoré (pas de séparateur horizontal entre sections) */
         .replace(/^---+$/gm, '')
-        /* Continuation de commentaire encodée (4 espaces) → indentation visuelle, couleur atténuée */
-        .replace(/^    (.+)$/gm, '<span style="margin-left:36px;display:inline-block;color:var(--muted)">$1</span>')
-        /* Lignes de commentaires indentées "  - " → indentation visuelle */
-        .replace(/^  - /gm, '<span style="margin-left:18px;display:inline-block">↳ </span>')
+        /* Commentaire "  - date : texte" + ses continuations "    ..." → bloc flex aligné */
+        .replace(/(^  - .+$)((?:\n    .+$)*)/gm, (_, cLine, cBlock) => {
+          const content = cLine.replace(/^  - /, '');
+          const dm = content.match(/^(\d{2}\/\d{2}\/\d{4}) : ([\s\S]*)$/);
+          const pre  = dm ? `↳ ${dm[1]} :` : '↳';
+          const body = dm ? dm[2] : content;
+          const conts = cBlock
+            ? cBlock.split('\n').filter(l => /\S/.test(l))
+                .map(l => `<span class="suivi-resume-cmt-cont">${l.trim()}</span>`).join('')
+            : '';
+          return `<div class="suivi-resume-cmt"><span class="suivi-resume-cmt-pre">${pre}</span><div class="suivi-resume-cmt-body">${body}${conts}</div></div>`;
+        })
         /* Numéro d'action [XXXX] → badge monospace ; rouge si Alerte, orange sinon */
         .replace(/\[(\d{4})\]/g, (_, n) => {
           const col = _alertNumsPanel.has(n) ? '#f85149' : 'var(--accent)';
