@@ -2766,18 +2766,29 @@ function _suiviResumeCopy() {
     }
     // Séparateurs --- → ignorer
     if (/^---+$/.test(line.trim())) { j++; continue; }
-    // Continuation de commentaire : 4 espaces (encodés par _suiviBuildResumeData)
-    if (/^    /.test(line)) {
-      const content = esc(line.trimStart()).replace(/\*\*([^*]+)\*\*/g,'<b>$1</b>').replace(/\[(\d{4})\]/g,'<b>[$1]</b>');
-      htmlParts.push(`<p style="${CONT_STYLE}">${content}</p>`);
-      j++; continue;
-    }
-    // Ligne indentée commentaire "  - "
+    // Ligne indentée commentaire "  - " : regrouper avec ses continuations "    …"
+    // → table 2 colonnes (compatible Outlook) : préfixe fixe | corps aligné
     const cm = line.match(/^  - (.+)$/);
     if (cm) {
-      const content = esc(cm[1]).replace(/\*\*([^*]+)\*\*/g,'<b>$1</b>').replace(/\[(\d{4})\]/g,'<b>[$1]</b>');
-      htmlParts.push(`<p style="margin:2px 0 2px 18px;font-family:Aptos,Calibri,Arial,sans-serif;font-size:12pt;color:#555">&#8627; ${content}</p>`);
-      j++; continue;
+      j++;
+      const contLines = [];
+      while (j < rawLines.length && /^    /.test(rawLines[j])) {
+        contLines.push(rawLines[j].trimStart());
+        j++;
+      }
+      const _fmt = s => esc(s).replace(/\*\*([^*]+)\*\*/g,'<b>$1</b>').replace(/\[(\d{4})\]/g,'<b>[$1]</b>');
+      const dm = cm[1].match(/^(\d{2}\/\d{2}\/\d{4}) : ([\s\S]*)$/);
+      const pre  = dm ? `&#8627; ${dm[1]} :` : '&#8627;';
+      const body = _fmt(dm ? dm[2] : cm[1]);
+      const conts = contLines.map(l => `<div style="margin-top:2px">${_fmt(l)}</div>`).join('');
+      const CMT_TD = 'font-family:Aptos,Calibri,Arial,sans-serif;font-size:12pt;color:#555;vertical-align:top;padding:0';
+      htmlParts.push(
+        `<table style="border:none;border-collapse:collapse;margin:3px 0 3px 18px"><tr>`+
+        `<td style="${CMT_TD};white-space:nowrap;padding-right:8px">${pre}</td>`+
+        `<td style="${CMT_TD}">${body}${conts}</td>`+
+        `</tr></table>`
+      );
+      continue;
     }
     // Ligne à puce "- "
     const bm = line.match(/^- (.+)$/);
