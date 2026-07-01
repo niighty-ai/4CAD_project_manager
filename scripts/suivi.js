@@ -2447,6 +2447,7 @@ function _suiviAiConfirmReview() {
   });
 
   _suiviSave();
+  _suiviRenderActionsTbody();
   document.getElementById('suiviAiReviewOverlay')?.remove();
   _suiviToast(`${toCreate.length} action(s) créée(s)`);
 }
