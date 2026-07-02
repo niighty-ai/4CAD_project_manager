@@ -549,6 +549,9 @@ function _aiOpenFieldPopup(textareaId, btnEl) {
       ta.style.height = 'auto';
       ta.style.height = ta.scrollHeight + 'px';
       ta.dispatchEvent(new Event('input'));
+      /* Mettre à jour la vue et sauvegarder selon le champ */
+      if (textareaId === 'tmTitle' && typeof _tmSaveTitle === 'function') _tmSaveTitle();
+      else if (textareaId === 'tmDesc' && typeof _tmSaveDesc === 'function') _tmSaveDesc();
     }
   });
 }

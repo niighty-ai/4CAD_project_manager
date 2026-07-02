@@ -69,7 +69,7 @@ function _tmModalHtml(task) {
               <button class="tm-link-btn" title="Insérer un lien"
                       onmousedown="event.preventDefault()"
                       onclick="_tmInsertLink('tmTitle',this)"></button>
-              <button class="suivi-ai-inline-btn tm-ai-star-btn" title="Correction IA"
+              <button class="tm-ai-star-btn" title="Correction IA"
                       onmousedown="event.preventDefault()"
                       onclick="_aiOpenFieldPopup('tmTitle',this)">
                 <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
@@ -90,7 +90,7 @@ function _tmModalHtml(task) {
                 <button class="tm-link-btn tm-link-btn-abs" title="Insérer un lien"
                         onmousedown="event.preventDefault()"
                         onclick="_tmInsertLink('tmDesc',this)"></button>
-                <button class="suivi-ai-inline-btn tm-ai-star-btn tm-ai-star-btn-abs" title="Correction IA"
+                <button class="tm-ai-star-btn tm-ai-star-btn-abs" title="Correction IA"
                         onmousedown="event.preventDefault()"
                         onclick="_aiOpenFieldPopup('tmDesc',this)">
                   <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
@@ -139,7 +139,7 @@ function _tmModalHtml(task) {
                   <button class="tm-link-btn" title="Insérer un lien"
                           onmousedown="event.preventDefault()"
                           onclick="_tmInsertLink('tmCommentInput',this)"></button>
-                  <button class="suivi-ai-inline-btn tm-ai-star-btn" title="Correction IA"
+                  <button class="tm-ai-star-btn" title="Correction IA"
                           onmousedown="event.preventDefault()"
                           onclick="_aiOpenFieldPopup('tmCommentInput',this)">
                     <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>

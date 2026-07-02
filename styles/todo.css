@@ -837,19 +837,23 @@
   position: absolute;
   bottom: 6px; right: 6px;
 }
-/* Bouton étoile IA inline dans le modal (toujours visible) */
+/* Bouton étoile IA inline dans le modal — même visuel que suivi-ai-inline-btn mais toujours visible */
 .tm-ai-star-btn {
-  opacity: 1 !important;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   width: 26px;
   height: 26px;
-  border: 1px solid var(--border) !important;
-  background: var(--surface) !important;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--surface);
+  color: var(--muted);
+  cursor: pointer;
+  transition: color 0.15s, background 0.15s, border-color 0.15s;
 }
-.tm-ai-star-btn:hover {
-  color: var(--accent) !important;
-  background: rgba(236,114,6,.1) !important;
-  border-color: var(--accent) !important;
-}
+.tm-ai-star-btn:hover { color: var(--accent); background: rgba(236,114,6,.1); border-color: var(--accent); }
 /* Variante positionnée absolument (coin bas-droit de la desc) */
 .tm-ai-star-btn-abs {
   position: absolute;
