@@ -1681,6 +1681,8 @@
   transition: background-color .1s, border-color .1s;
 }
 .todo-ai-trigger:hover { background-color: var(--surface2); border-color: var(--accent); }
+.todo-btn-note { border-color: var(--muted); color: var(--muted); }
+.todo-btn-note:hover { border-color: var(--accent); color: var(--fg); }
 
 /* ══════════════════════════════════════════════════
    Review modal IA — révision des tâches avant création

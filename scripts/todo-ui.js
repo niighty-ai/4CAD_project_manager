@@ -223,6 +223,10 @@ function _todoRenderSidebar() {
 
 /* ── Sélection dossier / vue ── */
 function _todoSelectFolder(id) {
+  /* Fermer le bloc-note si on change de dossier */
+  if (_todoSelectedFolderId !== id && typeof _suiviCloseBlocNotePanel === 'function') {
+    _suiviCloseBlocNotePanel();
+  }
   _todoSelectedFolderId = id;
   _todoRenderSidebar();
   _todoRenderTaskList();
@@ -391,6 +395,11 @@ function _todoRenderTaskList() {
     ? groupsArr.map(g => groupLabels[g] || g).join(', ')
     : 'Aucun';
 
+  /* Bouton Note actif uniquement sur un vrai dossier (pas vues, inbox, overdue, shared) */
+  const isActiveFolder = !!(_todoSelectedFolderId &&
+    !_todoSelectedFolderId.startsWith('view:') &&
+    !['inbox','overdue','shared'].includes(_todoSelectedFolderId));
+
   main.innerHTML = `
     <div class="todo-main-header">
       <div class="todo-main-title">${_esc(title)}</div>
@@ -407,6 +416,10 @@ function _todoRenderTaskList() {
       </div>
 
       <button class="todo-ai-trigger" onclick="_todoOpenAiModal()" title="Importer un transcript de réunion">IA</button>
+
+      ${isActiveFolder ? `<button id="todoBtnBlocNote" class="todo-ai-trigger todo-btn-note" onclick="_todoOpenBlocNotePanel('${_todoSelectedFolderId}')" title="Bloc-note du dossier">
+        <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg> Notes
+      </button>` : ''}
 
       <button class="todo-sort-btn ${hideCompleted ? 'active' : ''}"
               title="${hideCompleted ? 'Afficher terminées' : 'Masquer terminées'}"

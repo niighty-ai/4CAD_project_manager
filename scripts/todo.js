@@ -142,6 +142,12 @@ function _startTodoLoad(userId) {
         }
       });
       if (_migrated) _todoSave();
+      /* Migration : ajouter blocNote aux dossiers qui n'en ont pas */
+      let _migratedBlocNote = false;
+      _todoData.folders.forEach(f => {
+        if (!f.blocNote) { f.blocNote = { entries: [] }; _migratedBlocNote = true; }
+      });
+      if (_migratedBlocNote) _todoSave();
       /* Créer "Mes tâches" si aucun dossier n'existe */
       if (!_todoData.folders.length) {
         _todoCreateFolder('Mes tâches', '#546e7a');

@@ -14,6 +14,9 @@ let _suiviCommentPanelActionId = null;
 let _suiviBacklogPanelOpen = false;
 let _suiviBlocNotePanelOpen = false;
 let _suiviBlocNoteSaveTimer = null;
+/* Contexte du bloc-note : 'suivi' (défaut) ou 'todo' */
+let _blocNoteContext      = 'suivi';
+let _blocNoteTodoFolderId = null;
 
 /* ── Constantes ── */
 const _SUIVI_COLORS  = ['#EC7206','#72B6EC','#3fb950','#bc8cff','#F29318','#f85149','#56d364','#ffa657'];
@@ -1059,13 +1062,7 @@ function _suiviUpdateBacklogCount() {
   btn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/></svg> Backlog${count > 0 ? ` <span class="suivi-backlog-count">${count}</span>` : ''}`;
 }
 
-function _suiviUpdateBlocNoteCount() {
-  const p = _suiviGetActive();
-  const btn = document.getElementById('suiviBtnBlocNote');
-  if (!btn) return;
-  const count = p?.blocNote?.entries?.filter(e => e.text.trim()).length ?? 0;
-  btn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg> Notes${count > 0 ? ` <span class="suivi-backlog-count">${count}</span>` : ''}`;
-}
+function _suiviUpdateBlocNoteCount() { _blocNoteUpdateBadge(); }
 
 function _suiviOpenBacklogPanel() {
   _suiviBacklogPanelOpen = !_suiviBacklogPanelOpen;
@@ -1844,6 +1841,50 @@ function _suiviRenderIntvTbody() {
    Bloc-note — panneau flottant de prise de notes par client
    ═══════════════════════════════════════════ */
 
+/* ── Helpers contextuels bloc-note (suivi ou todo) ── */
+function _blocNoteGetBag() {
+  if (_blocNoteContext === 'todo') {
+    const folder = (typeof _todoData !== 'undefined' ? _todoData?.folders : [])
+      ?.find(f => f.id === _blocNoteTodoFolderId);
+    if (!folder) return null;
+    if (!folder.blocNote) folder.blocNote = { entries: [] };
+    if (!folder.blocNote.entries) folder.blocNote.entries = [];
+    return folder.blocNote;
+  }
+  const p = _suiviGetActive(); if (!p) return null;
+  if (!p.blocNote) p.blocNote = { entries: [] };
+  return p.blocNote;
+}
+
+function _blocNoteSaveCtx() {
+  if (_blocNoteContext === 'todo') {
+    if (typeof _todoSave === 'function') _todoSave();
+  } else {
+    _suiviSave();
+  }
+}
+
+function _blocNoteGetLabel() {
+  if (_blocNoteContext === 'todo') {
+    const folder = (typeof _todoData !== 'undefined' ? _todoData?.folders : [])
+      ?.find(f => f.id === _blocNoteTodoFolderId);
+    return folder ? folder.name : 'Dossier';
+  }
+  const p = _suiviGetActive();
+  return p ? p.client : '';
+}
+
+function _blocNoteUpdateBadge() {
+  const bag   = _blocNoteGetBag();
+  const count = bag?.entries?.filter(e => e.text.trim()).length ?? 0;
+  const NOTE_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>`;
+  const badge = count > 0 ? ` <span class="suivi-backlog-count">${count}</span>` : '';
+  const suivi = document.getElementById('suiviBtnBlocNote');
+  if (suivi) suivi.innerHTML = `${NOTE_SVG} Notes${badge}`;
+  const todo = document.getElementById('todoBtnBlocNote');
+  if (todo) todo.innerHTML  = `${NOTE_SVG} Notes${badge}`;
+}
+
 function _suiviBlocNoteUid() {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
 }
@@ -1860,11 +1901,23 @@ function _suiviFmtBlocNoteTs(iso) {
 }
 
 function _suiviOpenBlocNotePanel() {
+  /* Appelé depuis le bouton Suivi : s'assure que le contexte est 'suivi' */
+  _blocNoteContext = 'suivi';
+  _blocNoteTodoFolderId = null;
   _suiviBlocNotePanelOpen = !_suiviBlocNotePanelOpen;
-  if (!_suiviBlocNotePanelOpen) {
+  if (!_suiviBlocNotePanelOpen) { _suiviCloseBlocNotePanel(); return; }
+  _suiviRenderBlocNotePanel();
+}
+
+/* Appelé depuis le bouton Todo */
+function _todoOpenBlocNotePanel(folderId) {
+  if (_suiviBlocNotePanelOpen && _blocNoteContext === 'todo' && _blocNoteTodoFolderId === folderId) {
     _suiviCloseBlocNotePanel();
     return;
   }
+  _blocNoteContext = 'todo';
+  _blocNoteTodoFolderId = folderId;
+  _suiviBlocNotePanelOpen = true;
   _suiviRenderBlocNotePanel();
 }
 
@@ -1875,13 +1928,11 @@ function _suiviCloseBlocNotePanel() {
 }
 
 function _suiviBlocNoteAddEntry() {
-  const p = _suiviGetActive(); if (!p) return;
-  if (!p.blocNote) p.blocNote = { entries: [] };
+  const bag = _blocNoteGetBag(); if (!bag) return;
   const entry = { id: _suiviBlocNoteUid(), createdAt: new Date().toISOString(), text: '' };
-  p.blocNote.entries.push(entry);
-  _suiviSave();
+  bag.entries.push(entry);
+  _blocNoteSaveCtx();
   _suiviRenderBlocNotePanel();
-  /* Focus sur le nouveau textarea */
   setTimeout(() => {
     const ta = document.querySelector(`.suivi-bn-entry[data-eid="${entry.id}"] textarea`);
     if (ta) ta.focus();
@@ -1889,25 +1940,23 @@ function _suiviBlocNoteAddEntry() {
 }
 
 function _suiviBlocNoteDeleteEntry(id) {
-  const p = _suiviGetActive(); if (!p || !p.blocNote) return;
-  p.blocNote.entries = p.blocNote.entries.filter(e => e.id !== id);
-  _suiviSave();
+  const bag = _blocNoteGetBag(); if (!bag) return;
+  bag.entries = bag.entries.filter(e => e.id !== id);
+  _blocNoteSaveCtx();
   _suiviRenderBlocNotePanel();
 }
 
 function _suiviBlocNoteSaveEntry(id, text) {
-  const p = _suiviGetActive(); if (!p || !p.blocNote) return;
-  const entry = p.blocNote.entries.find(e => e.id === id);
-  if (!entry) return;
+  const bag = _blocNoteGetBag(); if (!bag) return;
+  const entry = bag.entries.find(e => e.id === id); if (!entry) return;
   entry.text = text;
   clearTimeout(_suiviBlocNoteSaveTimer);
-  _suiviBlocNoteSaveTimer = setTimeout(() => _suiviSave(), 600);
+  _suiviBlocNoteSaveTimer = setTimeout(() => _blocNoteSaveCtx(), 600);
 }
 
-
 function _suiviBlocNoteAiCorrectEntry(entryId, btnEl) {
-  const p = _suiviGetActive(); if (!p || !p.blocNote) return;
-  const entry = p.blocNote.entries.find(e => e.id === entryId); if (!entry) return;
+  const bag = _blocNoteGetBag(); if (!bag) return;
+  const entry = bag.entries.find(e => e.id === entryId); if (!entry) return;
   _aiCorrectAndShowPopup({
     text:     entry.text,
     btnEl,
@@ -1916,33 +1965,33 @@ function _suiviBlocNoteAiCorrectEntry(entryId, btnEl) {
     toastFn:  _suiviToast,
     onApply:  corrected => {
       entry.text = corrected;
-      _suiviSave();
+      _blocNoteSaveCtx();
       _suiviRenderBlocNotePanel();
     }
   });
 }
 
-
 function _suiviBlocNoteOpenAi() {
-  const p = _suiviGetActive(); if (!p) return;
-  const entries = (p.blocNote?.entries || []).filter(e => e.text.trim());
+  const bag = _blocNoteGetBag();
+  const entries = (bag?.entries || []).filter(e => e.text.trim());
   if (!entries.length) {
     _suiviToast('Le bloc-note est vide — ajoutez des notes avant d\'analyser', 'error');
     return;
   }
   const aggregated = entries.map(e => e.text.trim()).join('\n\n');
-
   _suiviCloseBlocNotePanel();
-  _suiviAiShowLoader();
-  _suiviOpenAiModal().then(() => {
-    _suiviAiHideLoader();
-    /* Pré-remplir le textarea après ouverture de la modale */
-    const ta = document.getElementById('suiviAiTranscript');
-    if (ta) {
-      ta.value = aggregated;
-      ta.dispatchEvent(new Event('input'));
-    }
-  });
+
+  if (_blocNoteContext === 'todo') {
+    /* Ouvrir la modale IA Todo pré-remplie */
+    if (typeof _todoOpenAiFromNotes === 'function') _todoOpenAiFromNotes(aggregated);
+  } else {
+    _suiviAiShowLoader();
+    _suiviOpenAiModal().then(() => {
+      _suiviAiHideLoader();
+      const ta = document.getElementById('suiviAiTranscript');
+      if (ta) { ta.value = aggregated; ta.dispatchEvent(new Event('input')); }
+    });
+  }
 }
 
 function _suiviBlocNoteConfirmClear() {
@@ -1965,18 +2014,16 @@ function _suiviBlocNoteConfirmClear() {
 
 function _suiviBlocNoteClearAll() {
   document.getElementById('suiviBnClearOverlay')?.remove();
-  const p = _suiviGetActive(); if (!p) return;
-  if (p.blocNote) p.blocNote.entries = [];
-  _suiviSave();
+  const bag = _blocNoteGetBag(); if (!bag) return;
+  bag.entries = [];
+  _blocNoteSaveCtx();
   if (_suiviBlocNotePanelOpen) _suiviRenderBlocNotePanel();
-  _suiviUpdateBlocNoteCount();
+  _blocNoteUpdateBadge();
 }
 
 function _suiviRenderBlocNotePanel() {
-  const p = _suiviGetActive();
-  const btn = document.getElementById('suiviBtnBlocNote');
-  if (!btn) return;
-  _suiviUpdateBlocNoteCount();
+  const bag = _blocNoteGetBag();
+  _blocNoteUpdateBadge();
 
   let panel = document.getElementById('suiviBlocNotePanel');
   if (!panel) {
@@ -1985,7 +2032,7 @@ function _suiviRenderBlocNotePanel() {
     document.body.appendChild(panel);
   }
 
-  const entries = p?.blocNote?.entries || [];
+  const entries = bag?.entries || [];
 
   const entriesHtml = entries.length === 0
     ? '<div class="suivi-bn-empty">Aucune note — cliquez sur "+ Note" pour commencer</div>'
@@ -2010,7 +2057,7 @@ function _suiviRenderBlocNotePanel() {
     <div class="suivi-bn-header">
       <span class="suivi-bn-title">
         <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
-        Bloc-note${p ? ' — ' + _suiviEsc(p.client) : ''}
+        Bloc-note${_blocNoteGetLabel() ? ' — ' + _suiviEsc(_blocNoteGetLabel()) : ''}
       </span>
       <div class="suivi-bn-header-actions">
         <button class="suivi-bn-btn-ai" onclick="_suiviBlocNoteOpenAi()" title="Analyser avec l'IA et créer des actions">✦ IA</button>

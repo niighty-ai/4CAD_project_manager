@@ -99,6 +99,13 @@ async function _todoOpenAiModal() {
   _aiLoadModelSelector();
 }
 
+/* Ouvrir la modale IA Todo pré-remplie depuis le bloc-note */
+async function _todoOpenAiFromNotes(aggregatedText) {
+  await _todoOpenAiModal();
+  const ta = document.getElementById('aiTranscript');
+  if (ta) { ta.value = aggregatedText; ta.dispatchEvent(new Event('input')); }
+}
+
 async function _aiLoadModelSelector() {
   const select = document.getElementById('aiModelSelect');
   if (!select) return;
