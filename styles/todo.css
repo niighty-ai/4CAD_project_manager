@@ -181,6 +181,14 @@
   text-overflow: ellipsis;
   max-width: 220px;
 }
+/* Groupe de boutons alignés à droite dans le header */
+.todo-header-actions {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
 /* Barre de recherche globale */
 .todo-search-wrap {
   flex: 1; max-width: 320px;
@@ -1681,8 +1689,6 @@
   transition: background-color .1s, border-color .1s;
 }
 .todo-ai-trigger:hover { background-color: var(--surface2); border-color: var(--accent); }
-.todo-btn-note { border-color: var(--muted); color: var(--muted); }
-.todo-btn-note:hover { border-color: var(--accent); color: var(--fg); }
 
 /* ══════════════════════════════════════════════════
    Review modal IA — révision des tâches avant création

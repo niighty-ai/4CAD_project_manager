@@ -1841,48 +1841,56 @@ function _suiviRenderIntvTbody() {
    Bloc-note — panneau flottant de prise de notes par client
    ═══════════════════════════════════════════ */
 
-/* ── Helpers contextuels bloc-note (suivi ou todo) ── */
+/* ── Helpers contextuels bloc-note (toujours stocké dans le dossier Todo) ── */
+function _blocNoteGetFolderById(folderId) {
+  if (!folderId || typeof _todoData === 'undefined') return null;
+  const folder = (_todoData?.folders || []).find(f => f.id === folderId);
+  if (!folder) return null;
+  if (!folder.blocNote) folder.blocNote = { entries: [] };
+  if (!folder.blocNote.entries) folder.blocNote.entries = [];
+  return folder;
+}
+
 function _blocNoteGetBag() {
-  if (_blocNoteContext === 'todo') {
-    const folder = (typeof _todoData !== 'undefined' ? _todoData?.folders : [])
-      ?.find(f => f.id === _blocNoteTodoFolderId);
-    if (!folder) return null;
-    if (!folder.blocNote) folder.blocNote = { entries: [] };
-    if (!folder.blocNote.entries) folder.blocNote.entries = [];
-    return folder.blocNote;
-  }
-  const p = _suiviGetActive(); if (!p) return null;
-  if (!p.blocNote) p.blocNote = { entries: [] };
-  return p.blocNote;
+  const folderId = _blocNoteContext === 'suivi' ? _suiviGetClientFolderId() : _blocNoteTodoFolderId;
+  const folder = _blocNoteGetFolderById(folderId);
+  return folder ? folder.blocNote : null;
 }
 
 function _blocNoteSaveCtx() {
-  if (_blocNoteContext === 'todo') {
-    if (typeof _todoSave === 'function') _todoSave();
-  } else {
-    _suiviSave();
-  }
+  /* Notes toujours dans _todoData → toujours _todoSave */
+  if (typeof _todoSave === 'function') _todoSave();
 }
 
 function _blocNoteGetLabel() {
   if (_blocNoteContext === 'todo') {
-    const folder = (typeof _todoData !== 'undefined' ? _todoData?.folders : [])
-      ?.find(f => f.id === _blocNoteTodoFolderId);
+    const folder = _blocNoteGetFolderById(_blocNoteTodoFolderId);
     return folder ? folder.name : 'Dossier';
   }
   const p = _suiviGetActive();
   return p ? p.client : '';
 }
 
+const _BN_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>`;
+
 function _blocNoteUpdateBadge() {
-  const bag   = _blocNoteGetBag();
-  const count = bag?.entries?.filter(e => e.text.trim()).length ?? 0;
-  const NOTE_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>`;
-  const badge = count > 0 ? ` <span class="suivi-backlog-count">${count}</span>` : '';
-  const suivi = document.getElementById('suiviBtnBlocNote');
-  if (suivi) suivi.innerHTML = `${NOTE_SVG} Notes${badge}`;
-  const todo = document.getElementById('todoBtnBlocNote');
-  if (todo) todo.innerHTML  = `${NOTE_SVG} Notes${badge}`;
+  /* Bouton Suivi : notes du dossier Todo lié au projet actif */
+  const suiviFolderId = _suiviGetClientFolderId();
+  const suiviFolder   = _blocNoteGetFolderById(suiviFolderId);
+  const suiviCount    = suiviFolder?.blocNote?.entries?.filter(e => e.text.trim()).length ?? 0;
+  const suiviBtn = document.getElementById('suiviBtnBlocNote');
+  if (suiviBtn) suiviBtn.innerHTML = `${_BN_SVG} Notes${suiviCount > 0 ? ` <span class="suivi-backlog-count">${suiviCount}</span>` : ''}`;
+
+  /* Bouton Todo : notes du dossier actuellement sélectionné dans Todo */
+  const todoFolderId = (typeof _todoSelectedFolderId !== 'undefined' &&
+    _todoSelectedFolderId &&
+    !_todoSelectedFolderId.startsWith('view:') &&
+    !['inbox','overdue','shared'].includes(_todoSelectedFolderId))
+    ? _todoSelectedFolderId : null;
+  const todoFolder   = _blocNoteGetFolderById(todoFolderId);
+  const todoCount    = todoFolder?.blocNote?.entries?.filter(e => e.text.trim()).length ?? 0;
+  const todoBtn = document.getElementById('todoBtnBlocNote');
+  if (todoBtn) todoBtn.innerHTML = `${_BN_SVG} Notes${todoCount > 0 ? ` <span class="suivi-backlog-count">${todoCount}</span>` : ''}`;
 }
 
 function _suiviBlocNoteUid() {
@@ -1901,11 +1909,18 @@ function _suiviFmtBlocNoteTs(iso) {
 }
 
 function _suiviOpenBlocNotePanel() {
-  /* Appelé depuis le bouton Suivi : s'assure que le contexte est 'suivi' */
+  /* Appelé depuis le bouton Suivi : notes du dossier Todo lié au projet actif */
+  const folderId = _suiviGetClientFolderId();
+  if (!folderId) {
+    _suiviToast('Aucun dossier Todo lié à ce projet', 'error');
+    return;
+  }
+  if (_suiviBlocNotePanelOpen && _blocNoteContext === 'suivi') {
+    _suiviCloseBlocNotePanel(); return;
+  }
   _blocNoteContext = 'suivi';
   _blocNoteTodoFolderId = null;
-  _suiviBlocNotePanelOpen = !_suiviBlocNotePanelOpen;
-  if (!_suiviBlocNotePanelOpen) { _suiviCloseBlocNotePanel(); return; }
+  _suiviBlocNotePanelOpen = true;
   _suiviRenderBlocNotePanel();
 }
 

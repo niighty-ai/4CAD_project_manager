@@ -415,9 +415,10 @@ function _todoRenderTaskList() {
         ${_todoSearchQuery ? `<span class="todo-search-clear" onclick="_todoSetSearch('')" title="Effacer">✕</span>` : ''}
       </div>
 
+      <div class="todo-header-actions">
       <button class="todo-ai-trigger" onclick="_todoOpenAiModal()" title="Importer un transcript de réunion">IA</button>
 
-      ${isActiveFolder ? `<button id="todoBtnBlocNote" class="todo-ai-trigger todo-btn-note" onclick="_todoOpenBlocNotePanel('${_todoSelectedFolderId}')" title="Bloc-note du dossier">
+      ${isActiveFolder ? `<button id="todoBtnBlocNote" class="suivi-btn-blocnote" onclick="_todoOpenBlocNotePanel('${_todoSelectedFolderId}')" title="Bloc-note du dossier">
         <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg> Notes
       </button>` : ''}
 
@@ -488,6 +489,7 @@ function _todoRenderTaskList() {
             </div>`).join('')}
         </div>
       </div>
+      </div>
     </div>
     <div class="todo-body" id="todoBody"></div>`;
 
@@ -551,6 +553,9 @@ function _todoRenderTaskList() {
       <input id="todoAddInput" class="todo-add-input" placeholder="Ajouter une tâche…"
              onkeydown="_todoAddBarKey(event)" onclick="event.stopPropagation()">
     </div>`);
+
+  /* Actualise les badges Note des deux onglets après chaque rendu */
+  if (typeof _blocNoteUpdateBadge === 'function') _blocNoteUpdateBadge();
 }
 
 /* ── Tri par config objet ── */
