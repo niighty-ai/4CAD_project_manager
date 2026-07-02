@@ -167,7 +167,7 @@
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 18px 28px 10px;
+  padding: 9px 28px;
   border-bottom: 1px solid var(--border);
   background: var(--surface);
   flex-shrink: 0;
@@ -216,8 +216,9 @@
 /* Bouton tri */
 .todo-sort-btn {
   display: flex; align-items: center; gap: 5px;
-  padding: 5px 10px;
-  font-size: 12px; font-weight: 600;
+  height: 30px;
+  padding: 0 10px;
+  font-size: 11px; font-weight: 600;
   background: var(--surface2);
   color: var(--muted);
   border: 1px solid var(--border);
@@ -1532,7 +1533,7 @@
 @media (max-width: 500px) {
   .todo-sidebar { display: none; }
   .todo-body { padding: 0 12px 40px; }
-  .todo-main-header { padding: 14px 14px 8px; }
+  .todo-main-header { padding: 9px 14px; }
 }
 
 /* ═══════════════════════════════════════════
@@ -1677,18 +1678,22 @@
 
 /* Bouton IA dans le header de la liste de tâches */
 .todo-ai-trigger {
-  height: 26px;
-  padding: 0 8px;
-  font-size: 9px; font-weight: 800;
-  letter-spacing: .5px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 30px;
+  padding: 0 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  background: linear-gradient(135deg, rgba(236,114,6,.15), rgba(188,140,255,.15));
+  border: 1px solid rgba(236,114,6,.35);
   color: var(--accent);
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 5px;
   cursor: pointer;
-  transition: background-color .1s, border-color .1s;
+  transition: background 0.15s, border-color 0.15s;
+  white-space: nowrap;
 }
-.todo-ai-trigger:hover { background-color: var(--surface2); border-color: var(--accent); }
+.todo-ai-trigger:hover { background: linear-gradient(135deg, rgba(236,114,6,.25), rgba(188,140,255,.25)); border-color: var(--accent); }
 
 /* ══════════════════════════════════════════════════
    Review modal IA — révision des tâches avant création
