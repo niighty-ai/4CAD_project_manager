@@ -2910,19 +2910,18 @@ function _suiviResumeCopy() {
   }
 }
 
+/* Vrai si une date DD/MM/YYYY a moins de N jours (défaut 6) */
+function _cmtIsRecent(frDate, days = 6) {
+  if (!frDate) return false;
+  const [d, m, y] = frDate.split('/');
+  const diff = (Date.now() - new Date(+y, +m - 1, +d).getTime()) / 86400000;
+  return diff >= 0 && diff < days;
+}
+
 function _suiviBuildResumeData(p) {
   const today    = new Date().toLocaleDateString('fr-FR', { day:'2-digit', month:'2-digit', year:'numeric' });
   const clientName = p.client || 'Client';
   const lines    = [];
-
-  /* Helper : vrai si une date DD/MM/YYYY a moins de N jours */
-  const _cmtIsRecent = (frDate, days = 6) => {
-    if (!frDate) return false;
-    const [d, m, y] = frDate.split('/');
-    const dt = new Date(+y, +m - 1, +d);
-    const diff = (Date.now() - dt.getTime()) / 86400000;
-    return diff >= 0 && diff < days;
-  };
 
   const actions = (p.actions || []).filter(a => a.statut !== 'backlog');
   actions.forEach(a => {
