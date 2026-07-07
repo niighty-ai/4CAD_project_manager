@@ -972,6 +972,10 @@ tr:hover .suivi-btn-rm-row { opacity: 1; }
 .suivi-resume-cmt-cont {
   display: block;
 }
+/* Commentaire récent (< 6 jours) : texte plein + indicateur orange */
+.suivi-resume-cmt-recent {
+  color: var(--text);
+}
 .suivi-resume-table {
   border-collapse: collapse;
   width: 100%;

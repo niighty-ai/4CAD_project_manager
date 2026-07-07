@@ -2699,13 +2699,20 @@ function _suiviRenderResumePanel(text) {
         .replace(/(^  - .+$)((?:\n    .+$)*)/gm, (_, cLine, cBlock) => {
           const content = cLine.replace(/^  - /, '');
           const dm = content.match(/^(\d{2}\/\d{2}\/\d{4}) : ([\s\S]*)$/);
-          const pre  = dm ? `↳ ${dm[1]} :` : '↳';
+          const recent = dm ? _cmtIsRecent(dm[1]) : false;
+          const ORNG = 'var(--accent)';
+          const pre = dm
+            ? (recent
+                ? `<span style="color:${ORNG}">↳ ●</span> ${dm[1]} :`
+                : `↳ ${dm[1]} :`)
+            : (recent ? `<span style="color:${ORNG}">↳ ●</span>` : '↳');
           const body = dm ? dm[2] : content;
           const conts = cBlock
             ? cBlock.split('\n').filter(l => /\S/.test(l))
                 .map(l => `<span class="suivi-resume-cmt-cont">${l.trim()}</span>`).join('')
             : '';
-          return `<div class="suivi-resume-cmt"><span class="suivi-resume-cmt-pre">${pre}</span><div class="suivi-resume-cmt-body">${body}${conts}</div></div>`;
+          const cls = recent ? 'suivi-resume-cmt suivi-resume-cmt-recent' : 'suivi-resume-cmt';
+          return `<div class="${cls}"><span class="suivi-resume-cmt-pre">${pre}</span><div class="suivi-resume-cmt-body">${body}${conts}</div></div>`;
         })
         /* Numéro d'action [XXXX] → badge monospace ; rouge si Alerte, orange sinon */
         .replace(/\[(\d{4})\]/g, (_, n) => {
@@ -2841,10 +2848,19 @@ function _suiviResumeCopy() {
       }
       const _fmt = s => esc(s).replace(/\*\*([^*]+)\*\*/g,'<b>$1</b>').replace(/\[(\d{4})\]/g,'<b>[$1]</b>');
       const dm = cm[1].match(/^(\d{2}\/\d{2}\/\d{4}) : ([\s\S]*)$/);
-      const pre  = dm ? `&#8627; ${dm[1]} :` : '&#8627;';
+      const recent = dm ? (() => {
+        const [d, m, y] = dm[1].split('/');
+        const diff = (Date.now() - new Date(+y, +m - 1, +d).getTime()) / 86400000;
+        return diff >= 0 && diff < 6;
+      })() : false;
+      const OHX = '#e67306';
+      const pre = dm
+        ? (recent ? `<font color="${OHX}">&#8627; &#9679;</font> ${dm[1]} :` : `&#8627; ${dm[1]} :`)
+        : (recent ? `<font color="${OHX}">&#8627; &#9679;</font>` : '&#8627;');
       const body = _fmt(dm ? dm[2] : cm[1]);
       const conts = contLines.map(l => `<div style="margin-top:2px">${_fmt(l)}</div>`).join('');
-      const CMT_TD = 'font-family:Aptos,Calibri,Arial,sans-serif;font-size:12pt;color:#555;vertical-align:top;padding:0';
+      const txtCol = recent ? '#000000' : '#555';
+      const CMT_TD = `font-family:Aptos,Calibri,Arial,sans-serif;font-size:12pt;color:${txtCol};vertical-align:top;padding:0`;
       htmlParts.push(
         `<table style="border:none;border-collapse:collapse;margin:3px 0 3px 18px"><tr>`+
         `<td style="${CMT_TD};white-space:nowrap;padding-right:8px">${pre}</td>`+
@@ -2899,10 +2915,21 @@ function _suiviBuildResumeData(p) {
   const clientName = p.client || 'Client';
   const lines    = [];
 
+  /* Helper : vrai si une date DD/MM/YYYY a moins de N jours */
+  const _cmtIsRecent = (frDate, days = 6) => {
+    if (!frDate) return false;
+    const [d, m, y] = frDate.split('/');
+    const dt = new Date(+y, +m - 1, +d);
+    const diff = (Date.now() - dt.getTime()) / 86400000;
+    return diff >= 0 && diff < days;
+  };
+
   const actions = (p.actions || []).filter(a => a.statut !== 'backlog');
   actions.forEach(a => {
     const typeLabel   = (_SUIVI_TYPE_LABELS[a.type || 'action'] || a.type || 'action').toUpperCase();
-    const statutLabel = _SUIVI_STATUT_LABELS[a.statut] || a.statut || '';
+    const isAction    = (a.type || 'action') === 'action';
+    /* Les alertes/commentaires/infos n'ont pas de statut suivi → on envoie '-' à Gemini */
+    const statutLabel = isAction ? (_SUIVI_STATUT_LABELS[a.statut] || a.statut || '') : '-';
     const resp        = (a.responsables || []).map(r => _suiviInitials(r.name)).join(', ');
     const societeRaw  = a.societe || (a.type === 'action' ? '4CAD' : '');
     const societe     = societeRaw === '4CAD' ? '4CAD'
