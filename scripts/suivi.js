@@ -2493,9 +2493,11 @@ function _suiviAiConfirmReview() {
   const toCreate = _suiviAiDraftActions.filter(a => a._included && a.action.trim());
   if (!toCreate.length) { _suiviAiSetStatus('Aucune action sélectionnée.', true); return; }
 
+  if (!p.actions) p.actions = [];
   toCreate.forEach(a => {
     const newAction = {
       id:       _suiviUid(),
+      numero:   _suiviNextNumero(p),
       type:     a.type,
       action:   a.action.trim(),
       societe:      a.resp,
@@ -2504,7 +2506,6 @@ function _suiviAiConfirmReview() {
       statut:   'todo',
       linkedTaskId: null
     };
-    if (!p.actions) p.actions = [];
     p.actions.push(newAction);
   });
 
