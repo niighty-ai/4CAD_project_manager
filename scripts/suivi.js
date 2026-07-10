@@ -1774,22 +1774,21 @@ function _suiviRenderIntvThead() {
   const ints = p.interventions.intervenants;
   const thead = document.getElementById('suiviIntvThead');
   if (!thead) return;
-  const allOptions = _suiviGetIntvResources(p);
-  const mkOptions = (current) => allOptions.length
-    ? allOptions.map(r => `<option value="${_suiviEsc(r)}"${r === current ? ' selected' : ''}>${_suiviEsc(r)}</option>`).join('')
-    : `<option value="${_suiviEsc(current)}">${_suiviEsc(current)}</option>`;
   thead.innerHTML = `<tr>
     <th style="width:185px">Date</th>
-    ${ints.map((n, i) => `
-      <th>
+    ${ints.map((n, i) => {
+      const ini = _suiviInitials(n);
+      const col = _suiviRespPillColor(n);
+      return `<th>
         <div class="suivi-th-wrap">
-          <select class="suivi-th-select" onchange="_suiviUpdateIntervenant(${i},this.value)">
-            ${mkOptions(n)}
-          </select>
+          <div class="suivi-th-intv-btn" onclick="_suiviOpenIntvPicker(${i},this)" title="Changer l'intervenant">
+            <span class="suivi-resp-pill sm" style="background:${col}">${ini}</span>
+            <span class="suivi-th-intv-name">${_suiviEsc(n)}</span>
+          </div>
           <button class="suivi-btn-rm-intv" onclick="_suiviRemoveIntervenant(${i})" title="Supprimer">×</button>
         </div>
-      </th>
-    `).join('')}
+      </th>`;
+    }).join('')}
     <th class="suivi-th-add-intv"><button class="suivi-btn-add-col" onclick="_suiviAddIntervenant()">+ Intervenant</button></th>
     <th style="width:30px;background:var(--surface2);border-bottom:1px solid var(--border)"></th>
   </tr>`;
@@ -2651,6 +2650,106 @@ function _suiviRenderRespPickerList(filter) {
       const searchEl = document.getElementById('suiviRespPickerSearch');
       if (searchEl) searchEl.value = '';
       _suiviRenderRespPickerList('');
+    });
+    list.appendChild(addEl);
+  } else if (!filtered.length) {
+    list.innerHTML = '<div class="suivi-resp-picker-empty">Aucune ressource trouvée</div>';
+  }
+}
+
+/* ═══════════════════════════════════════════
+   Picker intervenant (sélection unique)
+   ═══════════════════════════════════════════ */
+
+let _suiviIntvPickerIdx = null;
+
+function _suiviOpenIntvPicker(idx, cellEl) {
+  const existing = document.getElementById('suiviIntvPickerPopup');
+  if (existing) {
+    existing.remove();
+    if (_suiviIntvPickerIdx === idx) { _suiviIntvPickerIdx = null; return; }
+  }
+  _suiviIntvPickerIdx = idx;
+
+  const popup = document.createElement('div');
+  popup.id = 'suiviIntvPickerPopup';
+  popup.className = 'suivi-resp-picker';
+  const rect = cellEl.getBoundingClientRect();
+  const left = Math.min(rect.left, window.innerWidth - 230);
+  popup.style.cssText = `top:${rect.bottom + 4}px;left:${Math.max(4, left)}px`;
+  popup.innerHTML = `
+    <input class="suivi-resp-picker-search" id="suiviIntvPickerSearch" placeholder="Rechercher…" autocomplete="off">
+    <div class="suivi-resp-picker-list" id="suiviIntvPickerList"></div>`;
+
+  document.body.appendChild(popup);
+  _suiviRenderIntvPickerList('');
+
+  const searchEl = document.getElementById('suiviIntvPickerSearch');
+  searchEl.addEventListener('input', () => _suiviRenderIntvPickerList(searchEl.value));
+  searchEl.focus();
+
+  setTimeout(() => {
+    document.addEventListener('click', function _closeIntvPicker(e) {
+      const pop = document.getElementById('suiviIntvPickerPopup');
+      if (!pop) { document.removeEventListener('click', _closeIntvPicker); return; }
+      if (!pop.contains(e.target) && !e.target.closest('.suivi-th-intv-btn')) {
+        pop.remove();
+        _suiviIntvPickerIdx = null;
+        document.removeEventListener('click', _closeIntvPicker);
+      }
+    });
+  }, 50);
+}
+
+function _suiviRenderIntvPickerList(filter) {
+  const list = document.getElementById('suiviIntvPickerList');
+  if (!list || _suiviIntvPickerIdx === null) return;
+  const p = _suiviGetActive(); if (!p) return;
+  const current = (p.interventions?.intervenants || [])[_suiviIntvPickerIdx] || '';
+  const allRes = _suiviGetIntvResources(p);
+  const filtered = filter
+    ? allRes.filter(n => n.toLowerCase().includes(filter.toLowerCase()))
+    : allRes;
+
+  list.innerHTML = '';
+  filtered.forEach(name => {
+    const isSelected = name === current;
+    const item = document.createElement('div');
+    item.className = 'suivi-resp-picker-item' + (isSelected ? ' checked' : '');
+    const ini = _suiviInitials(name);
+    const col = _suiviRespPillColor(name);
+    item.innerHTML = `
+      <span class="suivi-resp-pill sm" style="background:${col}">${ini}</span>
+      <span class="suivi-resp-picker-name">${_suiviEsc(name)}</span>
+      ${isSelected ? '<span class="suivi-resp-check">✓</span>' : ''}`;
+    item.addEventListener('click', e => {
+      e.stopPropagation();
+      _suiviUpdateIntervenant(_suiviIntvPickerIdx, name);
+      document.getElementById('suiviIntvPickerPopup')?.remove();
+      _suiviIntvPickerIdx = null;
+      _suiviRenderIntvThead();
+    });
+    list.appendChild(item);
+  });
+
+  /* Bouton "Ajouter" si filtre sans correspondance exacte */
+  const trimmed = (filter || '').trim();
+  const exactMatch = trimmed && allRes.some(n => n.toLowerCase() === trimmed.toLowerCase());
+  if (trimmed && !exactMatch) {
+    const ini = _suiviInitials(trimmed);
+    const col = _suiviRespPillColor(trimmed);
+    const addEl = document.createElement('div');
+    addEl.className = 'suivi-resp-picker-item suivi-resp-picker-add-row';
+    addEl.innerHTML = `
+      <span class="suivi-resp-pill sm" style="background:${col}">${ini}</span>
+      <span class="suivi-resp-picker-name">Ajouter « ${_suiviEsc(trimmed)} »</span>
+      <span class="suivi-resp-add-icon">＋</span>`;
+    addEl.addEventListener('click', e => {
+      e.stopPropagation();
+      _suiviUpdateIntervenant(_suiviIntvPickerIdx, trimmed);
+      document.getElementById('suiviIntvPickerPopup')?.remove();
+      _suiviIntvPickerIdx = null;
+      _suiviRenderIntvThead();
     });
     list.appendChild(addEl);
   } else if (!filtered.length) {

@@ -653,23 +653,27 @@ tr:hover .suivi-btn-del { opacity: 1; }
   font-family: Arial, sans-serif;
 }
 .suivi-th-input:focus { background: var(--surface); border-radius: 4px; padding: 2px 5px; }
-.suivi-th-select {
-  background: transparent;
-  border: none;
-  outline: none;
-  color: var(--text);
+.suivi-th-intv-btn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  cursor: pointer;
+  border-radius: 4px;
+  padding: 2px 4px;
+  transition: background 0.12s;
+}
+.suivi-th-intv-btn:hover { background: var(--surface2); }
+.suivi-th-intv-name {
   font-size: 10px;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.07em;
-  text-align: center;
-  max-width: 120px;
-  font-family: Arial, sans-serif;
-  cursor: pointer;
-  appearance: none;
-  -webkit-appearance: none;
+  color: var(--text);
+  white-space: nowrap;
+  max-width: 100px;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
-.suivi-th-select:hover { color: var(--accent); }
 .suivi-btn-rm-intv {
   background: none;
   border: none;
