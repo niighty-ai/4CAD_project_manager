@@ -152,6 +152,22 @@ function _suiviGetAllResources() {
   }
   return [...set].sort((a, b) => a.localeCompare(b, 'fr', { sensitivity: 'base' }));
 }
+
+/* Liste pour le select Intervenants : base formelle + valeurs encore utilisées
+   dans le projet actif uniquement (intervenants + responsables actions).
+   Exclut les vieux noms accumulés dans d'autres projets. */
+function _suiviGetIntvResources(p) {
+  const base = typeof _todoGetResources === 'function' ? _todoGetResources()
+    : (typeof resources !== 'undefined' ? resources.map(r => r.nom || r.fullName || '').filter(Boolean) : []);
+  const set = new Set(base);
+  /* Intervenants actuellement utilisés dans CE projet */
+  (p?.interventions?.intervenants || []).forEach(n => { if (n) set.add(n); });
+  /* Responsables actuellement utilisés dans les actions de CE projet */
+  (p?.actions || []).forEach(a => {
+    (a.responsables || []).forEach(r => { if (r.name) set.add(r.name); });
+  });
+  return [...set].sort((a, b) => a.localeCompare(b, 'fr', { sensitivity: 'base' }));
+}
 function _suiviRespPillsHtml(responsables) {
   const max = 3;
   const pills = (responsables || []).slice(0, max).map(r => {
@@ -1507,7 +1523,7 @@ function _suiviUpdateIntvDate(id, val) {
 function _suiviAddIntervenant() {
   const p = _suiviGetActive(); if (!p) return;
   if (!p.interventions) p.interventions = { intervenants:[], rows:[] };
-  const resources = _suiviGetAllResources();
+  const resources = _suiviGetIntvResources(p);
   const used = new Set(p.interventions.intervenants);
   const defaultName = resources.find(r => !used.has(r)) || resources[0] || 'Intervenant';
   p.interventions.intervenants.push(defaultName);
@@ -1758,11 +1774,7 @@ function _suiviRenderIntvThead() {
   const ints = p.interventions.intervenants;
   const thead = document.getElementById('suiviIntvThead');
   if (!thead) return;
-  const resources = _suiviGetAllResources();
-  const resourceSet = new Set(resources);
-  /* Ajouter les valeurs manuelles encore utilisées dans les intervenants mais absentes de la base */
-  const manualExtras = ints.filter(n => n && !resourceSet.has(n));
-  const allOptions = [...resources, ...manualExtras];
+  const allOptions = _suiviGetIntvResources(p);
   const mkOptions = (current) => allOptions.length
     ? allOptions.map(r => `<option value="${_suiviEsc(r)}"${r === current ? ' selected' : ''}>${_suiviEsc(r)}</option>`).join('')
     : `<option value="${_suiviEsc(current)}">${_suiviEsc(current)}</option>`;
