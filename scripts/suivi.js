@@ -1507,13 +1507,12 @@ function _suiviUpdateIntvDate(id, val) {
 function _suiviAddIntervenant() {
   const p = _suiviGetActive(); if (!p) return;
   if (!p.interventions) p.interventions = { intervenants:[], rows:[] };
-  p.interventions.intervenants.push('Intervenant');
+  const resources = _suiviGetAllResources();
+  const used = new Set(p.interventions.intervenants);
+  const defaultName = resources.find(r => !used.has(r)) || resources[0] || 'Intervenant';
+  p.interventions.intervenants.push(defaultName);
   _suiviSave();
   _suiviRenderIntvTable();
-  setTimeout(() => {
-    const ins = document.querySelectorAll('.suivi-th-input');
-    if (ins.length) { ins[ins.length-1].focus(); ins[ins.length-1].select(); }
-  }, 50);
 }
 
 function _suiviRemoveIntervenant(idx) {
@@ -1759,14 +1758,18 @@ function _suiviRenderIntvThead() {
   const ints = p.interventions.intervenants;
   const thead = document.getElementById('suiviIntvThead');
   if (!thead) return;
+  const resources = _suiviGetAllResources();
+  const mkOptions = (current) => resources.length
+    ? resources.map(r => `<option value="${_suiviEsc(r)}"${r === current ? ' selected' : ''}>${_suiviEsc(r)}</option>`).join('')
+    : `<option value="${_suiviEsc(current)}">${_suiviEsc(current)}</option>`;
   thead.innerHTML = `<tr>
     <th style="width:185px">Date</th>
     ${ints.map((n, i) => `
       <th>
         <div class="suivi-th-wrap">
-          <input class="suivi-th-input" value="${_suiviEsc(n)}"
-            onblur="_suiviUpdateIntervenant(${i},this.value)"
-            onkeydown="if(event.key==='Enter')this.blur()">
+          <select class="suivi-th-select" onchange="_suiviUpdateIntervenant(${i},this.value)">
+            ${mkOptions(n)}
+          </select>
           <button class="suivi-btn-rm-intv" onclick="_suiviRemoveIntervenant(${i})" title="Supprimer">×</button>
         </div>
       </th>
