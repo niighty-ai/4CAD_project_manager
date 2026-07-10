@@ -1776,19 +1776,16 @@ function _suiviRenderIntvThead() {
   if (!thead) return;
   thead.innerHTML = `<tr>
     <th style="width:185px">Date</th>
-    ${ints.map((n, i) => {
-      const ini = _suiviInitials(n);
-      const col = _suiviRespPillColor(n);
-      return `<th>
+    ${ints.map((n, i) => `
+      <th>
         <div class="suivi-th-wrap">
           <div class="suivi-th-intv-btn" onclick="_suiviOpenIntvPicker(${i},this)" title="Changer l'intervenant">
-            <span class="suivi-resp-pill sm" style="background:${col}">${ini}</span>
             <span class="suivi-th-intv-name">${_suiviEsc(n)}</span>
           </div>
           <button class="suivi-btn-rm-intv" onclick="_suiviRemoveIntervenant(${i})" title="Supprimer">×</button>
         </div>
-      </th>`;
-    }).join('')}
+      </th>
+    `).join('')}
     <th class="suivi-th-add-intv"><button class="suivi-btn-add-col" onclick="_suiviAddIntervenant()">+ Intervenant</button></th>
     <th style="width:30px;background:var(--surface2);border-bottom:1px solid var(--border)"></th>
   </tr>`;
