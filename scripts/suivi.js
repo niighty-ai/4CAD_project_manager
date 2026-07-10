@@ -1759,8 +1759,12 @@ function _suiviRenderIntvThead() {
   const thead = document.getElementById('suiviIntvThead');
   if (!thead) return;
   const resources = _suiviGetAllResources();
-  const mkOptions = (current) => resources.length
-    ? resources.map(r => `<option value="${_suiviEsc(r)}"${r === current ? ' selected' : ''}>${_suiviEsc(r)}</option>`).join('')
+  const resourceSet = new Set(resources);
+  /* Ajouter les valeurs manuelles encore utilisées dans les intervenants mais absentes de la base */
+  const manualExtras = ints.filter(n => n && !resourceSet.has(n));
+  const allOptions = [...resources, ...manualExtras];
+  const mkOptions = (current) => allOptions.length
+    ? allOptions.map(r => `<option value="${_suiviEsc(r)}"${r === current ? ' selected' : ''}>${_suiviEsc(r)}</option>`).join('')
     : `<option value="${_suiviEsc(current)}">${_suiviEsc(current)}</option>`;
   thead.innerHTML = `<tr>
     <th style="width:185px">Date</th>
