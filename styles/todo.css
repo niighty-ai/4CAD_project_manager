@@ -1685,9 +1685,8 @@
 }
 .todo-ai-summary-edit:focus { border-color: var(--accent); }
 
-/* Ligne clé API */
+/* Ligne modèle IA */
 .todo-ai-key-row { font-size: 10px; color: var(--muted); }
-.todo-ai-key-link { color: var(--accent); cursor: pointer; text-decoration: underline; }
 
 /* Bouton IA dans le header de la liste de tâches */
 .todo-ai-trigger {
