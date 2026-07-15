@@ -1974,12 +1974,6 @@ tr:hover .suivi-ai-inline-btn,
   gap: 6px;
   flex-wrap: wrap;
 }
-.suivi-ai-key-link {
-  color: var(--accent);
-  cursor: pointer;
-  text-decoration: underline;
-  text-decoration-color: rgba(236,114,6,.4);
-}
 
 /* ── Review modal Suivi ── */
 .suivi-ai-review-modal {

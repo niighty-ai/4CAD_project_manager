@@ -2280,8 +2280,6 @@ async function _suiviOpenAiModal() {
             style="font-size:10px;padding:2px 4px;border:1px solid var(--border);border-radius:4px;background:var(--surface2);color:var(--muted)">
             <option value="">Chargement…</option>
           </select>
-          &middot;
-          <span class="suivi-ai-key-link" onclick="_suiviAiEditKey()">Modifier la clé API</span>
         </div>
       </div>
     </div>`;
@@ -2289,7 +2287,7 @@ async function _suiviOpenAiModal() {
   document.body.appendChild(overlay);
 
   if (typeof _aiKey === 'undefined' || !_aiKey()) {
-    _suiviAiSetStatus('Clé API manquante — cliquez sur "Modifier la clé API"', true);
+    _suiviAiSetStatus('Clé API manquante', true);
   }
   _suiviAiLoadModels();
   /* Retourne une Promise résolue après que le DOM est prêt (pour pré-remplissage externe) */
@@ -2528,14 +2526,6 @@ function _suiviAiConfirmReview() {
   _suiviRenderActionsTbody();
   document.getElementById('suiviAiReviewOverlay')?.remove();
   _suiviToast(`${toCreate.length} action(s) créée(s)`);
-}
-
-function _suiviAiEditKey() {
-  const key = prompt('Entrez votre clé API Gemini :', typeof _aiKey !== 'undefined' ? _aiKey() : '');
-  if (key === null) return;
-  const LS = typeof _AI_KEY_LS !== 'undefined' ? _AI_KEY_LS : 'todoGeminiKey';
-  localStorage.setItem(LS, key.trim());
-  _suiviAiSetStatus('Clé enregistrée.');
 }
 
 /* ═══════════════════════════════════════════

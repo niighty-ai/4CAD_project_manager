@@ -86,8 +86,6 @@ async function _todoOpenAiModal() {
                   style="font-size:10px;padding:2px 4px;border:1px solid var(--border);border-radius:4px;background:var(--surface2);color:var(--muted)">
             <option value="">Chargement des modèles…</option>
           </select>
-          &middot;
-          <span class="todo-ai-key-link" onclick="_aiEditKey()">Modifier la clé API</span>
         </div>
       </div>
     </div>`;
@@ -95,7 +93,7 @@ async function _todoOpenAiModal() {
   document.body.appendChild(overlay);
   setTimeout(() => document.getElementById('aiTranscript')?.focus(), 50);
 
-  if (!_aiKey()) { _aiSetStatus('Clé API manquante — cliquez sur "Modifier la clé API"', true); return; }
+  if (!_aiKey()) { _aiSetStatus('Clé API manquante', true); return; }
   _aiLoadModelSelector();
 }
 
@@ -113,7 +111,7 @@ async function _aiLoadModelSelector() {
     const models = await _aiFetchModels();
     if (!models.length) {
       select.innerHTML = '<option value="">Aucun modèle disponible</option>';
-      _aiSetStatus('Vérifiez votre clé API', true);
+      _aiSetStatus('Clé API invalide', true);
       return;
     }
     const saved = _aiModel();
@@ -444,18 +442,6 @@ async function _aiCall(prompt) {
 function _aiParseJson(text) {
   const m = text.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
   return JSON.parse(m ? m[1] : text.trim());
-}
-
-/* ── Mise à jour de la clé API ── */
-function _aiEditKey() {
-  const newKey = prompt('Clé API Google Gemini :', _aiKey());
-  if (newKey !== null && newKey.trim()) {
-    localStorage.setItem(_AI_KEY_LS, newKey.trim());
-    localStorage.removeItem(_AI_MODEL_LS);
-    _aiSetStatus('Chargement des modèles…');
-    document.getElementById('aiModelSelect').innerHTML = '<option value="">Chargement…</option>';
-    _aiLoadModelSelector();
-  }
 }
 
 /* ══════════════════════════════════════════════════════
