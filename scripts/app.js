@@ -446,3 +446,21 @@ document.addEventListener('keydown', e=>{
   if(e.key==='Escape') closeJalonPanel();
 }
 );
+
+/* ── Export des données To Do + Suivi (JSON, pour import dans une autre appli) ── */
+function _exportTodoSuiviData() {
+  const payload = {
+    exportedAt: new Date().toISOString(),
+    todo:  typeof _todoData   !== 'undefined' ? _todoData   : null,
+    suivi: typeof _suiviState !== 'undefined' ? _suiviState : null
+  };
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+  const a = Object.assign(document.createElement('a'), {
+    href:     URL.createObjectURL(blob),
+    download: `4cad-export-todo-suivi-${new Date().toISOString().slice(0, 10)}.json`
+  });
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+}
