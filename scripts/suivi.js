@@ -1595,7 +1595,8 @@ function _suiviToggleCellValide(rowId, name) {
   btn.className = 'suivi-btn-valid ' + (cur ? 'v-no' : 'v-yes');
 }
 
-function _suiviOnDurChange(eid, dur) {
+function _suiviOnDurChange(rowId, name, dur) {
+  const eid = `${rowId}-${CSS.escape(name)}`;
   const perSel = document.getElementById('suiviPer-' + eid);
   if (perSel) perSel.style.display = _suiviDurHasPeriod(dur) ? '' : 'none';
 }
@@ -1822,7 +1823,7 @@ function _suiviRenderIntvTbody() {
         <div class="suivi-intv-slot" id="suiviSlot-${eEid}">
           <span class="suivi-slot-text ${textClass}" onclick="_suiviOpenIntvEditor('${row.id}','${_suiviEsc(name)}')">${_suiviEsc(text)}</span>
           <div class="suivi-slot-controls">
-            <select class="suivi-intv-select" id="suiviDur-${eEid}" onchange="_suiviOnDurChange('${eEid}',this.value)">
+            <select class="suivi-intv-select" id="suiviDur-${eEid}" onchange="_suiviOnDurChange('${row.id}','${_suiviEsc(name)}',this.value)">
               ${_suiviDurOptsHtml(dur)}
             </select>
             <select class="suivi-intv-select" id="suiviPer-${eEid}" style="${_suiviDurHasPeriod(dur) ? '' : 'display:none'}">
